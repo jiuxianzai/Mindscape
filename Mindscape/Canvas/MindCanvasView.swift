@@ -181,7 +181,8 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
                 ids: editor.selection,
                 dragNodeID: dragNodeID,
                 dragOffset: dragOffset,
-                dropTargetID: dropTargetID
+                dropTargetID: dropTargetID,
+                editingNodeID: editingID
             ),
             in: context
         )
@@ -604,7 +605,8 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         field.alignment = level == 0 ? .center : .left
 
         let cell = CanvasTextFieldCell(textCell: replacement ?? node.text)
-        cell.horizontalInset = 10
+        cell.leadingInset = editingLeadingInset(for: node, level: level) * camera.zoom
+        cell.trailingInset = 8 * camera.zoom
         cell.font = screenFont
         cell.alignment = field.alignment
         cell.lineBreakMode = .byTruncatingTail
@@ -627,6 +629,7 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
 
         editField = field
         editingID = id
+        needsDisplay = true
         window?.makeFirstResponder(field)
 
         if let textView = field.currentEditor() as? NSTextView {
@@ -645,6 +648,12 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         } else {
             field.currentEditor()?.selectAll(nil)
         }
+    }
+
+    private func editingLeadingInset(for node: MindNode, level: Int) -> CGFloat {
+        guard level > 0 else { return 10 }
+        let iconWidth = node.icon == nil ? 0 : NodeMeasurer.iconSize(level: level) + NodeMeasurer.iconGap
+        return 14 + iconWidth
     }
 
     private func fillColor(for node: MindNode, level: Int) -> NSColor {
@@ -713,7 +722,10 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         field.frame = rect.insetBy(dx: 1, dy: 2)
         if let cell = field.cell as? CanvasTextFieldCell {
             cell.font = font
-            cell.horizontalInset = 10
+            if let node = editor?.map.node(id) {
+                cell.leadingInset = editingLeadingInset(for: node, level: min(level, 2)) * camera.zoom
+            }
+            cell.trailingInset = 8 * camera.zoom
         }
     }
 
@@ -744,10 +756,12 @@ private extension NSColor {
 }
 
 final class CanvasTextFieldCell: NSTextFieldCell {
-    var horizontalInset: CGFloat = 10
+    var leadingInset: CGFloat = 10
+    var trailingInset: CGFloat = 10
 
     private func centeredRect(forBounds rect: NSRect) -> NSRect {
-        let inset = rect.insetBy(dx: horizontalInset, dy: 0)
+        let width = max(rect.width - leadingInset - trailingInset, 10)
+        let inset = NSRect(x: rect.minX + leadingInset, y: rect.minY, width: width, height: rect.height)
         let lineHeight = ceil((font?.ascender ?? 14) + abs(font?.descender ?? -4)) + 2
         let height = min(inset.height, lineHeight)
         return NSRect(x: inset.minX, y: inset.midY - height / 2, width: max(inset.width, 10), height: max(height, 10))

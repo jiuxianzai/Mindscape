@@ -31,8 +31,7 @@ struct WorkspaceView: View {
             .inspector(isPresented: $showInspector) {
                 InspectorView(
                     editor: editor,
-                    onShowHistory: { showHistory = true },
-                    onClose: { showInspector = false }
+                    onShowHistory: { showHistory = true }
                 )
                 .inspectorColumnWidth(min: 250, ideal: 286, max: 360)
             }

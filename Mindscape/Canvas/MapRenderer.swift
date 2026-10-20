@@ -6,6 +6,8 @@ struct RenderSelection {
     var dragOffset: CGSize = .zero
     var dimmed: Set<UUID> = []
     var dropTargetID: UUID?
+    /// 正在内联编辑的节点：画布不再绘制它的文字和图标，避免与输入框重影
+    var editingNodeID: UUID?
 }
 
 enum MapRenderer {
@@ -193,6 +195,7 @@ enum MapRenderer {
                 selected: selection.ids.contains(id),
                 dimmed: selection.dimmed.contains(id),
                 dropTarget: selection.dropTargetID == id,
+                editing: selection.editingNodeID == id,
                 layout: layout
             )
         }
@@ -206,6 +209,7 @@ enum MapRenderer {
         selected: Bool,
         dimmed: Bool,
         dropTarget: Bool,
+        editing: Bool,
         layout: LayoutResult
     ) {
         var fill: NSColor
@@ -266,6 +270,9 @@ enum MapRenderer {
             ring.setLineDash([5, 3], count: 2, phase: 0)
             ring.stroke()
         }
+
+        // 编辑中由输入框负责绘制文字，画布跳过，避免重影
+        if editing { return }
 
         // 文本与图标
         let font = NodeMeasurer.font(level: level)
