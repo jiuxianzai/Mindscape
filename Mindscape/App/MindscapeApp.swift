@@ -5,7 +5,7 @@ struct MindscapeApp: App {
     @State private var app = AppModel()
 
     var body: some Scene {
-        WindowGroup {
+        Window("Mindscape", id: "main") {
             RootView()
                 .environment(app)
                 .frame(minWidth: 980, minHeight: 620)
@@ -20,5 +20,14 @@ struct MindscapeApp: App {
             SettingsView()
                 .environment(app)
         }
+
+        MenuBarExtra {
+            MenuBarContent()
+                .environment(app)
+        } label: {
+            Image(systemName: "point.3.filled.connected.trianglepath.dotted")
+                .accessibilityLabel("Mindscape")
+        }
+        .menuBarExtraStyle(.menu)
     }
 }

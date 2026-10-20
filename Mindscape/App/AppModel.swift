@@ -101,6 +101,12 @@ final class AppModel {
         documents.filter { $0.deletedAt != nil }
     }
 
+    var recentDocuments: [DocumentRecord] {
+        documents
+            .filter { $0.deletedAt == nil }
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
     var selectedRecord: DocumentRecord? {
         documents.first(where: { $0.id == selectedDocumentID })
     }
@@ -352,6 +358,13 @@ final class AppModel {
             selectedDocumentID = nil
             editor = nil
         }
+    }
+
+    func emptyTrash() {
+        for record in trashDocuments {
+            try? store.deletePermanently(record.id)
+        }
+        reload()
     }
 
     // MARK: - Data directory
