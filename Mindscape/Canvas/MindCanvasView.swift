@@ -16,10 +16,14 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
     private var layoutDocumentID: UUID?
     private var camera = CanvasCamera()
     private var lastFitToken: Int = -1
+    private var lastZoomToken: Int = 0
     private var hasFitted = false
+    private var fitBoundsSize: CGSize = .zero
+    private var userHasInteracted = false
 
     private var drag: DragState?
     private var dragOffset: CGSize = .zero
+    private var dropTargetID: UUID?
     private var editField: NSTextField?
     private var editingID: UUID?
 
@@ -49,12 +53,19 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
             layoutRevision = -1
             layoutDocumentID = nil
             lastFitToken = -1
+            lastZoomToken = 0
             hasFitted = false
+            fitBoundsSize = .zero
+            userHasInteracted = false
             camera = CanvasCamera()
             cancelEditing()
         }
         self.theme = theme
         rebuildLayoutIfNeeded()
+        if let activeEditor = self.editor, activeEditor.zoomToken != lastZoomToken {
+            lastZoomToken = activeEditor.zoomToken
+            zoom(by: activeEditor.zoomFactor, at: CGPoint(x: bounds.midX, y: bounds.midY))
+        }
         needsDisplay = true
     }
 
@@ -78,6 +89,10 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
     }
 
     func fitToContent() {
+        guard bounds.width >= 320, bounds.height >= 240 else {
+            hasFitted = false
+            return
+        }
         guard let layout = layoutResult, !layout.bounds.isEmpty else { return }
         let padding: CGFloat = 72
         let availableWidth = max(bounds.width - padding * 2, 100)
@@ -86,15 +101,23 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         camera.zoom = min(max(scale, CanvasCamera.minZoom), 1.35)
         camera.center = CGPoint(x: layout.bounds.midX, y: layout.bounds.midY)
         hasFitted = true
+        fitBoundsSize = bounds.size
         updateEditorFrame()
         needsDisplay = true
     }
 
     override func layout() {
         super.layout()
-        if bounds.width > 40, bounds.height > 40, !hasFitted {
-            rebuildLayoutIfNeeded(force: true)
-            fitToContent()
+        if bounds.width > 40, bounds.height > 40 {
+            if !hasFitted {
+                rebuildLayoutIfNeeded(force: true)
+                fitToContent()
+            } else if !userHasInteracted,
+                      fitBoundsSize.width > 0,
+                      bounds.width > fitBoundsSize.width * 1.25 {
+                rebuildLayoutIfNeeded(force: true)
+                fitToContent()
+            }
         }
         updateEditorFrame()
     }
@@ -157,7 +180,8 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
             selection: RenderSelection(
                 ids: editor.selection,
                 dragNodeID: dragNodeID,
-                dragOffset: dragOffset
+                dragOffset: dragOffset,
+                dropTargetID: dropTargetID
             ),
             in: context
         )
@@ -224,6 +248,7 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        userHasInteracted = true
         if editingID != nil { commitEditing() }
 
         let point = convert(event.locationInWindow, from: nil)
@@ -268,19 +293,17 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
             camera.center.y = startCenter.y - (point.y - startPoint.y) / camera.zoom
             updateEditorFrame()
             needsDisplay = true
-        case .node(_, _, _):
+        case .node(let id, let startPoint, _):
             dragOffset = CGSize(
-                width: (point.x - dragStartPoint(drag).x) / camera.zoom,
-                height: (point.y - dragStartPoint(drag).y) / camera.zoom
+                width: (point.x - startPoint.x) / camera.zoom,
+                height: (point.y - startPoint.y) / camera.zoom
             )
+            if editor?.map.layout != .free {
+                let world = viewToWorld(point)
+                let target = hitTest(worldPoint: world, excluding: id)
+                dropTargetID = target.flatMap { canDrop(id, on: $0) ? $0 : nil }
+            }
             needsDisplay = true
-        }
-    }
-
-    private func dragStartPoint(_ drag: DragState) -> CGPoint {
-        switch drag {
-        case .pan(let point, _): return point
-        case .node(_, let point, _): return point
         }
     }
 
@@ -289,6 +312,7 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         defer {
             self.drag = nil
             dragOffset = .zero
+            dropTargetID = nil
             needsDisplay = true
         }
         guard case .node(let id, _, let originalFrame) = drag else { return }
@@ -298,12 +322,36 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
                 let origin = CGPoint(x: originalFrame.minX + dragOffset.width, y: originalFrame.minY + dragOffset.height)
                 editor?.moveFreeNode(id: id, to: origin)
             }
-        } else {
-            let point = convert(event.locationInWindow, from: nil)
-            if let target = hitTest(viewPoint: point, excluding: id), let editor, editor.canMove(id, to: target) {
-                editor.move(id: id, to: target)
-            }
+            return
         }
+
+        guard let target = dropTargetID,
+              let editor,
+              let sourceNode = editor.map.node(id),
+              let targetNode = editor.map.node(target) else { return }
+
+        let point = convert(event.locationInWindow, from: nil)
+        let world = viewToWorld(point)
+        let targetFrame = layoutResult?.frames[target] ?? .zero
+        let relativeY = targetFrame.height > 0
+            ? (world.y - targetFrame.minY) / targetFrame.height
+            : 0.5
+        let onEdge = relativeY < 0.28 || relativeY > 0.72
+
+        if sourceNode.parentID == targetNode.parentID, onEdge {
+            editor.reorder(id: id, relativeTo: target, after: relativeY > 0.5)
+        } else if editor.canMove(id, to: target) {
+            editor.move(id: id, to: target)
+        } else if sourceNode.parentID == targetNode.parentID {
+            editor.reorder(id: id, relativeTo: target, after: relativeY > 0.5)
+        }
+    }
+
+    private func canDrop(_ id: UUID, on target: UUID) -> Bool {
+        guard let editor, id != target, id != editor.map.rootID else { return false }
+        guard let source = editor.map.node(id), let targetNode = editor.map.node(target) else { return false }
+        if source.parentID == targetNode.parentID { return true }
+        return editor.canMove(id, to: target)
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -358,7 +406,7 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
 
     @objc private func menuAddChild() {
         guard let id = editor?.selection.first, let newID = editor?.addChild(to: id) else { return }
-        beginEditing(newID)
+        focusNewNode(newID)
     }
 
     @objc private func menuEdit() {
@@ -384,6 +432,7 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
     // MARK: - Scrolling & zoom
 
     override func scrollWheel(with event: NSEvent) {
+        userHasInteracted = true
         if editingID != nil { commitEditing() }
         let point = convert(event.locationInWindow, from: nil)
 
@@ -401,12 +450,14 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
     }
 
     override func magnify(with event: NSEvent) {
+        userHasInteracted = true
         if editingID != nil { commitEditing() }
         let point = convert(event.locationInWindow, from: nil)
         zoom(by: 1 + event.magnification, at: point)
     }
 
     private func zoom(by factor: CGFloat, at viewPoint: CGPoint) {
+        userHasInteracted = true
         let before = viewToWorld(viewPoint)
         let next = min(max(camera.zoom * factor, CanvasCamera.minZoom), CanvasCamera.maxZoom)
         guard next != camera.zoom else { return }
@@ -426,41 +477,14 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
             return
         }
 
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if flags.contains(.command), let characters = event.charactersIgnoringModifiers {
-            switch characters {
-            case "=", "+":
-                zoom(by: 1.2, at: CGPoint(x: bounds.midX, y: bounds.midY))
-                return
-            case "-", "_":
-                zoom(by: 0.83, at: CGPoint(x: bounds.midX, y: bounds.midY))
-                return
-            case "0":
-                fitToContent()
-                return
-            default:
-                super.keyDown(with: event)
-                return
-            }
+        if let action = ShortcutStore.shared.action(for: event, scope: .canvas) {
+            perform(action, in: editor)
+            return
         }
 
         switch event.keyCode {
-        case 48: // Tab
-            if let id = editor.selection.first, let newID = editor.addChild(to: id) {
-                focusAndEdit(newID)
-            }
-        case 36, 76: // Return
-            if let id = editor.selection.first, let newID = editor.addSibling(after: id) {
-                focusAndEdit(newID)
-            }
-        case 51, 117: // Delete
-            editor.deleteSelection()
         case 53: // Esc
             editor.clearSelection()
-        case 49: // Space
-            if let id = editor.selection.first { editor.toggleCollapse(id) }
-        case 120: // F2
-            if let id = editor.selection.first { beginEditing(id) }
         case 123:
             navigate(dirX: -1, dirY: 0)
         case 124:
@@ -470,7 +494,44 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         case 126:
             navigate(dirX: 0, dirY: -1)
         default:
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if !flags.contains(.command), !flags.contains(.control), !flags.contains(.option),
+               let characters = event.characters,
+               let scalar = characters.unicodeScalars.first,
+               scalar.value >= 32,
+               let id = editor.selection.first {
+                beginEditing(id, replacingWith: characters)
+                return
+            }
             super.keyDown(with: event)
+        }
+    }
+
+    private func perform(_ action: ShortcutAction, in editor: MapEditor) {
+        switch action {
+        case .newChild:
+            let target = editor.selection.first ?? editor.map.rootID
+            if let newID = editor.addChild(to: target) {
+                focusNewNode(newID)
+            }
+        case .newSibling:
+            if let id = editor.selection.first, let newID = editor.addSibling(after: id) {
+                focusNewNode(newID)
+            } else if let newID = editor.addChild(to: editor.map.rootID) {
+                focusNewNode(newID)
+            }
+        case .editNode:
+            if let id = editor.selection.first {
+                beginEditing(id)
+            }
+        case .deleteNode:
+            editor.deleteSelection()
+        case .toggleCollapse:
+            if let id = editor.selection.first {
+                editor.toggleCollapse(id)
+            }
+        default:
+            break
         }
     }
 
@@ -501,10 +562,11 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         }
     }
 
-    private func focusAndEdit(_ id: UUID) {
+    private func focusNewNode(_ id: UUID) {
         rebuildLayoutIfNeeded(force: true)
         ensureVisible(id)
-        beginEditing(id)
+        editor?.select(id)
+        needsDisplay = true
     }
 
     private func ensureVisible(_ id: UUID) {
@@ -517,7 +579,7 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
 
     // MARK: - Inline editing
 
-    func beginEditing(_ id: UUID) {
+    func beginEditing(_ id: UUID, replacingWith replacement: String? = nil) {
         guard let editor, let node = editor.map.node(id) else { return }
         commitEditing()
         rebuildLayoutIfNeeded(force: true)
@@ -531,32 +593,46 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         let rect = worldRectToView(frame)
         let font = NodeMeasurer.font(level: level)
         let screenFont = NSFont(descriptor: font.fontDescriptor, size: max(font.pointSize * camera.zoom, 9)) ?? font
-        let height = max(24, screenFont.pointSize * 1.55)
 
-        let field = NSTextField(frame: CGRect(
-            x: rect.minX + 5,
-            y: rect.midY - height / 2,
-            width: max(rect.width - 10, 30),
-            height: height
-        ))
-        field.stringValue = node.text
+        let field = NSTextField(frame: rect.insetBy(dx: 1, dy: 2))
+        field.stringValue = replacement ?? node.text
         field.placeholderString = "输入主题"
         field.font = screenFont
         field.isBordered = false
+        field.isBezeled = false
         field.drawsBackground = true
         field.backgroundColor = fillColor(for: node, level: level)
         field.textColor = textColor(for: node, level: level)
         field.focusRingType = .none
         field.alignment = level == 0 ? .center : .left
-        field.usesSingleLineMode = true
-        field.lineBreakMode = .byTruncatingTail
+
+        let cell = CanvasTextFieldCell(textCell: "")
+        cell.horizontalInset = 10
+        cell.font = screenFont
+        cell.alignment = field.alignment
+        cell.lineBreakMode = .byTruncatingTail
+        cell.usesSingleLineMode = true
+        cell.isEditable = true
+        cell.isSelectable = true
+        cell.isScrollable = true
+        cell.drawsBackground = true
+        cell.backgroundColor = fillColor(for: node, level: level)
+        cell.textColor = textColor(for: node, level: level)
+        field.cell = cell
+        field.font = screenFont
+        field.backgroundColor = fillColor(for: node, level: level)
+        field.textColor = textColor(for: node, level: level)
         field.delegate = self
         addSubview(field)
 
         editField = field
         editingID = id
         window?.makeFirstResponder(field)
-        field.currentEditor()?.selectAll(nil)
+        if let replacement {
+            field.currentEditor()?.selectedRange = NSRange(location: (replacement as NSString).length, length: 0)
+        } else {
+            field.currentEditor()?.selectAll(nil)
+        }
     }
 
     private func fillColor(for node: MindNode, level: Int) -> NSColor {
@@ -622,13 +698,11 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         let baseFont = NodeMeasurer.font(level: min(level, 2))
         let font = NSFont(descriptor: baseFont.fontDescriptor, size: max(baseFont.pointSize * camera.zoom, 9)) ?? baseFont
         field.font = font
-        let height = max(24, font.pointSize * 1.55)
-        field.frame = CGRect(
-            x: rect.minX + 5,
-            y: rect.midY - height / 2,
-            width: max(rect.width - 10, 30),
-            height: height
-        )
+        field.frame = rect.insetBy(dx: 1, dy: 2)
+        if let cell = field.cell as? CanvasTextFieldCell {
+            cell.font = font
+            cell.horizontalInset = 10
+        }
     }
 
     // MARK: - NSTextFieldDelegate
@@ -654,5 +728,28 @@ private extension NSColor {
     var luminance: CGFloat {
         guard let color = usingColorSpace(.sRGB) else { return 1 }
         return 0.299 * color.redComponent + 0.587 * color.greenComponent + 0.114 * color.blueComponent
+    }
+}
+
+final class CanvasTextFieldCell: NSTextFieldCell {
+    var horizontalInset: CGFloat = 10
+
+    private func centeredRect(forBounds rect: NSRect) -> NSRect {
+        let inset = rect.insetBy(dx: horizontalInset, dy: 0)
+        let lineHeight = ceil((font?.ascender ?? 14) + abs(font?.descender ?? -4)) + 2
+        let height = min(inset.height, lineHeight)
+        return NSRect(x: inset.minX, y: inset.midY - height / 2, width: max(inset.width, 10), height: max(height, 10))
+    }
+
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        centeredRect(forBounds: rect)
+    }
+
+    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+        super.edit(withFrame: centeredRect(forBounds: rect), in: controlView, editor: textObj, delegate: delegate, event: event)
+    }
+
+    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
+        super.select(withFrame: centeredRect(forBounds: rect), in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
     }
 }

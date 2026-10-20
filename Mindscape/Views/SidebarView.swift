@@ -4,6 +4,11 @@ import SwiftUI
 struct SidebarView: View {
     @Environment(AppModel.self) private var app
     @State private var showTrash = false
+    @State private var renamingFolder: FolderRecord?
+    @State private var renameText = ""
+    @State private var deletingFolder: FolderRecord?
+
+    private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
 
     var body: some View {
         @Bindable var app = app
@@ -11,29 +16,87 @@ struct SidebarView: View {
             header
             scopePicker
             searchField
-            documentList
+            content
             Divider()
             footer
         }
         .sheet(isPresented: $showTrash) {
             TrashView()
         }
+        .alert("重命名目录", isPresented: renameBinding) {
+            TextField("目录名称", text: $renameText)
+            Button("保存") {
+                if let folder = renamingFolder {
+                    app.renameFolder(folder.id, to: renameText)
+                }
+                renamingFolder = nil
+            }
+            Button("取消", role: .cancel) {
+                renamingFolder = nil
+            }
+        }
+        .alert("删除目录？", isPresented: deleteBinding) {
+            Button("删除", role: .destructive) {
+                if let folder = deletingFolder {
+                    app.deleteFolder(folder.id)
+                }
+                deletingFolder = nil
+            }
+            Button("取消", role: .cancel) {
+                deletingFolder = nil
+            }
+        } message: {
+            Text("目录中的导图和子目录会移动到上一级，不会删除内容。")
+        }
     }
+
+    private var renameBinding: Binding<Bool> {
+        Binding(
+            get: { renamingFolder != nil },
+            set: { if !$0 { renamingFolder = nil } }
+        )
+    }
+
+    private var deleteBinding: Binding<Bool> {
+        Binding(
+            get: { deletingFolder != nil },
+            set: { if !$0 { deletingFolder = nil } }
+        )
+    }
+
+    // MARK: - Header
 
     private var header: some View {
         HStack(spacing: 9) {
-            Image(nsImage: NSApplication.shared.applicationIconImage)
+            Image("BrandMark")
                 .resizable()
                 .interpolation(.high)
                 .frame(width: 27, height: 27)
             Text("Mindscape")
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
             Spacer()
+
+            Button {
+                createRootFolder()
+            } label: {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .frame(width: 24, height: 24)
+                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help("新建目录")
+
             Menu {
                 Button {
                     app.createDocument(template: .blank)
                 } label: {
-                    Label("空白导图", systemImage: "circle.dashed")
+                    Label("新建导图", systemImage: "doc.badge.plus")
+                }
+                Button {
+                    createRootFolder()
+                } label: {
+                    Label("新建目录", systemImage: "folder.badge.plus")
                 }
                 Divider()
                 ForEach(MapTemplate.allCases.filter { $0 != .blank }) { template in
@@ -99,33 +162,16 @@ struct SidebarView: View {
         .padding(.bottom, 8)
     }
 
-    private var documentList: some View {
+    // MARK: - Content
+
+    @ViewBuilder
+    private var content: some View {
         ScrollView {
-            LazyVStack(spacing: 2) {
-                if app.visibleDocuments.isEmpty {
-                    VStack(spacing: 6) {
-                        Text(app.scope == .starred ? "还没有收藏的导图" : "还没有导图")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 26)
+            LazyVStack(spacing: 1) {
+                if app.scope == .starred || app.isSearching {
+                    flatList
                 } else {
-                    ForEach(app.visibleDocuments) { record in
-                        DocumentRow(record: record, selected: record.id == app.selectedDocumentID)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                app.selectDocument(record.id)
-                            }
-                            .contextMenu {
-                                Button(record.starred ? "取消收藏" : "收藏") {
-                                    app.toggleStar(record.id)
-                                }
-                                Button("移到回收站", role: .destructive) {
-                                    app.trashDocument(record.id)
-                                }
-                            }
-                    }
+                    folderTree
                 }
             }
             .padding(.horizontal, 8)
@@ -133,6 +179,56 @@ struct SidebarView: View {
         }
         .scrollIndicators(.never)
     }
+
+    @ViewBuilder
+    private var flatList: some View {
+        if app.visibleDocuments.isEmpty {
+            emptyMessage(app.isSearching ? "没有找到匹配的导图" : "还没有收藏的导图")
+        } else {
+            ForEach(app.visibleDocuments) { record in
+                DocumentTreeRow(record: record, depth: 0)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var folderTree: some View {
+        if app.rootFolders.isEmpty, app.rootDocuments.isEmpty {
+            emptyMessage("还没有导图")
+        } else {
+            ForEach(app.rootFolders) { folder in
+                FolderSubtreeView(
+                    folderID: folder.id,
+                    depth: 0,
+                    onRename: { folder in
+                        renamingFolder = folder
+                        renameText = folder.name
+                    },
+                    onDelete: { folder in
+                        deletingFolder = folder
+                    }
+                )
+            }
+            ForEach(app.rootDocuments) { record in
+                DocumentTreeRow(record: record, depth: 0)
+            }
+        }
+    }
+
+    private func emptyMessage(_ text: String) -> some View {
+        VStack(spacing: 6) {
+            Text(text)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            Text("点击右上角 + 新建")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 28)
+    }
+
+    // MARK: - Footer
 
     private var footer: some View {
         HStack(spacing: 14) {
@@ -167,11 +263,190 @@ struct SidebarView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
     }
+
+    private func createRootFolder() {
+        guard let id = app.createFolder(parentID: nil),
+              let folder = app.folders.first(where: { $0.id == id }) else { return }
+        renamingFolder = folder
+        renameText = folder.name
+    }
+}
+
+// MARK: - Folder subtree
+
+struct FolderSubtreeView: View {
+    @Environment(AppModel.self) private var app
+    let folderID: UUID
+    let depth: Int
+    let onRename: (FolderRecord) -> Void
+    let onDelete: (FolderRecord) -> Void
+
+    private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
+
+    var body: some View {
+        if let folder = app.folders.first(where: { $0.id == folderID }) {
+            folderRow(folder)
+            if app.expandedFolders.contains(folderID) {
+                ForEach(app.childFolders(of: folderID)) { child in
+                    FolderSubtreeView(
+                        folderID: child.id,
+                        depth: depth + 1,
+                        onRename: onRename,
+                        onDelete: onDelete
+                    )
+                }
+                ForEach(app.documents(in: folderID)) { record in
+                    DocumentTreeRow(record: record, depth: depth + 1)
+                }
+            }
+        }
+    }
+
+    private func folderRow(_ folder: FolderRecord) -> some View {
+        FolderRowView(
+            folder: folder,
+            depth: depth,
+            onRename: onRename,
+            onDelete: onDelete
+        )
+    }
+}
+
+struct FolderRowView: View {
+    @Environment(AppModel.self) private var app
+    let folder: FolderRecord
+    let depth: Int
+    let onRename: (FolderRecord) -> Void
+    let onDelete: (FolderRecord) -> Void
+
+    @State private var dropTargeted = false
+
+    private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
+
+    var body: some View {
+        let expanded = app.expandedFolders.contains(folder.id)
+        let selected = app.selectedFolderID == folder.id
+        let count = app.documentCount(in: folder.id)
+
+        HStack(spacing: 6) {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.secondary)
+                .rotationEffect(.degrees(expanded ? 90 : 0))
+                .frame(width: 10)
+
+            Image(systemName: expanded ? "folder.fill" : "folder")
+                .font(.system(size: 11.5))
+                .foregroundStyle(accent.opacity(0.85))
+
+            Text(folder.name)
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            if count > 0 {
+                Text("\(count)")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.leading, 8 + CGFloat(depth) * 14)
+        .padding(.trailing, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(selected ? accent.opacity(0.07) : (dropTargeted ? accent.opacity(0.14) : Color.clear))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(dropTargeted ? accent.opacity(0.55) : Color.clear, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            app.toggleFolder(folder.id)
+        }
+        .contextMenu {
+            Button("在此新建导图") {
+                app.selectedFolderID = folder.id
+                app.createDocument(template: .blank)
+            }
+            Button("新建子目录") {
+                if let id = app.createFolder(parentID: folder.id),
+                   let child = app.folders.first(where: { $0.id == id }) {
+                    onRename(child)
+                }
+            }
+            Divider()
+            Button("重命名") {
+                onRename(folder)
+            }
+            Button("删除目录", role: .destructive) {
+                onDelete(folder)
+            }
+        }
+        .dropDestination(for: String.self) { items, _ in
+            guard let value = items.first, let documentID = UUID(uuidString: value) else { return false }
+            app.moveDocument(documentID, to: folder.id)
+            app.expandFolder(folder.id)
+            return true
+        } isTargeted: { targeted in
+            withAnimation(.easeOut(duration: 0.12)) {
+                dropTargeted = targeted
+            }
+        }
+    }
+}
+
+// MARK: - Document row
+
+struct DocumentTreeRow: View {
+    @Environment(AppModel.self) private var app
+    let record: DocumentRecord
+    let depth: Int
+
+    var body: some View {
+        DocumentRow(
+            record: record,
+            selected: record.id == app.selectedDocumentID,
+            indent: CGFloat(depth) * 14
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            app.selectDocument(record.id)
+        }
+        .contextMenu {
+            Button(record.starred ? "取消收藏" : "收藏") {
+                app.toggleStar(record.id)
+            }
+
+            Menu("移动到") {
+                Button("根目录") {
+                    app.moveDocument(record.id, to: nil)
+                }
+                if !app.folders.isEmpty {
+                    Divider()
+                    ForEach(app.folders) { folder in
+                        Button(app.folderPath(for: folder.id)) {
+                            app.moveDocument(record.id, to: folder.id)
+                        }
+                    }
+                }
+            }
+
+            Divider()
+            Button("移到回收站", role: .destructive) {
+                app.trashDocument(record.id)
+            }
+        }
+        .draggable(record.id.uuidString)
+    }
 }
 
 struct DocumentRow: View {
     let record: DocumentRecord
     var selected: Bool = false
+    var indent: CGFloat = 0
 
     private var theme: MapTheme { MapTheme.byID(record.themeID) }
 
@@ -204,7 +479,8 @@ struct DocumentRow: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 8)
+        .padding(.leading, 8 + indent)
+        .padding(.trailing, 8)
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -217,6 +493,8 @@ struct DocumentRow: View {
         .contentShape(Rectangle())
     }
 }
+
+// MARK: - Trash
 
 struct TrashView: View {
     @Environment(AppModel.self) private var app

@@ -155,10 +155,7 @@ enum ExportService {
             guard let node = map.node(id) else { return }
             let indent = String(repeating: "  ", count: depth)
             let text = node.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            var line = "\(indent)- \(text.isEmpty ? "未命名" : text)"
-            if let emoji = node.emoji, !emoji.isEmpty {
-                line = "\(indent)- \(emoji) \(text)"
-            }
+            let line = "\(indent)- \(text.isEmpty ? "未命名" : text)"
             lines.append(line)
             let note = node.note.trimmingCharacters(in: .whitespacesAndNewlines)
             if !note.isEmpty {

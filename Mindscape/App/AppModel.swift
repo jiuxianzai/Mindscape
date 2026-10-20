@@ -12,26 +12,41 @@ enum LibraryScope: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class AppModel {
-    let store: DocumentStore
+    private(set) var store: DocumentStore
     var documents: [DocumentRecord] = []
+    var folders: [FolderRecord] = []
     var selectedDocumentID: UUID?
+    var selectedFolderID: UUID?
+    var expandedFolders: Set<UUID> = []
     var editor: MapEditor?
     var searchText: String = ""
     var scope: LibraryScope = .all
-    var showInspector: Bool = true
     var startupError: String?
 
+    let shortcuts = ShortcutStore.shared
+
+    private var didExpandInitialFolders = false
     private var observers: [NSObjectProtocol] = []
 
     init() {
         let resolved: DocumentStore
         var errorMessage: String?
+
         do {
             resolved = try DocumentStore()
         } catch {
-            resolved = try! DocumentStore(inMemory: true)
-            errorMessage = "本地数据库打开失败，本次修改不会保存：\(error.localizedDescription)"
+            let configured = DocumentStore.configuredDirectory
+            if configured != DocumentStore.defaultDirectory,
+               let fallback = try? DocumentStore(directory: DocumentStore.defaultDirectory) {
+                resolved = fallback
+                UserDefaults.standard.removeObject(forKey: "dataDirectory")
+                errorMessage = "自定义数据目录无法打开，已切换到默认目录。\n\(error.localizedDescription)"
+            } else {
+                resolved = try! DocumentStore(inMemory: true)
+                errorMessage = "本地数据库打开失败，本次修改不会保存：\(error.localizedDescription)"
+            }
         }
+
         store = resolved
         startupError = errorMessage
 
@@ -88,14 +103,103 @@ final class AppModel {
         documents.first(where: { $0.id == selectedDocumentID })
     }
 
+    var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    // MARK: - Folder tree
+
+    var rootFolders: [FolderRecord] {
+        folders
+            .filter { $0.parentID == nil }
+            .sorted { ($0.sortOrder, $0.createdAt) < ($1.sortOrder, $1.createdAt) }
+    }
+
+    func childFolders(of id: UUID) -> [FolderRecord] {
+        folders
+            .filter { $0.parentID == id }
+            .sorted { ($0.sortOrder, $0.createdAt) < ($1.sortOrder, $1.createdAt) }
+    }
+
+    func documents(in folderID: UUID?) -> [DocumentRecord] {
+        documents
+            .filter { $0.deletedAt == nil && $0.folderID == folderID }
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    var rootDocuments: [DocumentRecord] {
+        let known = Set(folders.map(\.id))
+        return documents
+            .filter { $0.deletedAt == nil && ($0.folderID == nil || !known.contains($0.folderID!)) }
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func documentCount(in folderID: UUID) -> Int {
+        var total = documents(in: folderID).count
+        for child in childFolders(of: folderID) {
+            total += documentCount(in: child.id)
+        }
+        return total
+    }
+
+    func folderPath(for id: UUID) -> String {
+        var parts: [String] = []
+        var current = folders.first(where: { $0.id == id })
+        var guardCount = 0
+        while let folder = current, guardCount < 64 {
+            parts.insert(folder.name, at: 0)
+            current = folder.parentID.flatMap { parentID in folders.first(where: { $0.id == parentID }) }
+            guardCount += 1
+        }
+        return parts.joined(separator: " / ")
+    }
+
+    func toggleFolder(_ id: UUID) {
+        if expandedFolders.contains(id) {
+            expandedFolders.remove(id)
+        } else {
+            expandedFolders.insert(id)
+        }
+        selectedFolderID = id
+    }
+
+    func expandFolder(_ id: UUID) {
+        expandedFolders.insert(id)
+    }
+
+    func expandAncestors(of id: UUID?) {
+        guard let id else { return }
+        expandedFolders.insert(id)
+        var current = folders.first(where: { $0.id == id })
+        var guardCount = 0
+        while let parentID = current?.parentID, guardCount < 64 {
+            expandedFolders.insert(parentID)
+            current = folders.first(where: { $0.id == parentID })
+            guardCount += 1
+        }
+    }
+
+    // MARK: - Reload
+
     func reload() {
+        folders = (try? store.folders()) ?? []
         documents = (try? store.list(includeDeleted: true)) ?? []
+
+        if !didExpandInitialFolders {
+            expandedFolders.formUnion(folders.map(\.id))
+            didExpandInitialFolders = true
+        }
+        if let selectedFolderID, !folders.contains(where: { $0.id == selectedFolderID }) {
+            self.selectedFolderID = nil
+        }
     }
 
     private func refreshQuietly() {
-        let previousSelection = selectedDocumentID
-        documents = (try? store.list(includeDeleted: true)) ?? []
-        selectedDocumentID = previousSelection
+        let document = selectedDocumentID
+        let folder = selectedFolderID
+        reload()
+        selectedDocumentID = document
+        selectedFolderID = folder
     }
 
     // MARK: - Opening
@@ -109,6 +213,13 @@ final class AppModel {
             editor = nil
             return
         }
+
+        let record = documents.first(where: { $0.id == id })
+        if let folderID = record?.folderID {
+            selectedFolderID = folderID
+            expandAncestors(of: folderID)
+        }
+
         let newEditor = MapEditor(map: map, store: store)
         newEditor.onSaved = { [weak self] in
             self?.refreshQuietly()
@@ -125,18 +236,71 @@ final class AppModel {
         map.title = uniqueTitle(for: template.title)
         map.createdAt = Date()
         map.updatedAt = Date()
+
         do {
-            try store.save(map)
+            try store.save(map, folderID: selectedFolderID)
         } catch {
             startupError = error.localizedDescription
             return
         }
+
         reload()
+        if let folderID = selectedFolderID {
+            expandAncestors(of: folderID)
+        }
         selectDocument(map.id)
     }
 
     func createBlank() {
         createDocument(template: .blank)
+    }
+
+    @discardableResult
+    func createFolder(parentID: UUID?) -> UUID? {
+        guard let folder = try? store.createFolder(name: "新建目录", parentID: parentID) else {
+            return nil
+        }
+        if let parentID {
+            expandedFolders.insert(parentID)
+        }
+        expandedFolders.insert(folder.id)
+        selectedFolderID = folder.id
+        reload()
+        selectedFolderID = folder.id
+        return folder.id
+    }
+
+    func renameFolder(_ id: UUID, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        try? store.renameFolder(id, name: trimmed)
+        reload()
+    }
+
+    func deleteFolder(_ id: UUID) {
+        do {
+            let parent = try store.deleteFolder(id)
+            expandedFolders.remove(id)
+            selectedFolderID = parent
+            reload()
+        } catch {
+            startupError = error.localizedDescription
+        }
+    }
+
+    func moveDocument(_ id: UUID, to folderID: UUID?) {
+        do {
+            try store.setFolder(documentID: id, folderID: folderID)
+            reload()
+            if let folderID {
+                expandAncestors(of: folderID)
+            }
+            if selectedDocumentID == id {
+                selectedFolderID = folderID
+            }
+        } catch {
+            startupError = error.localizedDescription
+        }
     }
 
     private func uniqueTitle(for base: String) -> String {
@@ -186,6 +350,45 @@ final class AppModel {
             selectedDocumentID = nil
             editor = nil
         }
+    }
+
+    // MARK: - Data directory
+
+    func switchDataDirectory(to directory: URL, useExisting: Bool) -> String? {
+        let oldStore = store
+        editor?.saveNow()
+        editor = nil
+
+        do {
+            if !useExisting {
+                try oldStore.exportDatabase(to: directory)
+            }
+            let newStore = try DocumentStore(directory: directory)
+            UserDefaults.standard.set(directory.path, forKey: "dataDirectory")
+            store = newStore
+            selectedDocumentID = nil
+            selectedFolderID = nil
+            expandedFolders = []
+            didExpandInitialFolders = false
+            reload()
+            if let first = documents.first {
+                selectDocument(first.id)
+            }
+            return nil
+        } catch {
+            if let first = documents.first {
+                selectDocument(first.id)
+            }
+            return error.localizedDescription
+        }
+    }
+
+    func resetDataDirectory() -> String? {
+        let defaultDirectory = DocumentStore.defaultDirectory
+        let hasExisting = FileManager.default.fileExists(
+            atPath: defaultDirectory.appendingPathComponent("mindscape.sqlite").path
+        )
+        return switchDataDirectory(to: defaultDirectory, useExisting: hasExisting)
     }
 
     // MARK: - Export

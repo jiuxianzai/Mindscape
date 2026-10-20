@@ -17,7 +17,7 @@ struct EmptyStateView: View {
             ScrollView {
                 VStack(spacing: 30) {
                     VStack(spacing: 10) {
-                        Image(nsImage: NSApplication.shared.applicationIconImage)
+                        Image("BrandMark")
                             .resizable()
                             .interpolation(.high)
                             .frame(width: 64, height: 64)

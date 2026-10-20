@@ -22,18 +22,31 @@ struct WorkspaceView: View {
     @Environment(AppModel.self) private var app
     @Bindable var editor: MapEditor
     @State private var showHistory = false
+    @State private var showInspector = true
 
     var body: some View {
         @Bindable var app = app
         MapCanvasRepresentable(editor: editor, revision: editor.revision, themeID: editor.map.themeID)
             .background(Color(nsColor: editor.theme.background))
-            .inspector(isPresented: $app.showInspector) {
-                InspectorView(editor: editor, onShowHistory: { showHistory = true })
-                    .inspectorColumnWidth(min: 250, ideal: 286, max: 350)
+            .inspector(isPresented: $showInspector) {
+                InspectorView(
+                    editor: editor,
+                    onShowHistory: { showHistory = true },
+                    onClose: { showInspector = false }
+                )
+                .inspectorColumnWidth(min: 250, ideal: 286, max: 360)
             }
             .toolbar { toolbarContent }
             .sheet(isPresented: $showHistory) {
                 HistoryView(editor: editor)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .mindscapeShowHistory)) { _ in
+                showHistory = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .mindscapeToggleInspector)) { _ in
+                withAnimation(.easeOut(duration: 0.16)) {
+                    showInspector.toggle()
+                }
             }
             .navigationTitle("")
     }
@@ -47,7 +60,9 @@ struct WorkspaceView: View {
             ))
             .textFieldStyle(.plain)
             .font(.system(size: 13.5, weight: .semibold))
-            .frame(width: 190)
+            .frame(width: 200)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
         }
 
         ToolbarItemGroup(placement: .primaryAction) {
@@ -110,7 +125,9 @@ struct WorkspaceView: View {
             .help("导出")
 
             Button {
-                app.showInspector.toggle()
+                withAnimation(.easeOut(duration: 0.16)) {
+                    showInspector.toggle()
+                }
             } label: {
                 Label("属性", systemImage: "sidebar.right")
             }

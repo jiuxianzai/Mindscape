@@ -8,6 +8,8 @@ final class MapEditor {
     var selection: Set<UUID> = []
     private(set) var revision: Int = 0
     private(set) var fitToken: Int = 0
+    private(set) var zoomToken: Int = 0
+    private(set) var zoomFactor: CGFloat = 1
     private(set) var lastSavedAt: Date?
     private(set) var saveError: String?
 
@@ -61,7 +63,7 @@ final class MapEditor {
     func addChild(to parentID: UUID) -> UUID? {
         guard map.node(parentID) != nil else { return nil }
         var node = MindNode(parentID: parentID, text: "新主题", order: nextOrder(parentID))
-        node.emoji = nil
+        node.icon = nil
         mutate { map in
             if let index = map.nodes.firstIndex(where: { $0.id == parentID }) {
                 map.nodes[index].collapsed = false
@@ -155,6 +157,28 @@ final class MapEditor {
         }
     }
 
+    func reorder(id: UUID, relativeTo targetID: UUID, after: Bool) {
+        guard id != map.rootID, id != targetID,
+              let node = map.node(id),
+              let target = map.node(targetID),
+              node.parentID == target.parentID,
+              let parentID = node.parentID else { return }
+
+        let siblings = map.children(of: parentID).map(\.id)
+        guard siblings.contains(id), siblings.contains(targetID) else { return }
+
+        mutate { map in
+            var ids = siblings.filter { $0 != id }
+            guard let index = ids.firstIndex(of: targetID) else { return }
+            ids.insert(id, at: after ? index + 1 : index)
+            for (order, siblingID) in ids.enumerated() {
+                if let nodeIndex = map.nodes.firstIndex(where: { $0.id == siblingID }) {
+                    map.nodes[nodeIndex].order = order
+                }
+            }
+        }
+    }
+
     // MARK: - Node content
 
     func setText(_ text: String, for id: UUID) {
@@ -183,11 +207,11 @@ final class MapEditor {
         lastTextEditAt = now
     }
 
-    func setEmoji(_ emoji: String?, for id: UUID) {
-        guard let node = map.node(id), node.emoji != emoji else { return }
+    func setIcon(_ icon: String?, for id: UUID) {
+        guard let node = map.node(id), node.icon != icon else { return }
         mutate { map in
             if let index = map.nodes.firstIndex(where: { $0.id == id }) {
-                map.nodes[index].emoji = emoji
+                map.nodes[index].icon = icon
             }
         }
     }
@@ -228,6 +252,12 @@ final class MapEditor {
 
     func requestFit() {
         fitToken += 1
+        revision += 1
+    }
+
+    func requestZoom(_ factor: CGFloat) {
+        zoomFactor = factor
+        zoomToken += 1
         revision += 1
     }
 

@@ -3,23 +3,72 @@ import SwiftUI
 struct InspectorView: View {
     @Bindable var editor: MapEditor
     var onShowHistory: () -> Void = {}
+    var onClose: () -> Void = {}
 
     private var selectedNode: MindNode? {
         guard editor.selection.count == 1, let id = editor.selection.first else { return nil }
         return editor.map.node(id)
     }
 
+    private let iconChoices: [(String, String)] = [
+        ("lightbulb", "想法"),
+        ("star.fill", "重点"),
+        ("flag.fill", "目标"),
+        ("checkmark.circle.fill", "完成"),
+        ("exclamationmark.triangle.fill", "风险"),
+        ("pin.fill", "固定"),
+        ("heart.fill", "喜欢"),
+        ("flame.fill", "紧急"),
+        ("bolt.fill", "灵感"),
+        ("book.fill", "资料"),
+        ("person.fill", "人物"),
+        ("calendar", "时间"),
+        ("link", "链接"),
+        ("paperclip", "附件"),
+        ("dollarsign.circle.fill", "预算"),
+        ("clock.fill", "提醒"),
+        ("target", "指标"),
+        ("chart.bar.fill", "数据"),
+        ("gearshape.fill", "设置"),
+        ("envelope.fill", "邮件")
+    ]
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                if let node = selectedNode {
-                    nodeSection(node)
-                } else {
-                    documentSection
+        VStack(spacing: 0) {
+            HStack {
+                Text("属性")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.4)
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20, height: 20)
+                        .background(Color.primary.opacity(0.06), in: Circle())
+                        .contentShape(Circle())
                 }
+                .buttonStyle(.plain)
+                .help("收起属性面板")
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    if let node = selectedNode {
+                        nodeSection(node)
+                    } else {
+                        documentSection
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.32))
         .frame(minWidth: 250)
@@ -56,21 +105,38 @@ struct InspectorView: View {
         }
 
         VStack(alignment: .leading, spacing: 9) {
-            sectionLabel("图标")
-            HStack(spacing: 6) {
-                ForEach(["💡", "⭐️", "🚀", "✅", "⚠️", "📌", "❤️", "🔥"], id: \.self) { emoji in
+            HStack {
+                sectionLabel("图标")
+                Spacer()
+                if node.icon != nil {
+                    Button("清除") {
+                        editor.setIcon(nil, for: node.id)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                }
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 5), count: 6), spacing: 5) {
+                ForEach(iconChoices, id: \.0) { choice in
                     Button {
-                        editor.setEmoji(node.emoji == emoji ? nil : emoji, for: node.id)
+                        editor.setIcon(node.icon == choice.0 ? nil : choice.0, for: node.id)
                     } label: {
-                        Text(emoji)
-                            .font(.system(size: 15))
-                            .frame(width: 25, height: 25)
+                        Image(systemName: choice.0)
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundStyle(node.icon == choice.0
+                                             ? Color(nsColor: NSColor(hex: "#C26A4A"))
+                                             : Color.primary.opacity(0.72))
+                            .frame(width: 28, height: 28)
                             .background(
                                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(node.emoji == emoji ? Color(nsColor: NSColor(hex: "#C26A4A")).opacity(0.16) : Color.primary.opacity(0.04))
+                                    .fill(node.icon == choice.0
+                                          ? Color(nsColor: NSColor(hex: "#C26A4A")).opacity(0.15)
+                                          : Color.primary.opacity(0.04))
                             )
                     }
                     .buttonStyle(.plain)
+                    .help(choice.1)
                 }
             }
         }

@@ -5,6 +5,7 @@ struct RenderSelection {
     var dragNodeID: UUID?
     var dragOffset: CGSize = .zero
     var dimmed: Set<UUID> = []
+    var dropTargetID: UUID?
 }
 
 enum MapRenderer {
@@ -184,7 +185,16 @@ enum MapRenderer {
                 rect.origin.y += selection.dragOffset.height
             }
             let level = min(layout.depths[id] ?? 0, 2)
-            drawNode(node: node, rect: rect, level: level, theme: theme, selected: selection.ids.contains(id), dimmed: selection.dimmed.contains(id), layout: layout)
+            drawNode(
+                node: node,
+                rect: rect,
+                level: level,
+                theme: theme,
+                selected: selection.ids.contains(id),
+                dimmed: selection.dimmed.contains(id),
+                dropTarget: selection.dropTargetID == id,
+                layout: layout
+            )
         }
     }
 
@@ -195,6 +205,7 @@ enum MapRenderer {
         theme: MapTheme,
         selected: Bool,
         dimmed: Bool,
+        dropTarget: Bool,
         layout: LayoutResult
     ) {
         var fill: NSColor
@@ -248,7 +259,15 @@ enum MapRenderer {
             ring.stroke()
         }
 
-        // 文本
+        if dropTarget {
+            let ring = NSBezierPath(roundedRect: rect.insetBy(dx: -5, dy: -5), xRadius: radius + 4, yRadius: radius + 4)
+            theme.accent.withAlphaComponent(0.85).setStroke()
+            ring.lineWidth = 2
+            ring.setLineDash([5, 3], count: 2, phase: 0)
+            ring.stroke()
+        }
+
+        // 文本与图标
         let font = NodeMeasurer.font(level: level)
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byWordWrapping
@@ -260,15 +279,34 @@ enum MapRenderer {
         ]
         let string = NSAttributedString(string: NodeMeasurer.displayText(node), attributes: attributes)
         let horizontalPadding: CGFloat = level == 0 ? 17 : 14
-        let contentWidth = max(rect.width - horizontalPadding * 2, 10)
+        let iconSize = node.icon == nil ? 0 : NodeMeasurer.iconSize(level: level)
+        let iconGap = node.icon == nil ? 0 : NodeMeasurer.iconGap
+        let contentWidth = max(rect.width - horizontalPadding * 2 - iconSize - iconGap, 10)
         let measured = string.boundingRect(
             with: CGSize(width: contentWidth, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
+
+        let groupWidth = iconSize + iconGap + measured.width
+        let startX = level == 0 ? rect.midX - groupWidth / 2 : rect.minX + horizontalPadding
+        var textX = startX
+
+        if let iconName = node.icon,
+           let image = symbolImage(name: iconName, size: iconSize, color: textColor, alpha: alpha) {
+            let iconRect = CGRect(
+                x: startX,
+                y: rect.midY - iconSize / 2,
+                width: iconSize,
+                height: iconSize
+            )
+            image.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1)
+            textX += iconSize + iconGap
+        }
+
         let textRect = CGRect(
-            x: rect.minX + horizontalPadding,
+            x: textX,
             y: rect.midY - measured.height / 2,
-            width: contentWidth,
+            width: level == 0 ? max(measured.width, 10) : contentWidth,
             height: measured.height + 2
         )
         string.draw(with: textRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
@@ -298,6 +336,13 @@ enum MapRenderer {
             let size = badgeString.size()
             badgeString.draw(at: CGPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
         }
+    }
+
+    private static func symbolImage(name: String, size: CGFloat, color: NSColor, alpha: CGFloat) -> NSImage? {
+        guard let base = NSImage(systemSymbolName: name, accessibilityDescription: nil) else { return nil }
+        let configuration = NSImage.SymbolConfiguration(pointSize: size, weight: .medium)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [color.withAlphaComponent(alpha)]))
+        return base.withSymbolConfiguration(configuration)
     }
 
     private static func descendantCount(of id: UUID, layout: LayoutResult) -> Int {

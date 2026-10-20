@@ -21,13 +21,19 @@ enum NodeMeasurer {
         return base
     }
 
+    static func iconSize(level: Int) -> CGFloat {
+        switch level {
+        case 0: return 19
+        case 1: return 15
+        default: return 13.5
+        }
+    }
+
+    static let iconGap: CGFloat = 7
+
     static func displayText(_ node: MindNode) -> String {
         let text = node.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let base = text.isEmpty ? "新主题" : text
-        if let emoji = node.emoji, !emoji.isEmpty {
-            return "\(emoji) \(base)"
-        }
-        return base
+        return text.isEmpty ? "新主题" : text
     }
 
     static func size(for node: MindNode, level: Int) -> CGSize {
@@ -38,6 +44,8 @@ enum NodeMeasurer {
         let minWidth: CGFloat = level == 0 ? 120 : 74
         let minHeight: CGFloat = level == 0 ? 58 : 40
 
+        let iconWidth = node.icon == nil ? 0 : iconSize(level: level) + iconGap
+
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byWordWrapping
         paragraph.alignment = level == 0 ? .center : .left
@@ -47,13 +55,14 @@ enum NodeMeasurer {
             .paragraphStyle: paragraph
         ]
         let string = displayText(node)
+        let textWidth = max(maxWidth - horizontalPadding - iconWidth, 40)
         let measured = (string as NSString).boundingRect(
-            with: CGSize(width: maxWidth - horizontalPadding, height: .greatestFiniteMagnitude),
+            with: CGSize(width: textWidth, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: attributes
         )
 
-        let width = min(max(ceil(measured.width) + horizontalPadding, minWidth), maxWidth)
+        let width = min(max(ceil(measured.width) + horizontalPadding + iconWidth, minWidth), maxWidth)
         let height = max(ceil(measured.height) + verticalPadding, minHeight)
         return CGSize(width: width, height: height)
     }
