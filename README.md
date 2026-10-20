@@ -130,6 +130,15 @@ open Mindscape.xcodeproj
 
 构建产物在 `build/Build/Products/Debug/Mindscape.app`。
 
+打包与本地安装：
+
+```bash
+make package    # 生成 dist/Mindscape-0.3.0.dmg 和 .zip
+make install    # 安装到 /Applications 并启动
+```
+
+当前是 ad-hoc 签名，适合本机使用；对外分发需要 Developer ID 签名和 notarization。
+
 ## 项目结构
 
 ```
