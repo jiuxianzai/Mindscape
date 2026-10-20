@@ -620,12 +620,26 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         field.font = screenFont
         field.backgroundColor = fillColor(for: node, level: level)
         field.textColor = textColor(for: node, level: level)
+        field.focusRingType = .none
+        cell.focusRingType = .none
         field.delegate = self
         addSubview(field)
 
         editField = field
         editingID = id
         window?.makeFirstResponder(field)
+
+        if let textView = field.currentEditor() as? NSTextView {
+            textView.focusRingType = .none
+            textView.drawsBackground = false
+            textView.backgroundColor = .clear
+            textView.insertionPointColor = theme.accent
+            textView.selectedTextAttributes = [
+                .backgroundColor: theme.accent.withAlphaComponent(0.20),
+                .foregroundColor: textColor(for: node, level: level)
+            ]
+        }
+
         if let replacement {
             field.currentEditor()?.selectedRange = NSRange(location: (replacement as NSString).length, length: 0)
         } else {
