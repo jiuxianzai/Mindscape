@@ -322,7 +322,6 @@ struct FolderRowView: View {
 
     var body: some View {
         let expanded = app.expandedFolders.contains(folder.id)
-        let selected = app.selectedFolderID == folder.id
         let count = app.documentCount(in: folder.id)
         let hasChildren = !app.childFolders(of: folder.id).isEmpty || !app.documents(in: folder.id).isEmpty
 
@@ -338,9 +337,9 @@ struct FolderRowView: View {
             }
 
             Image(systemName: expanded ? "folder.fill" : "folder")
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 15.5, weight: .medium))
                 .foregroundStyle(accent)
-                .frame(width: 16, height: 16)
+                .frame(width: 18, height: 18)
 
             Text(folder.name)
                 .font(.system(size: 12.5, weight: .medium))
@@ -358,11 +357,11 @@ struct FolderRowView: View {
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(rowFill(selected: selected))
+                .fill(rowFill())
         )
         .overlay(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(selected ? accent.opacity(0.16) : (dropTargeted ? accent.opacity(0.55) : Color.clear), lineWidth: 1)
+                .strokeBorder(dropTargeted ? accent.opacity(0.55) : Color.clear, lineWidth: 1)
         )
         .padding(.leading, CGFloat(depth) * 14)
         .contentShape(Rectangle())
@@ -402,9 +401,8 @@ struct FolderRowView: View {
         }
     }
 
-    private func rowFill(selected: Bool) -> Color {
+    private func rowFill() -> Color {
         if dropTargeted { return accent.opacity(0.14) }
-        if selected { return accent.opacity(0.10) }
         if hovering { return Color.primary.opacity(0.04) }
         return .clear
     }
@@ -468,9 +466,9 @@ struct DocumentRow: View {
             Color.clear.frame(width: 10, height: 10)
 
             Image(systemName: record.layout.symbol)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(accent.opacity(0.85))
-                .frame(width: 16, height: 16)
+                .font(.system(size: 13.5, weight: .medium))
+                .foregroundStyle(accent.opacity(0.88))
+                .frame(width: 18, height: 18)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
