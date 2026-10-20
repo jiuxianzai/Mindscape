@@ -271,52 +271,27 @@ enum MapRenderer {
             ring.stroke()
         }
 
-        // 编辑中由输入框负责绘制文字，画布跳过，避免重影
+        // 文字布局与就地编辑器共用，保证位置一致
+        let textLayout = NodeMeasurer.textLayout(for: node, in: rect, level: level)
+        if let iconName = node.icon,
+           let iconRect = textLayout.iconRect,
+           let image = symbolImage(name: iconName, size: textLayout.iconSize, color: textColor, alpha: alpha) {
+            image.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1)
+        }
+
+        // 编辑中由输入控件负责文字，画布只保留图标、背景和边框
         if editing { return }
 
-        // 文本与图标
-        let font = NodeMeasurer.font(level: level)
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byWordWrapping
-        paragraph.alignment = level == 0 ? .center : .left
+        paragraph.alignment = textLayout.alignment
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
+            .font: textLayout.font,
             .foregroundColor: textColor.withAlphaComponent(alpha),
             .paragraphStyle: paragraph
         ]
         let string = NSAttributedString(string: NodeMeasurer.displayText(node), attributes: attributes)
-        let horizontalPadding: CGFloat = level == 0 ? 17 : 14
-        let iconSize = node.icon == nil ? 0 : NodeMeasurer.iconSize(level: level)
-        let iconGap = node.icon == nil ? 0 : NodeMeasurer.iconGap
-        let contentWidth = max(rect.width - horizontalPadding * 2 - iconSize - iconGap, 10)
-        let measured = string.boundingRect(
-            with: CGSize(width: contentWidth, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading]
-        )
-
-        let groupWidth = iconSize + iconGap + measured.width
-        let startX = level == 0 ? rect.midX - groupWidth / 2 : rect.minX + horizontalPadding
-        var textX = startX
-
-        if let iconName = node.icon,
-           let image = symbolImage(name: iconName, size: iconSize, color: textColor, alpha: alpha) {
-            let iconRect = CGRect(
-                x: startX,
-                y: rect.midY - iconSize / 2,
-                width: iconSize,
-                height: iconSize
-            )
-            image.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1)
-            textX += iconSize + iconGap
-        }
-
-        let textRect = CGRect(
-            x: textX,
-            y: rect.midY - measured.height / 2,
-            width: level == 0 ? max(measured.width, 10) : contentWidth,
-            height: measured.height + 2
-        )
-        string.draw(with: textRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
+        string.draw(with: textLayout.textRect, options: [.usesLineFragmentOrigin, .usesFontLeading])
 
         // 笔记标记
         if !node.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

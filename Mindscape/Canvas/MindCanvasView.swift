@@ -7,7 +7,7 @@ struct CanvasCamera {
     static let maxZoom: CGFloat = 3.5
 }
 
-final class MindCanvasView: NSView, NSTextFieldDelegate {
+final class MindCanvasView: NSView, NSTextViewDelegate {
     weak var editor: MapEditor?
 
     private var theme: MapTheme = MapTheme.all[0]
@@ -24,8 +24,9 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
     private var drag: DragState?
     private var dragOffset: CGSize = .zero
     private var dropTargetID: UUID?
-    private var editField: NSTextField?
+    private var editTextView: NSTextView?
     private var editingID: UUID?
+    private var editingOriginalText = ""
 
     private enum DragState {
         case pan(startPoint: CGPoint, startCenter: CGPoint)
@@ -581,6 +582,7 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
     func beginEditing(_ id: UUID, replacingWith replacement: String? = nil) {
         guard let editor, let node = editor.map.node(id) else { return }
         commitEditing()
+        editor.select(id)
         rebuildLayoutIfNeeded(force: true)
         guard let layout = layoutResult, let frame = layout.frames[id] else { return }
         if !visibleWorldRect.contains(frame) {
@@ -589,80 +591,100 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         }
 
         let level = min(layout.depths[id] ?? 0, 2)
-        let rect = worldRectToView(frame)
-        let font = NodeMeasurer.font(level: level)
-        let screenFont = NSFont(descriptor: font.fontDescriptor, size: max(font.pointSize * camera.zoom, 9)) ?? font
+        let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: level)
+        let textRect = worldRectToView(textLayout.textRect)
+        let font = NSFont(
+            descriptor: textLayout.font.fontDescriptor,
+            size: max(textLayout.font.pointSize * camera.zoom, 9)
+        ) ?? textLayout.font
 
-        let field = NSTextField(frame: rect.insetBy(dx: 1, dy: 2))
-        field.placeholderString = "输入主题"
-        field.font = screenFont
-        field.isBordered = false
-        field.isBezeled = false
-        field.drawsBackground = true
-        field.backgroundColor = fillColor(for: node, level: level)
-        field.textColor = textColor(for: node, level: level)
-        field.focusRingType = .none
-        field.alignment = level == 0 ? .center : .left
+        let textView = NSTextView(frame: textRect)
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = true
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.backgroundColor = .clear
+        textView.textContainerInset = .zero
+        textView.textContainer?.lineFragmentPadding = 0
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.heightTracksTextView = false
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = false
+        textView.autoresizingMask = []
+        textView.focusRingType = .none
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticTextReplacementEnabled = false
+        textView.isAutomaticSpellingCorrectionEnabled = false
+        textView.insertionPointColor = theme.accent
+        textView.selectedTextAttributes = [
+            .backgroundColor: theme.accent.withAlphaComponent(0.20),
+            .foregroundColor: textColor(for: node, level: level)
+        ]
+        textView.delegate = self
+        textView.string = replacement ?? node.text
+        updateTextContainer(textView, width: textRect.width)
+        applyTextAttributes(
+            to: textView,
+            node: node,
+            level: level,
+            font: font,
+            alignment: textLayout.alignment
+        )
+        addSubview(textView)
 
-        let cell = CanvasTextFieldCell(textCell: replacement ?? node.text)
-        cell.leadingInset = editingLeadingInset(for: node, level: level) * camera.zoom
-        cell.trailingInset = 8 * camera.zoom
-        cell.font = screenFont
-        cell.alignment = field.alignment
-        cell.lineBreakMode = .byTruncatingTail
-        cell.usesSingleLineMode = true
-        cell.isEditable = true
-        cell.isSelectable = true
-        cell.isScrollable = true
-        cell.drawsBackground = true
-        cell.backgroundColor = fillColor(for: node, level: level)
-        cell.textColor = textColor(for: node, level: level)
-        field.cell = cell
-        field.stringValue = replacement ?? node.text
-        field.font = screenFont
-        field.backgroundColor = fillColor(for: node, level: level)
-        field.textColor = textColor(for: node, level: level)
-        field.focusRingType = .none
-        cell.focusRingType = .none
-        field.delegate = self
-        addSubview(field)
-
-        editField = field
+        editTextView = textView
         editingID = id
+        editingOriginalText = node.text
         needsDisplay = true
-        window?.makeFirstResponder(field)
 
-        if let textView = field.currentEditor() as? NSTextView {
-            textView.focusRingType = .none
-            textView.drawsBackground = false
-            textView.backgroundColor = .clear
-            textView.insertionPointColor = theme.accent
-            textView.selectedTextAttributes = [
-                .backgroundColor: theme.accent.withAlphaComponent(0.20),
-                .foregroundColor: textColor(for: node, level: level)
-            ]
-        }
-
+        window?.makeFirstResponder(textView)
         if let replacement {
-            field.currentEditor()?.selectedRange = NSRange(location: (replacement as NSString).length, length: 0)
+            textView.setSelectedRange(NSRange(location: (replacement as NSString).length, length: 0))
+            if node.text != replacement {
+                editor.setText(replacement, for: id)
+                rebuildLayoutIfNeeded(force: true)
+                updateEditorFrame()
+            }
         } else {
-            field.currentEditor()?.selectAll(nil)
+            textView.selectAll(nil)
         }
     }
 
-    private func editingLeadingInset(for node: MindNode, level: Int) -> CGFloat {
-        guard level > 0 else { return 10 }
-        let iconWidth = node.icon == nil ? 0 : NodeMeasurer.iconSize(level: level) + NodeMeasurer.iconGap
-        return 14 + iconWidth
+    private func applyTextAttributes(
+        to textView: NSTextView,
+        node: MindNode,
+        level: Int,
+        font: NSFont,
+        alignment: NSTextAlignment
+    ) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byWordWrapping
+        paragraph.alignment = alignment
+        let color = textColor(for: node, level: level)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph
+        ]
+        textView.textStorage?.setAttributes(
+            attributes,
+            range: NSRange(location: 0, length: (textView.string as NSString).length)
+        )
+        textView.typingAttributes = attributes
+        textView.textColor = color
+        textView.alignment = alignment
+        textView.font = font
     }
 
-    private func fillColor(for node: MindNode, level: Int) -> NSColor {
-        if let hex = node.colorHex { return NSColor(hex: hex) }
-        switch level {
-        case 0: return theme.rootFill
-        case 1: return theme.branchFill
-        default: return theme.nodeFill
-        }
+    private func updateTextContainer(_ textView: NSTextView, width: CGFloat) {
+        textView.textContainer?.containerSize = NSSize(
+            width: max(width, 10),
+            height: .greatestFiniteMagnitude
+        )
+        textView.textContainer?.widthTracksTextView = true
     }
 
     private func textColor(for node: MindNode, level: Int) -> NSColor {
@@ -678,13 +700,14 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
     }
 
     func commitEditing() {
-        guard let field = editField, let id = editingID else { return }
-        let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let textView = editTextView, let id = editingID else { return }
+        let text = textView.string.trimmingCharacters(in: .whitespacesAndNewlines)
 
         editingID = nil
-        editField = nil
-        field.delegate = nil
-        field.removeFromSuperview()
+        editTextView = nil
+        editingOriginalText = ""
+        textView.delegate = nil
+        textView.removeFromSuperview()
 
         if text.isEmpty {
             if editor?.map.node(id)?.parentID == nil {
@@ -701,43 +724,65 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
     }
 
     func cancelEditing() {
-        guard let field = editField else { return }
+        guard let textView = editTextView, let id = editingID else { return }
+        let original = editingOriginalText
+
         editingID = nil
-        editField = nil
-        field.delegate = nil
-        field.removeFromSuperview()
+        editTextView = nil
+        editingOriginalText = ""
+        textView.delegate = nil
+        textView.removeFromSuperview()
+
+        if let node = editor?.map.node(id), node.text != original {
+            editor?.setText(original, for: id)
+        }
         window?.makeFirstResponder(self)
         needsDisplay = true
     }
 
     private func updateEditorFrame() {
-        guard let field = editField, let id = editingID,
-              let layout = layoutResult, let frame = layout.frames[id],
-              let level = layout.depths[id] else { return }
+        guard let textView = editTextView, let id = editingID,
+              let editor, let layout = layoutResult, let frame = layout.frames[id],
+              let level = layout.depths[id],
+              let node = editor.map.node(id) else { return }
 
-        let rect = worldRectToView(frame)
-        let baseFont = NodeMeasurer.font(level: min(level, 2))
-        let font = NSFont(descriptor: baseFont.fontDescriptor, size: max(baseFont.pointSize * camera.zoom, 9)) ?? baseFont
-        field.font = font
-        field.frame = rect.insetBy(dx: 1, dy: 2)
-        if let cell = field.cell as? CanvasTextFieldCell {
-            cell.font = font
-            if let node = editor?.map.node(id) {
-                cell.leadingInset = editingLeadingInset(for: node, level: min(level, 2)) * camera.zoom
-            }
-            cell.trailingInset = 8 * camera.zoom
-        }
+        let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: min(level, 2))
+        ensureVisible(id)
+        let textRect = worldRectToView(textLayout.textRect)
+        let font = NSFont(
+            descriptor: textLayout.font.fontDescriptor,
+            size: max(textLayout.font.pointSize * camera.zoom, 9)
+        ) ?? textLayout.font
+
+        textView.frame = textRect
+        applyTextAttributes(
+            to: textView,
+            node: node,
+            level: min(level, 2),
+            font: font,
+            alignment: textLayout.alignment
+        )
+        updateTextContainer(textView, width: textRect.width)
+        textView.needsDisplay = true
     }
 
-    // MARK: - NSTextFieldDelegate
+    // MARK: - NSTextViewDelegate
 
-    func controlTextDidEndEditing(_ obj: Notification) {
-        if editingID != nil { commitEditing() }
+    func textDidChange(_ notification: Notification) {
+        guard let textView = editTextView, let id = editingID, let editor else { return }
+        editor.setText(textView.string, for: id)
+        rebuildLayoutIfNeeded(force: true)
+        updateEditorFrame()
+        needsDisplay = true
     }
 
-    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+    func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-            commitEditing()
+            if NSApp.currentEvent?.modifierFlags.contains(.shift) == true {
+                textView.insertText("\n", replacementRange: textView.selectedRange())
+            } else {
+                commitEditing()
+            }
             return true
         }
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
@@ -746,6 +791,7 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         }
         return false
     }
+
 }
 
 private extension NSColor {
@@ -755,27 +801,3 @@ private extension NSColor {
     }
 }
 
-final class CanvasTextFieldCell: NSTextFieldCell {
-    var leadingInset: CGFloat = 10
-    var trailingInset: CGFloat = 10
-
-    private func centeredRect(forBounds rect: NSRect) -> NSRect {
-        let width = max(rect.width - leadingInset - trailingInset, 10)
-        let inset = NSRect(x: rect.minX + leadingInset, y: rect.minY, width: width, height: rect.height)
-        let lineHeight = ceil((font?.ascender ?? 14) + abs(font?.descender ?? -4)) + 2
-        let height = min(inset.height, lineHeight)
-        return NSRect(x: inset.minX, y: inset.midY - height / 2, width: max(inset.width, 10), height: max(height, 10))
-    }
-
-    override func drawingRect(forBounds rect: NSRect) -> NSRect {
-        centeredRect(forBounds: rect)
-    }
-
-    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
-        super.edit(withFrame: centeredRect(forBounds: rect), in: controlView, editor: textObj, delegate: delegate, event: event)
-    }
-
-    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
-        super.select(withFrame: centeredRect(forBounds: rect), in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
-    }
-}

@@ -36,6 +36,62 @@ enum NodeMeasurer {
         return text.isEmpty ? "新主题" : text
     }
 
+    struct NodeTextLayout {
+        var font: NSFont
+        var alignment: NSTextAlignment
+        var contentWidth: CGFloat
+        var textRect: CGRect
+        var iconRect: CGRect?
+        var iconSize: CGFloat
+        var iconGap: CGFloat
+    }
+
+    /// 画布渲染和就地编辑共用同一份文字布局，保证进入编辑时文字不跳动。
+    static func textLayout(for node: MindNode, in rect: CGRect, level: Int) -> NodeTextLayout {
+        let font = font(level: level)
+        let horizontalPadding: CGFloat = level == 0 ? 17 : 14
+        let size = node.icon == nil ? 0 : iconSize(level: level)
+        let gap = node.icon == nil ? 0 : iconGap
+        let contentWidth = max(rect.width - horizontalPadding * 2 - size - gap, 10)
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byWordWrapping
+        paragraph.alignment = level == 0 ? .center : .left
+
+        let string = NSAttributedString(
+            string: displayText(node),
+            attributes: [.font: font, .paragraphStyle: paragraph]
+        )
+        let measured = string.boundingRect(
+            with: CGSize(width: contentWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+
+        let groupWidth = size + gap + measured.width
+        let startX = level == 0 ? rect.midX - groupWidth / 2 : rect.minX + horizontalPadding
+        let textX = startX + size + gap
+        let textWidth = level == 0 ? max(measured.width, 10) : contentWidth
+        let textRect = CGRect(
+            x: textX,
+            y: rect.midY - measured.height / 2,
+            width: textWidth,
+            height: measured.height + 2
+        )
+        let iconRect = node.icon == nil
+            ? nil
+            : CGRect(x: startX, y: rect.midY - size / 2, width: size, height: size)
+
+        return NodeTextLayout(
+            font: font,
+            alignment: paragraph.alignment,
+            contentWidth: contentWidth,
+            textRect: textRect,
+            iconRect: iconRect,
+            iconSize: size,
+            iconGap: gap
+        )
+    }
+
     static func size(for node: MindNode, level: Int) -> CGSize {
         let font = font(level: level)
         let maxWidth: CGFloat = level == 0 ? 260 : 220

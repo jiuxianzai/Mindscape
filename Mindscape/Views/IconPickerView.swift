@@ -84,6 +84,7 @@ struct IconPickerView: View {
             TextField("搜索图标含义，如：目标 / 风险 / 时间", text: $query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 10.5))
+                .frame(height: 18)
             if !query.isEmpty {
                 Button {
                     query = ""
@@ -96,7 +97,7 @@ struct IconPickerView: View {
             }
         }
         .padding(.horizontal, 7)
-        .padding(.vertical, 4)
+        .frame(height: 26)
         .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 

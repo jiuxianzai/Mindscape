@@ -250,12 +250,12 @@ struct InspectorView: View {
 
     private func pickerLabel(icon: String, title: String) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 10.5, weight: .medium))
             Text(title)
                 .font(.system(size: 11.5, weight: .medium))
                 .lineLimit(1)
             Spacer(minLength: 0)
+            Image(systemName: icon)
+                .font(.system(size: 10.5, weight: .medium))
             Image(systemName: "chevron.up.chevron.down")
                 .font(.system(size: 8.5, weight: .semibold))
                 .foregroundStyle(.secondary)
@@ -304,12 +304,12 @@ struct InspectorView: View {
     ) -> some View {
         Button(action: action) {
             HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: 10.5, weight: .medium))
                 Text(title)
                     .font(.system(size: 11.5, weight: .medium))
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                Image(systemName: icon)
+                    .font(.system(size: 10.5, weight: .medium))
             }
             .foregroundStyle(destructive ? Color.red : Color.primary.opacity(0.78))
             .padding(.horizontal, 9)

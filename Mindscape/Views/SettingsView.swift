@@ -1,124 +1,341 @@
 import AppKit
 import SwiftUI
 
+enum SettingsTab: Int, CaseIterable, Identifiable {
+    case general = 0
+    case shortcuts = 1
+    case about = 2
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: return "通用"
+        case .shortcuts: return "快捷键"
+        case .about: return "关于"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: return "gearshape"
+        case .shortcuts: return "keyboard"
+        case .about: return "info.circle"
+        }
+    }
+}
+
 struct SettingsView: View {
     @Environment(AppModel.self) private var app
-    @State private var selectedTab: Int
+    @State private var tab: SettingsTab
 
     init(initialTab: Int = 0) {
-        _selectedTab = State(initialValue: initialTab)
+        _tab = State(initialValue: SettingsTab(rawValue: initialTab) ?? .general)
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Picker("", selection: $selectedTab) {
-                    Text("通用").tag(0)
-                    Text("快捷键").tag(1)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 220)
-                Spacer()
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
-
+        HStack(spacing: 0) {
+            sidebar
             Divider()
+            content
+        }
+        .frame(width: 780, height: 580)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
 
-            if selectedTab == 0 {
-                GeneralSettingsView()
-            } else {
-                ShortcutSettingsView(store: app.shortcuts)
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Image("BrandMark")
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 26, height: 26)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Mindscape")
+                        .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                    Text("设置")
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
+            .padding(.bottom, 18)
+
+            ForEach(SettingsTab.allCases) { item in
+                Button {
+                    tab = item
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: item.symbol)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .frame(width: 16)
+                        Text(item.title)
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(tab == item ? appAccent.opacity(0.11) : Color.clear)
+                    )
+                    .foregroundStyle(tab == item ? appAccent : Color.primary.opacity(0.72))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 2)
+            }
+
+            Spacer()
+
+            Text("版本 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.0")")
+                .font(.system(size: 9.5))
+                .foregroundStyle(.tertiary)
+                .padding(.horizontal, 8)
+        }
+        .padding(12)
+        .frame(width: 180)
+        .background(Color.primary.opacity(0.025))
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                switch tab {
+                case .general:
+                    GeneralSettingsContent()
+                case .shortcuts:
+                    ShortcutSettingsContent(store: app.shortcuts)
+                case .about:
+                    AboutSettingsContent()
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollIndicators(.automatic)
+    }
+}
+
+// MARK: - Shared style
+
+private let appAccent = Color(nsColor: NSColor(hex: "#C26A4A"))
+
+struct SettingsPageHeader: View {
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+            Text(subtitle)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+struct SettingsSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.4)
+            content
+        }
+    }
+}
+
+struct SettingsCard<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.primary.opacity(0.035))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.055), lineWidth: 1)
+            )
+    }
+}
+
+struct SettingsActionButtonStyle: ButtonStyle {
+    var primary = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 11.5, weight: .medium))
+            .foregroundStyle(primary ? Color.white : Color.primary.opacity(0.78))
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(primary ? appAccent.opacity(configuration.isPressed ? 0.8 : 1) : Color.primary.opacity(configuration.isPressed ? 0.09 : 0.05))
+            )
+            .opacity(configuration.isPressed ? 0.9 : 1)
+    }
+}
+
+private func settingsRow<Content: View>(
+    _ title: String,
+    subtitle: String? = nil,
+    @ViewBuilder content: () -> Content
+) -> some View {
+    HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
             }
         }
-        .frame(width: 680, height: 620)
+        Spacer(minLength: 12)
+        content()
     }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
 }
 
 // MARK: - General
 
-struct GeneralSettingsView: View {
+struct GeneralSettingsContent: View {
     @Environment(AppModel.self) private var app
     @AppStorage("defaultThemeID") private var themeID = MapTheme.defaultThemeID
     @AppStorage("defaultLayout") private var layoutRaw = MapLayout.mindMap.rawValue
 
     @State private var errorMessage: String?
 
-    private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
-
     var body: some View {
-        Form {
-            Section("新建导图") {
-                Picker("默认布局", selection: $layoutRaw) {
-                    ForEach(MapLayout.allCases) { layout in
-                        Text(layout.title).tag(layout.rawValue)
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsPageHeader(title: "通用", subtitle: "新建导图、数据存放位置")
+
+            SettingsSection("新建导图") {
+                SettingsCard {
+                    VStack(spacing: 0) {
+                        settingsRow("默认布局", subtitle: "新导图使用的布局") {
+                            HStack(spacing: 5) {
+                                Image(systemName: MapLayout(rawValue: layoutRaw)?.symbol ?? "square.grid.2x2")
+                                    .font(.system(size: 10.5, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                Picker("默认布局", selection: $layoutRaw) {
+                                    ForEach(MapLayout.allCases) { layout in
+                                        Text(layout.title).tag(layout.rawValue)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                            }
+                        }
+                        Divider().padding(.leading, 12)
+                        settingsRow("默认主题", subtitle: "只影响新建导图") {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(Color(nsColor: MapTheme.byID(themeID).accent))
+                                    .frame(width: 8, height: 8)
+                                Picker("默认主题", selection: $themeID) {
+                                    ForEach(MapTheme.all) { theme in
+                                        Text(theme.name).tag(theme.id)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                            }
+                        }
                     }
                 }
-                Picker("默认主题", selection: $themeID) {
-                    ForEach(MapTheme.all) { theme in
-                        Text(theme.name).tag(theme.id)
-                    }
-                }
-                Text("只影响新建导图；当前导图的主题在工具栏或属性面板中切换。")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
             }
 
-            Section("数据目录") {
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(accent)
-                        .padding(.top, 2)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(app.store.directoryURL?.path ?? "内存模式")
-                            .font(.system(size: 10.5, design: .monospaced))
-                            .textSelection(.enabled)
-                            .lineLimit(3)
-                        Text("导图保存在该目录的 mindscape.sqlite 中，完全本地。")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                }
-
-                HStack {
-                    Button("选择目录…") {
-                        chooseDirectory()
-                    }
-                    Button("恢复默认") {
-                        resetDirectory()
-                    }
-                    .disabled(app.store.directoryURL?.standardizedFileURL == DocumentStore.defaultDirectory.standardizedFileURL)
-
-                    Spacer()
-
-                    Button("在 Finder 中打开") {
-                        if let url = app.store.directoryURL {
-                            NSWorkspace.shared.open(url)
+            SettingsSection("数据目录") {
+                SettingsCard {
+                    VStack(spacing: 0) {
+                        HStack(alignment: .top, spacing: 9) {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 13))
+                                .foregroundStyle(appAccent)
+                                .padding(.top, 1)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(app.store.directoryURL?.path ?? "内存模式")
+                                    .font(.system(size: 10.5, design: .monospaced))
+                                    .textSelection(.enabled)
+                                    .lineLimit(3)
+                                Text("导图保存在该目录的 mindscape.sqlite 中，完全本地。")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
                         }
+                        .padding(12)
+
+                        Divider().padding(.leading, 12)
+
+                        HStack(spacing: 8) {
+                            Button {
+                                chooseDirectory()
+                            } label: {
+                                Label("选择目录", systemImage: "folder.badge.gearshape")
+                                    .labelStyle(.titleAndIcon)
+                            }
+                            .buttonStyle(SettingsActionButtonStyle(primary: true))
+
+                            Button {
+                                resetDirectory()
+                            } label: {
+                                Label("恢复默认", systemImage: "arrow.uturn.backward")
+                            }
+                            .buttonStyle(SettingsActionButtonStyle())
+                            .disabled(app.store.directoryURL?.standardizedFileURL == DocumentStore.defaultDirectory.standardizedFileURL)
+
+                            Spacer()
+
+                            Button {
+                                if let url = app.store.directoryURL {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            } label: {
+                                Label("在 Finder 中打开", systemImage: "arrow.up.forward.square")
+                            }
+                            .buttonStyle(SettingsActionButtonStyle())
+                        }
+                        .padding(12)
                     }
                 }
 
                 Text("切换目录时会复制当前数据；如果目标目录中已有 Mindscape 数据，会直接打开其中的导图。")
-                    .font(.system(size: 10.5))
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
 
-            Section("关于") {
-                LabeledContent("版本") {
-                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")
-                }
-                LabeledContent("Mindscape") {
-                    Text("本地优先的思维导图")
-                        .foregroundStyle(.secondary)
-                }
+            SettingsSection("说明") {
+                Text("主题只影响画布。窗口和侧栏跟随系统外观；当前导图的主题可以在工具栏或属性面板中切换。")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .formStyle(.grouped)
         .alert("提示", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -187,7 +404,7 @@ struct GeneralSettingsView: View {
 
 // MARK: - Shortcuts
 
-struct ShortcutSettingsView: View {
+struct ShortcutSettingsContent: View {
     @ObservedObject var store: ShortcutStore
     @State private var recording: ShortcutAction?
 
@@ -196,48 +413,43 @@ struct ShortcutSettingsView: View {
     var body: some View {
         let conflicts = store.conflictingActions()
 
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 22) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("快捷键")
-                        .font(.system(size: 15, weight: .semibold))
-                    Text("点击右侧按钮重新录制，Esc 取消。菜单快捷键至少需要一个 ⌘ / ⌥ / ⌃ 修饰键；节点快捷键只在画布获得焦点时生效。")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                SettingsPageHeader(
+                    title: "快捷键",
+                    subtitle: "点击按钮重新录制，Esc 取消。菜单快捷键至少需要一个修饰键。"
+                )
                 Spacer()
-                Button("恢复全部默认") {
+                Button {
                     store.resetAll()
+                } label: {
+                    Label("恢复全部默认", systemImage: "arrow.uturn.backward")
                 }
+                .buttonStyle(SettingsActionButtonStyle())
             }
-            .padding(16)
 
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    ForEach(categories, id: \.self) { category in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(category)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .textCase(.uppercase)
-                                .tracking(0.4)
-                                .padding(.bottom, 3)
-
-                            ForEach(ShortcutAction.allCases.filter { $0.category == category }) { action in
+            ForEach(categories, id: \.self) { category in
+                SettingsSection(category) {
+                    SettingsCard {
+                        VStack(spacing: 0) {
+                            let actions = ShortcutAction.allCases.filter { $0.category == category }
+                            ForEach(Array(actions.enumerated()), id: \.element) { index, action in
                                 ShortcutRow(
                                     action: action,
                                     store: store,
                                     conflicted: conflicts.contains(action),
                                     onRecord: { recording = action }
                                 )
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+
+                                if index < actions.count - 1 {
+                                    Divider().padding(.leading, 12)
+                                }
                             }
                         }
                     }
                 }
-                .padding(16)
             }
         }
         .sheet(item: $recording) { action in
@@ -285,7 +497,6 @@ struct ShortcutRow: View {
             .disabled(store.isDefault(action))
             .help("恢复默认")
         }
-        .padding(.vertical, 3)
     }
 }
 
@@ -348,5 +559,72 @@ struct ShortcutRecorderSheet: View {
                 self.monitor = nil
             }
         }
+    }
+}
+
+// MARK: - About
+
+struct AboutSettingsContent: View {
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsPageHeader(title: "关于", subtitle: "本地优先的思维导图")
+
+            HStack(spacing: 14) {
+                Image("BrandMark")
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 62, height: 62)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Mindscape")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    Text("版本 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.0")")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                    Text("数据只存在本机，不联网、不需要账号。")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            SettingsSection("存储") {
+                SettingsCard {
+                    VStack(spacing: 0) {
+                        infoRow("数据库", value: app.store.directoryURL?.path ?? "内存模式")
+                        Divider().padding(.leading, 12)
+                        infoRow("存储方式", value: "SQLite · 完全本地")
+                        Divider().padding(.leading, 12)
+                        infoRow("网络请求", value: "无")
+                    }
+                }
+            }
+
+            HStack {
+                Spacer()
+                Text("© 2026 Mindscape")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+                Spacer()
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private func infoRow(_ label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .leading)
+            Text(value)
+                .font(.system(size: 10.5, design: .monospaced))
+                .foregroundStyle(.primary.opacity(0.8))
+                .textSelection(.enabled)
+                .lineLimit(2)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 }
