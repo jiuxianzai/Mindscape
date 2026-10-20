@@ -47,6 +47,10 @@ struct WorkspaceView: View {
                     showInspector.toggle()
                 }
             }
+            .background(
+                InspectorTitlebarToggle()
+                    .frame(width: 1, height: 1)
+            )
             .navigationTitle("")
     }
 
@@ -115,14 +119,6 @@ struct WorkspaceView: View {
             }
             .help("导出")
 
-            Button {
-                withAnimation(.easeOut(duration: 0.16)) {
-                    showInspector.toggle()
-                }
-            } label: {
-                Label("属性", systemImage: "sidebar.right")
-            }
-            .help("显示 / 隐藏属性面板")
         }
     }
 }
