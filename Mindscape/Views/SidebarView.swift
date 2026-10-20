@@ -8,8 +8,6 @@ struct SidebarView: View {
     @State private var renameText = ""
     @State private var deletingFolder: FolderRecord?
 
-    private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
-
     var body: some View {
         @Bindable var app = app
         VStack(spacing: 0) {
@@ -281,8 +279,6 @@ struct FolderSubtreeView: View {
     let onRename: (FolderRecord) -> Void
     let onDelete: (FolderRecord) -> Void
 
-    private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
-
     var body: some View {
         if let folder = app.folders.first(where: { $0.id == folderID }) {
             folderRow(folder)
@@ -320,6 +316,7 @@ struct FolderRowView: View {
     let onDelete: (FolderRecord) -> Void
 
     @State private var dropTargeted = false
+    @State private var hovering = false
 
     private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
 
@@ -327,42 +324,50 @@ struct FolderRowView: View {
         let expanded = app.expandedFolders.contains(folder.id)
         let selected = app.selectedFolderID == folder.id
         let count = app.documentCount(in: folder.id)
+        let hasChildren = !app.childFolders(of: folder.id).isEmpty || !app.documents(in: folder.id).isEmpty
 
-        HStack(spacing: 6) {
-            Image(systemName: "chevron.right")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(expanded ? 90 : 0))
-                .frame(width: 10)
+        HStack(spacing: 7) {
+            if hasChildren {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
+                    .frame(width: 10, height: 10)
+            } else {
+                Color.clear.frame(width: 10, height: 10)
+            }
 
             Image(systemName: expanded ? "folder.fill" : "folder")
-                .font(.system(size: 11.5))
-                .foregroundStyle(accent.opacity(0.85))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(accent)
+                .frame(width: 16, height: 16)
 
             Text(folder.name)
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: 12.5, weight: .medium))
                 .lineLimit(1)
 
             Spacer(minLength: 0)
 
             if count > 0 {
                 Text("\(count)")
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(.leading, 8 + CGFloat(depth) * 14)
-        .padding(.trailing, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(selected ? accent.opacity(0.07) : (dropTargeted ? accent.opacity(0.14) : Color.clear))
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(rowFill(selected: selected))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(dropTargeted ? accent.opacity(0.55) : Color.clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(selected ? accent.opacity(0.16) : (dropTargeted ? accent.opacity(0.55) : Color.clear), lineWidth: 1)
         )
+        .padding(.leading, CGFloat(depth) * 14)
         .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .onTapGesture {
             app.toggleFolder(folder.id)
         }
@@ -395,6 +400,13 @@ struct FolderRowView: View {
                 dropTargeted = targeted
             }
         }
+    }
+
+    private func rowFill(selected: Bool) -> Color {
+        if dropTargeted { return accent.opacity(0.14) }
+        if selected { return accent.opacity(0.10) }
+        if hovering { return Color.primary.opacity(0.04) }
+        return .clear
     }
 }
 
@@ -448,18 +460,17 @@ struct DocumentRow: View {
     var selected: Bool = false
     var indent: CGFloat = 0
 
-    private var theme: MapTheme { MapTheme.byID(record.themeID) }
+    @State private var hovering = false
+    private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
 
     var body: some View {
-        HStack(spacing: 9) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color(nsColor: theme.branchFill))
-                    .frame(width: 27, height: 27)
-                Image(systemName: record.layout.symbol)
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(Color(nsColor: theme.branchText))
-            }
+        HStack(spacing: 7) {
+            Color.clear.frame(width: 10, height: 10)
+
+            Image(systemName: record.layout.symbol)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(accent.opacity(0.85))
+                .frame(width: 16, height: 16)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
@@ -468,7 +479,7 @@ struct DocumentRow: View {
                         .lineLimit(1)
                     if record.starred {
                         Image(systemName: "star.fill")
-                            .font(.system(size: 8))
+                            .font(.system(size: 8.5))
                             .foregroundStyle(Color(nsColor: NSColor(hex: "#E6B450")))
                     }
                 }
@@ -477,20 +488,23 @@ struct DocumentRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+
             Spacer(minLength: 0)
         }
-        .padding(.leading, 8 + indent)
-        .padding(.trailing, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(selected ? Color(nsColor: NSColor(hex: "#C26A4A")).opacity(0.13) : Color.clear)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(selected ? accent.opacity(0.10) : (hovering ? Color.primary.opacity(0.04) : Color.clear))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(selected ? Color(nsColor: NSColor(hex: "#C26A4A")).opacity(0.22) : Color.clear, lineWidth: 1)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(selected ? accent.opacity(0.16) : Color.clear, lineWidth: 1)
         )
+        .padding(.leading, indent)
         .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 

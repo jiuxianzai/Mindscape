@@ -61,6 +61,9 @@ struct GeneralSettingsView: View {
                         Text(theme.name).tag(theme.id)
                     }
                 }
+                Text("只影响新建导图；当前导图的主题在工具栏或属性面板中切换。")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
             }
 
             Section("数据目录") {

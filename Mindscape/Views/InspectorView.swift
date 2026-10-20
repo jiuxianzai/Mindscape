@@ -226,6 +226,31 @@ struct InspectorView: View {
         .help(hex == nil ? "默认颜色" : "使用该颜色")
     }
 
+    private func themeSwatch(_ theme: MapTheme) -> some View {
+        let selected = editor.map.themeID == theme.id
+        return Button {
+            editor.setTheme(theme.id)
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(Color(nsColor: theme.background))
+                Circle()
+                    .fill(Color(nsColor: theme.accent))
+                    .frame(width: 9, height: 9)
+            }
+            .frame(width: 19, height: 19)
+            .overlay(Circle().strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
+            .overlay(
+                Circle()
+                    .strokeBorder(Color(nsColor: NSColor(hex: "#C26A4A")), lineWidth: selected ? 1.8 : 0)
+                    .frame(width: 24, height: 24)
+            )
+        }
+        .buttonStyle(.plain)
+        .help(theme.name)
+        .accessibilityLabel(theme.name)
+    }
+
     // MARK: - Document
 
     private var documentSection: some View {
@@ -240,10 +265,6 @@ struct InspectorView: View {
             }
 
             VStack(spacing: 0) {
-                infoRow("布局", value: editor.map.layout.title)
-                Divider().padding(.vertical, 7)
-                infoRow("主题", value: editor.theme.name)
-                Divider().padding(.vertical, 7)
                 infoRow("创建", value: RelativeDate.full(editor.map.createdAt))
                 Divider().padding(.vertical, 7)
                 infoRow("更新", value: RelativeDate.short(editor.map.updatedAt))
@@ -251,27 +272,38 @@ struct InspectorView: View {
             .padding(11)
             .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
 
-            Menu {
-                ForEach(MapLayout.allCases) { layout in
-                    Button(layout.title) { editor.setLayout(layout) }
+            VStack(alignment: .leading, spacing: 8) {
+                sectionLabel("布局")
+                Picker("布局", selection: Binding(
+                    get: { editor.map.layout },
+                    set: { editor.setLayout($0) }
+                )) {
+                    ForEach(MapLayout.allCases) { layout in
+                        Label(layout.title, systemImage: layout.symbol).tag(layout)
+                    }
                 }
-            } label: {
-                Label("切换布局", systemImage: "square.grid.2x2")
-                    .font(.system(size: 12))
-                    .frame(maxWidth: .infinity)
+                .labelsHidden()
+                .pickerStyle(.menu)
             }
-            .controlSize(.small)
 
-            Menu {
-                ForEach(MapTheme.all) { theme in
-                    Button(theme.name) { editor.setTheme(theme.id) }
+            VStack(alignment: .leading, spacing: 8) {
+                sectionLabel("主题")
+                HStack(spacing: 7) {
+                    ForEach(MapTheme.all) { theme in
+                        themeSwatch(theme)
+                    }
                 }
-            } label: {
-                Label("切换主题", systemImage: "paintpalette")
-                    .font(.system(size: 12))
-                    .frame(maxWidth: .infinity)
+                Picker("主题", selection: Binding(
+                    get: { editor.map.themeID },
+                    set: { editor.setTheme($0) }
+                )) {
+                    ForEach(MapTheme.all) { theme in
+                        Text(theme.name).tag(theme.id)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
             }
-            .controlSize(.small)
 
             HStack(spacing: 8) {
                 Button {

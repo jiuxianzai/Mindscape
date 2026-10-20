@@ -83,25 +83,17 @@ struct WorkspaceView: View {
             }
             .help("切换布局")
 
-            Menu {
+            Picker("主题", selection: Binding(
+                get: { editor.map.themeID },
+                set: { editor.setTheme($0) }
+            )) {
                 ForEach(MapTheme.all) { theme in
-                    Button {
-                        editor.setTheme(theme.id)
-                    } label: {
-                        HStack {
-                            Circle()
-                                .fill(Color(nsColor: theme.accent))
-                                .frame(width: 8, height: 8)
-                            Text(theme.name)
-                            if editor.map.themeID == theme.id {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
+                    Text(theme.name).tag(theme.id)
                 }
-            } label: {
-                Label("主题", systemImage: "paintpalette")
             }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 96)
             .help("切换主题")
 
             Button {
