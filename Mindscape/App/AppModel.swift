@@ -27,6 +27,7 @@ final class AppModel {
 
     private var didExpandInitialFolders = false
     private var observers: [NSObjectProtocol] = []
+    private static let recentDirectoriesKey = "recentDataDirectories"
 
     init() {
         let resolved: DocumentStore
@@ -49,6 +50,7 @@ final class AppModel {
 
         store = resolved
         startupError = errorMessage
+        rememberDirectory(resolved.directoryURL)
 
         reload()
 
@@ -364,7 +366,9 @@ final class AppModel {
                 try oldStore.exportDatabase(to: directory)
             }
             let newStore = try DocumentStore(directory: directory)
+            rememberDirectory(oldStore.directoryURL)
             UserDefaults.standard.set(directory.path, forKey: "dataDirectory")
+            rememberDirectory(directory)
             store = newStore
             selectedDocumentID = nil
             selectedFolderID = nil
@@ -391,10 +395,39 @@ final class AppModel {
         return switchDataDirectory(to: defaultDirectory, useExisting: hasExisting)
     }
 
+    // MARK: - Recent data directories
+
+    var recentDataDirectories: [URL] {
+        var paths = UserDefaults.standard.stringArray(forKey: Self.recentDirectoriesKey) ?? []
+        if let current = store.directoryURL?.path {
+            paths.insert(current, at: 0)
+        }
+        paths.append(DocumentStore.defaultDirectory.path)
+
+        var seen = Set<String>()
+        return paths.compactMap { path -> URL? in
+            let url = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+            guard seen.insert(url.path).inserted else { return nil }
+            let database = url.appendingPathComponent("mindscape.sqlite")
+            guard FileManager.default.fileExists(atPath: database.path) else { return nil }
+            return url
+        }
+    }
+
+    private func rememberDirectory(_ url: URL?) {
+        guard let url else { return }
+        let normalized = url.standardizedFileURL
+        var paths = UserDefaults.standard.stringArray(forKey: Self.recentDirectoriesKey) ?? []
+        paths.removeAll { URL(fileURLWithPath: $0).standardizedFileURL.path == normalized.path }
+        paths.insert(normalized.path, at: 0)
+        UserDefaults.standard.set(Array(paths.prefix(6)), forKey: Self.recentDirectoriesKey)
+    }
+
     // MARK: - Export
 
-    func export(_ format: ExportFormat) {
-        guard let editor else { return }
-        ExportService.export(map: editor.map, layout: LayoutEngine.layout(editor.map), format: format)
+    func export(document id: UUID, format: ExportFormat) {
+        guard let map = try? store.load(id: id) else { return }
+        let layout = LayoutEngine.layout(map)
+        _ = ExportService.save(map: map, layout: layout, format: format)
     }
 }

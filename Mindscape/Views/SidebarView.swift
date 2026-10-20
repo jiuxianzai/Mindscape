@@ -444,6 +444,14 @@ struct DocumentTreeRow: View {
                 }
             }
 
+            Menu("导出为") {
+                ForEach(ExportFormat.allCases) { format in
+                    Button(format.title) {
+                        app.export(document: record.id, format: format)
+                    }
+                }
+            }
+
             Divider()
             Button("移到回收站", role: .destructive) {
                 app.trashDocument(record.id)

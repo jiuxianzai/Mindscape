@@ -38,6 +38,11 @@ struct AppCommands: Commands {
         }
 
         CommandMenu("导图") {
+            Button("导出…") {
+                NotificationCenter.default.post(name: .mindscapeShowExport, object: nil)
+            }
+            .appShortcut(shortcuts.combo(for: .exportDocument))
+
             Button("历史版本…") {
                 NotificationCenter.default.post(name: .mindscapeShowHistory, object: nil)
             }
@@ -91,13 +96,6 @@ struct AppCommands: Commands {
 
             Divider()
 
-            Menu("导出") {
-                ForEach(ExportFormat.allCases) { format in
-                    Button(format.title) {
-                        app.export(format)
-                    }
-                }
-            }
         }
     }
 }

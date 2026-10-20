@@ -10,6 +10,7 @@ enum ShortcutScope {
 enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
     case newDocument
     case saveDocument
+    case exportDocument
     case undo
     case redo
     case showHistory
@@ -29,6 +30,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .newDocument: return "新建导图"
         case .saveDocument: return "保存"
+        case .exportDocument: return "导出…"
         case .undo: return "撤销"
         case .redo: return "重做"
         case .showHistory: return "历史版本"
@@ -46,7 +48,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
 
     var category: String {
         switch self {
-        case .newDocument, .saveDocument: return "文件"
+        case .newDocument, .saveDocument, .exportDocument: return "文件"
         case .undo, .redo: return "编辑"
         case .newChild, .newSibling, .editNode, .deleteNode, .toggleCollapse: return "节点"
         case .fitCanvas, .zoomIn, .zoomOut, .toggleInspector: return "视图"
@@ -67,6 +69,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .newDocument: return KeyCombo(key: "n", command: true)
         case .saveDocument: return KeyCombo(key: "s", command: true)
+        case .exportDocument: return KeyCombo(key: "e", command: true)
         case .undo: return KeyCombo(key: "z", command: true)
         case .redo: return KeyCombo(key: "z", command: true, shift: true)
         case .showHistory: return KeyCombo(key: "h", command: true, shift: true)
@@ -368,4 +371,5 @@ extension View {
 extension Notification.Name {
     static let mindscapeShowHistory = Notification.Name("mindscape.showHistory")
     static let mindscapeToggleInspector = Notification.Name("mindscape.toggleInspector")
+    static let mindscapeShowExport = Notification.Name("mindscape.showExport")
 }

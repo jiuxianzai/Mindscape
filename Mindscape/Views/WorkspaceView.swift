@@ -19,13 +19,12 @@ struct MapCanvasRepresentable: NSViewRepresentable {
 }
 
 struct WorkspaceView: View {
-    @Environment(AppModel.self) private var app
     @Bindable var editor: MapEditor
     @State private var showHistory = false
     @State private var showInspector = true
+    @State private var showExport = false
 
     var body: some View {
-        @Bindable var app = app
         MapCanvasRepresentable(editor: editor, revision: editor.revision, themeID: editor.map.themeID)
             .background(Color(nsColor: editor.theme.background))
             .inspector(isPresented: $showInspector) {
@@ -39,8 +38,14 @@ struct WorkspaceView: View {
             .sheet(isPresented: $showHistory) {
                 HistoryView(editor: editor)
             }
+            .sheet(isPresented: $showExport) {
+                ExportSheet(editor: editor)
+            }
             .onReceive(NotificationCenter.default.publisher(for: .mindscapeShowHistory)) { _ in
                 showHistory = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .mindscapeShowExport)) { _ in
+                showExport = true
             }
             .onReceive(NotificationCenter.default.publisher(for: .mindscapeToggleInspector)) { _ in
                 withAnimation(.easeOut(duration: 0.16)) {
@@ -106,18 +111,12 @@ struct WorkspaceView: View {
             }
             .help("历史版本")
 
-            Menu {
-                ForEach(ExportFormat.allCases) { format in
-                    Button {
-                        app.export(format)
-                    } label: {
-                        Label(format.title, systemImage: format.symbol)
-                    }
-                }
+            Button {
+                showExport = true
             } label: {
                 Label("导出", systemImage: "square.and.arrow.up")
             }
-            .help("导出")
+            .help("导出 / 分享")
 
         }
     }

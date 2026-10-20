@@ -324,9 +324,28 @@ struct GeneralSettingsContent: View {
                     }
                 }
 
-                Text("切换目录时会复制当前数据；如果目标目录中已有 Mindscape 数据，会直接打开其中的导图。")
+                Text("切换目录时会复制当前数据；如果目标目录中已有 Mindscape 数据，会直接打开其中的导图。所有导图都保存在该目录的一个 mindscape.sqlite 文件中。")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
+            }
+
+            if app.recentDataDirectories.count > 1 {
+                SettingsSection("最近目录") {
+                    SettingsCard {
+                        VStack(spacing: 0) {
+                            ForEach(Array(app.recentDataDirectories.enumerated()), id: \.element) { index, url in
+                                recentDirectoryRow(url)
+                                if index < app.recentDataDirectories.count - 1 {
+                                    Divider().padding(.leading, 12)
+                                }
+                            }
+                        }
+                    }
+
+                    Text("每个目录的导图都存在自己的 mindscape.sqlite 中；切换目录不会删除另一个目录的数据。")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             SettingsSection("说明") {
@@ -344,6 +363,44 @@ struct GeneralSettingsContent: View {
         } message: {
             Text(errorMessage ?? "")
         }
+    }
+
+    @MainActor
+    private func recentDirectoryRow(_ url: URL) -> some View {
+        let current = url.standardizedFileURL == app.store.directoryURL?.standardizedFileURL
+        let count = (try? DocumentStore(directory: url).list(includeDeleted: false).count) ?? 0
+        return HStack(spacing: 9) {
+            Image(systemName: current ? "folder.fill" : "folder")
+                .font(.system(size: 12.5))
+                .foregroundStyle(appAccent)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(url.path)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+                Text(current ? "\(count) 张导图 · 当前目录" : "\(count) 张导图 · 可切换")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            if current {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(appAccent)
+            } else {
+                Button("切换") {
+                    if let error = app.switchDataDirectory(to: url, useExisting: true) {
+                        errorMessage = error
+                    }
+                }
+                .buttonStyle(SettingsActionButtonStyle())
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
     }
 
     private func chooseDirectory() {
