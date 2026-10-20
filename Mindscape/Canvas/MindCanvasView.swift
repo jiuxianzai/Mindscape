@@ -336,14 +336,12 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         let relativeY = targetFrame.height > 0
             ? (world.y - targetFrame.minY) / targetFrame.height
             : 0.5
-        let onEdge = relativeY < 0.28 || relativeY > 0.72
 
-        if sourceNode.parentID == targetNode.parentID, onEdge {
+        // 默认拖到节点上 = 挂到该节点下面；按住 ⌥ 再拖到同级节点 = 调整兄弟顺序
+        if event.modifierFlags.contains(.option), sourceNode.parentID == targetNode.parentID {
             editor.reorder(id: id, relativeTo: target, after: relativeY > 0.5)
         } else if editor.canMove(id, to: target) {
             editor.move(id: id, to: target)
-        } else if sourceNode.parentID == targetNode.parentID {
-            editor.reorder(id: id, relativeTo: target, after: relativeY > 0.5)
         }
     }
 
@@ -595,7 +593,6 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         let screenFont = NSFont(descriptor: font.fontDescriptor, size: max(font.pointSize * camera.zoom, 9)) ?? font
 
         let field = NSTextField(frame: rect.insetBy(dx: 1, dy: 2))
-        field.stringValue = replacement ?? node.text
         field.placeholderString = "输入主题"
         field.font = screenFont
         field.isBordered = false
@@ -606,7 +603,7 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         field.focusRingType = .none
         field.alignment = level == 0 ? .center : .left
 
-        let cell = CanvasTextFieldCell(textCell: "")
+        let cell = CanvasTextFieldCell(textCell: replacement ?? node.text)
         cell.horizontalInset = 10
         cell.font = screenFont
         cell.alignment = field.alignment
@@ -619,6 +616,7 @@ final class MindCanvasView: NSView, NSTextFieldDelegate {
         cell.backgroundColor = fillColor(for: node, level: level)
         cell.textColor = textColor(for: node, level: level)
         field.cell = cell
+        field.stringValue = replacement ?? node.text
         field.font = screenFont
         field.backgroundColor = fillColor(for: node, level: level)
         field.textColor = textColor(for: node, level: level)

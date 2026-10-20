@@ -293,7 +293,7 @@ struct InspectorView: View {
 
             VStack(alignment: .leading, spacing: 7) {
                 sectionLabel("小提示")
-                Text("单击选中，双击编辑；Tab 新建子主题，回车新建同级主题；拖动节点到另一个节点上可调整层级。")
+                Text("单击选中，双击编辑；Tab 新建子主题，回车新建同级主题；拖到节点上可挂到它下面，按住 ⌥ 拖到同级节点上下可排序。")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
