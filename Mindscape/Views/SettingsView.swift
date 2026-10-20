@@ -123,6 +123,17 @@ struct SettingsView: View {
 
 private let appAccent = Color(nsColor: NSColor(hex: "#C26A4A"))
 
+private func displayPath(_ url: URL?) -> String {
+    guard let url else { return "内存模式" }
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    let path = url.path
+    if path == home { return "~" }
+    if path.hasPrefix(home + "/") {
+        return "~" + path.dropFirst(home.count)
+    }
+    return path
+}
+
 struct SettingsPageHeader: View {
     let title: String
     let subtitle: String
@@ -278,7 +289,7 @@ struct GeneralSettingsContent: View {
                                 .foregroundStyle(appAccent)
                                 .padding(.top, 1)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(app.store.directoryURL?.path ?? "内存模式")
+                                Text(displayPath(app.store.directoryURL))
                                     .font(.system(size: 10.5, design: .monospaced))
                                     .textSelection(.enabled)
                                     .lineLimit(3)
@@ -375,7 +386,7 @@ struct GeneralSettingsContent: View {
                 .foregroundStyle(appAccent)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(url.path)
+                Text(displayPath(url))
                     .font(.system(size: 10.5, design: .monospaced))
                     .lineLimit(2)
                     .textSelection(.enabled)
@@ -648,7 +659,7 @@ struct AboutSettingsContent: View {
             SettingsSection("存储") {
                 SettingsCard {
                     VStack(spacing: 0) {
-                        infoRow("数据库", value: app.store.directoryURL?.path ?? "内存模式")
+                        infoRow("数据库", value: displayPath(app.store.directoryURL))
                         Divider().padding(.leading, 12)
                         infoRow("存储方式", value: "SQLite · 完全本地")
                         Divider().padding(.leading, 12)
