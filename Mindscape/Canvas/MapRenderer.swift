@@ -276,7 +276,13 @@ enum MapRenderer {
         if let iconName = node.icon,
            let iconRect = textLayout.iconRect,
            let image = symbolImage(name: iconName, size: textLayout.iconSize, color: textColor, alpha: alpha) {
+            NSGraphicsContext.saveGraphicsState()
+            let flip = NSAffineTransform()
+            flip.translateX(by: 0, yBy: iconRect.midY * 2)
+            flip.scaleX(by: 1, yBy: -1)
+            flip.concat()
             image.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1)
+            NSGraphicsContext.restoreGraphicsState()
         }
 
         // 编辑中由输入控件负责文字，画布只保留图标、背景和边框
@@ -320,11 +326,51 @@ enum MapRenderer {
         }
     }
 
+    private static var symbolCache: [String: NSImage] = [:]
+
     private static func symbolImage(name: String, size: CGFloat, color: NSColor, alpha: CGFloat) -> NSImage? {
+        let cacheKey = "\(name)|\(size)|\(color.hexString)|\(alpha)"
+        if let cached = symbolCache[cacheKey] { return cached }
+
         guard let base = NSImage(systemSymbolName: name, accessibilityDescription: nil) else { return nil }
         let configuration = NSImage.SymbolConfiguration(pointSize: size, weight: .medium)
             .applying(NSImage.SymbolConfiguration(paletteColors: [color.withAlphaComponent(alpha)]))
-        return base.withSymbolConfiguration(configuration)
+        guard let symbol = base.withSymbolConfiguration(configuration) else { return nil }
+
+        // SF Symbol 在 PDF / 翻转视图中直接绘制会丢失字形或上下颠倒；
+        // 先栅格化成高分辨率位图，再由渲染器按需翻转，保证画布和导出一致。
+        let pixelSize = 128
+        guard let representation = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: pixelSize,
+            pixelsHigh: pixelSize,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else { return nil }
+        representation.size = NSSize(width: size, height: size)
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: representation)
+        NSColor.clear.setFill()
+        NSRect(x: 0, y: 0, width: size, height: size).fill()
+        symbol.draw(
+            in: NSRect(x: 0, y: 0, width: size, height: size),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1
+        )
+        NSGraphicsContext.restoreGraphicsState()
+
+        let image = NSImage(size: NSSize(width: size, height: size))
+        image.addRepresentation(representation)
+        symbolCache[cacheKey] = image
+        if symbolCache.count > 300 { symbolCache.removeAll() }
+        return image
     }
 
     private static func descendantCount(of id: UUID, layout: LayoutResult) -> Int {
