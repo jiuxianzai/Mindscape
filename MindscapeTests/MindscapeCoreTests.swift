@@ -1042,3 +1042,65 @@ extension MindscapeFeatureTests {
         )
     }
 }
+
+extension MindscapeFeatureTests {
+    /// 图标高度必须统一、宽度跟随符号自身比例：
+    /// SF Symbols 的宽高比在 0.64~1.78 之间，统一塞进正方形会被拉扁或挤瘦
+    func testIconKeepsNativeAspectRatio() throws {
+        let store = try DocumentStore(inMemory: true)
+        var map = MindMap.blank(title: "t", themeID: "paper", layout: .logicRight)
+        let icons = ["key.fill", "star.fill", "person.3.fill"]   // 窄 / 方 / 宽
+        for (index, icon) in icons.enumerated() {
+            var node = MindNode(parentID: map.rootID, text: "图标", order: index)
+            node.icon = icon
+            map.nodes.append(node)
+        }
+        let editor = MapEditor(map: map, store: store)
+        let layout = LayoutEngine.layout(editor.map)
+        let level = 1
+        let expectedHeight = NodeMeasurer.iconSize(level: level)
+
+        var widths: [String: CGFloat] = [:]
+        for node in editor.map.nodes where node.icon != nil {
+            guard let frame = layout.frames[node.id], let icon = node.icon else { continue }
+            let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: level)
+            guard let box = textLayout.iconRect?.size else { return XCTFail("\(icon) 没有图标占位") }
+
+            XCTAssertEqual(box.height, expectedHeight, accuracy: 0.01, "\(icon) 高度没有统一")
+            widths[icon] = box.width
+
+            let natural = try XCTUnwrap(
+                NSImage(systemSymbolName: icon, accessibilityDescription: nil)?
+                    .withSymbolConfiguration(.init(pointSize: expectedHeight, weight: .medium))?
+                    .size
+            )
+            XCTAssertEqual(
+                box.width / box.height,
+                natural.width / natural.height,
+                accuracy: 0.02,
+                "\(icon) 的占位比例被改掉了"
+            )
+        }
+
+        XCTAssertLessThan(try XCTUnwrap(widths["key.fill"]), try XCTUnwrap(widths["star.fill"]), "窄符号被拉宽了")
+        XCTAssertLessThan(try XCTUnwrap(widths["star.fill"]), try XCTUnwrap(widths["person.3.fill"]), "宽符号被挤窄了")
+    }
+
+    /// 图标宽度要参与节点尺寸计算，否则宽图标会压到文字
+    func testIconWidthAffectsNodeWidth() throws {
+        let store = try DocumentStore(inMemory: true)
+        var map = MindMap.blank(title: "t", themeID: "paper", layout: .logicRight)
+        for (index, icon) in ["key.fill", "person.3.fill"].enumerated() {
+            var node = MindNode(parentID: map.rootID, text: "同样长度的文字", order: index)
+            node.icon = icon
+            map.nodes.append(node)
+        }
+        let editor = MapEditor(map: map, store: store)
+        let layout = LayoutEngine.layout(editor.map)
+        let keyNode = try XCTUnwrap(editor.map.nodes.first { $0.icon == "key.fill" })
+        let wideNode = try XCTUnwrap(editor.map.nodes.first { $0.icon == "person.3.fill" })
+        let keyWidth = try XCTUnwrap(layout.frames[keyNode.id]).width
+        let wideWidth = try XCTUnwrap(layout.frames[wideNode.id]).width
+        XCTAssertGreaterThan(wideWidth, keyWidth + 5, "宽图标的节点没有跟着变宽")
+    }
+}

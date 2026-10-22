@@ -608,13 +608,20 @@ enum MapRenderer {
         let textLayout = NodeMeasurer.textLayout(for: node, in: rect, level: level)
         if let iconName = node.icon,
            let iconRect = textLayout.iconRect,
-           let image = symbolImage(name: iconName, size: textLayout.iconSize, color: textColor, alpha: alpha) {
+           let image = symbolImage(name: iconName, box: iconRect.size, color: textColor, alpha: alpha) {
+            // 位图本身已经是图标的原始比例，这里按实际尺寸居中放置，不再拉伸
+            let drawRect = CGRect(
+                x: iconRect.midX - image.size.width / 2,
+                y: iconRect.midY - image.size.height / 2,
+                width: image.size.width,
+                height: image.size.height
+            )
             NSGraphicsContext.saveGraphicsState()
             let flip = NSAffineTransform()
-            flip.translateX(by: 0, yBy: iconRect.midY * 2)
+            flip.translateX(by: 0, yBy: drawRect.midY * 2)
             flip.scaleX(by: 1, yBy: -1)
             flip.concat()
-            image.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1)
+            image.draw(in: drawRect, from: .zero, operation: .sourceOver, fraction: 1)
             NSGraphicsContext.restoreGraphicsState()
         }
 
@@ -707,23 +714,37 @@ enum MapRenderer {
 
     private static var symbolCache: [String: NSImage] = [:]
 
-    private static func symbolImage(name: String, size: CGFloat, color: NSColor, alpha: CGFloat) -> NSImage? {
-        let cacheKey = "\(name)|\(size)|\(color.hexString)|\(alpha)"
+    /// 把 SF Symbol 栅格化成位图再上色。
+    /// `box` 是图标可占用的矩形：内部按符号原始比例等比缩放并居中，绝不做非等比拉伸。
+    /// SF Symbols 的宽高比在 0.64~1.78 之间浮动，直接塞进正方形会让竖长的符号变矮、
+    /// 横宽的符号变瘦，这是节点里图标看起来"比例不对"的根因。
+    private static func symbolImage(name: String, box: CGSize, color: NSColor, alpha: CGFloat) -> NSImage? {
+        guard box.width > 0, box.height > 0 else { return nil }
+        let cacheKey = "\(name)|\(Int((box.width * 100).rounded()))x\(Int((box.height * 100).rounded()))|\(color.hexString)|\(alpha)"
         if let cached = symbolCache[cacheKey] { return cached }
 
         guard let base = NSImage(systemSymbolName: name, accessibilityDescription: nil) else { return nil }
         // 这里只能用单色配置：paletteColors 会把 xmark.circle.fill 等符号的
         // 负空间（圆里的 X / 对勾）当成第二层填成同色，渲染出来就是一个实心黑圆。
-        let configuration = NSImage.SymbolConfiguration(pointSize: size, weight: .medium)
+        let configuration = NSImage.SymbolConfiguration(pointSize: box.height, weight: .medium)
         guard let symbol = base.withSymbolConfiguration(configuration) else { return nil }
 
-        // SF Symbol 在 PDF / 翻转视图中直接绘制会丢失字形或上下颠倒；
-        // 先栅格化成高分辨率位图，再由渲染器按需翻转，保证画布和导出一致。
-        let pixelSize = 128
+        let natural = symbol.size
+        guard natural.width > 0, natural.height > 0 else { return nil }
+        let scale = min(box.width / natural.width, box.height / natural.height)
+        let glyph = CGSize(width: natural.width * scale, height: natural.height * scale)
+        guard glyph.width > 0.5, glyph.height > 0.5 else { return nil }
+
+        // 长边固定 160px（对应 Retina 下的清晰度），短边按比例，小符号也不会糊
+        let longSide: CGFloat = 160
+        let maxExtent = max(glyph.width, glyph.height)
+        let pixelWidth = max(Int((longSide * glyph.width / maxExtent).rounded()), 1)
+        let pixelHeight = max(Int((longSide * glyph.height / maxExtent).rounded()), 1)
+
         guard let representation = NSBitmapImageRep(
             bitmapDataPlanes: nil,
-            pixelsWide: pixelSize,
-            pixelsHigh: pixelSize,
+            pixelsWide: pixelWidth,
+            pixelsHigh: pixelHeight,
             bitsPerSample: 8,
             samplesPerPixel: 4,
             hasAlpha: true,
@@ -732,24 +753,24 @@ enum MapRenderer {
             bytesPerRow: 0,
             bitsPerPixel: 0
         ) else { return nil }
-        representation.size = NSSize(width: size, height: size)
+        representation.size = NSSize(width: glyph.width, height: glyph.height)
 
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: representation)
         NSColor.clear.setFill()
-        NSRect(x: 0, y: 0, width: size, height: size).fill()
+        NSRect(origin: .zero, size: glyph).fill()
         symbol.draw(
-            in: NSRect(x: 0, y: 0, width: size, height: size),
+            in: NSRect(origin: .zero, size: glyph),
             from: .zero,
             operation: .sourceOver,
             fraction: 1
         )
         // 保留单色渲染出的镂空，再按节点文字色整体着色（sourceIn 只影响已有像素）
         color.withAlphaComponent(alpha).setFill()
-        NSRect(x: 0, y: 0, width: size, height: size).fill(using: .sourceIn)
+        NSRect(origin: .zero, size: glyph).fill(using: .sourceIn)
         NSGraphicsContext.restoreGraphicsState()
 
-        let image = NSImage(size: NSSize(width: size, height: size))
+        let image = NSImage(size: NSSize(width: glyph.width, height: glyph.height))
         image.addRepresentation(representation)
         symbolCache[cacheKey] = image
         if symbolCache.count > 300 { symbolCache.removeAll() }

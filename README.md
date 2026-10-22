@@ -14,15 +14,15 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-44-brightgreen?style=flat-square" alt="44 tests">
-  <img src="https://img.shields.io/badge/status-0.5.0-lightgrey?style=flat-square" alt="Status 0.5.0">
+  <img src="https://img.shields.io/badge/tests-46-brightgreen?style=flat-square" alt="46 tests">
+  <img src="https://img.shields.io/badge/status-0.5.1-lightgrey?style=flat-square" alt="Status 0.5.1">
 </p>
 
 > A local-first mind map app for macOS. All data lives in a local SQLite file — no account, no cloud, no telemetry.
 
 Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据全部保存在本机。它没有登录、没有云同步、不会发起网络请求，也不依赖任何第三方库。
 
-当前版本：**0.5.0**（早期版本，功能和数据结构仍可能调整）
+当前版本：**0.5.1**（早期版本，功能和数据结构仍可能调整）
 
 ---
 
@@ -178,7 +178,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ### 下载
 
-从 [Releases](https://github.com/jiuxianzai/Mindscape/releases) 下载 `Mindscape-0.5.0.dmg`，打开后把 Mindscape 拖进 Applications。
+从 [Releases](https://github.com/jiuxianzai/Mindscape/releases) 下载 `Mindscape-0.5.1.dmg`，打开后把 Mindscape 拖进 Applications。
 
 当前构建为 **ad-hoc 签名**，没有 notarization。首次打开如果被 Gatekeeper 拦下：
 
@@ -206,7 +206,7 @@ open Mindscape.xcodeproj
 打包与本地安装：
 
 ```bash
-make package    # 生成 dist/Mindscape-0.5.0.dmg 和 .zip
+make package    # 生成 dist/Mindscape-0.5.1.dmg 和 .zip
 make install    # 安装到 /Applications 并启动
 ```
 
@@ -282,7 +282,7 @@ xcodebuild test -project Mindscape.xcodeproj -scheme Mindscape -derivedDataPath 
 | 图标 | SF Symbols |
 | 数据 | 系统 `libsqlite3`，WAL 模式 |
 | 工程 | XcodeGen（`project.yml`） |
-| 测试 | XCTest（44 个用例，含画布交互与渲染回归） |
+| 测试 | XCTest（46 个用例，含画布交互与渲染回归） |
 | 最低系统 | macOS 14 |
 | 架构 | Universal（arm64 + x86_64） |
 | 第三方依赖 | 无 |
