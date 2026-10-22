@@ -12,21 +12,21 @@ enum ExportFormat: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .png: return "PNG 图片"
-        case .pdf: return "PDF 文档"
-        case .markdown: return "Markdown 大纲"
-        case .opml: return "OPML 大纲"
-        case .json: return "JSON 数据"
+        case .png: return String(localized: "PNG 图片")
+        case .pdf: return String(localized: "PDF 文档")
+        case .markdown: return String(localized: "Markdown 大纲")
+        case .opml: return String(localized: "OPML 大纲")
+        case .json: return String(localized: "JSON 数据")
         }
     }
 
     var detail: String {
         switch self {
-        case .png: return "高清图片，适合发微信、文档、演示"
-        case .pdf: return "矢量文档，适合打印和正式分享"
-        case .markdown: return "层级大纲，可导入笔记 / 大纲工具"
-        case .opml: return "通用大纲格式，可导入 XMind、OmniOutliner 等"
-        case .json: return "完整数据结构，适合备份和迁移"
+        case .png: return String(localized: "高清图片，适合发微信、文档、演示")
+        case .pdf: return String(localized: "矢量文档，适合打印和正式分享")
+        case .markdown: return String(localized: "层级大纲，可导入笔记 / 大纲工具")
+        case .opml: return String(localized: "通用大纲格式，可导入 XMind、OmniOutliner 等")
+        case .json: return String(localized: "完整数据结构，适合备份和迁移")
         }
     }
 
@@ -75,7 +75,7 @@ enum ExportService {
         scale: CGFloat = 2
     ) -> Bool {
         let panel = NSSavePanel()
-        panel.title = "导出 \(format.title)"
+        panel.title = String(localized: "导出 \(format.title)")
         panel.canCreateDirectories = true
         panel.allowedContentTypes = [format.contentType]
         panel.nameFieldStringValue = "\(safeFileName(map.title)).\(format.fileExtension)"
@@ -274,7 +274,7 @@ enum ExportService {
 
     static func safeFileName(_ name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let base = trimmed.isEmpty ? "未命名导图" : trimmed
+        let base = trimmed.isEmpty ? String(localized: "未命名导图") : trimmed
         let invalid = CharacterSet(charactersIn: "/\\:?*\"<>|")
         return base.components(separatedBy: invalid).joined(separator: "-")
     }
@@ -283,7 +283,7 @@ enum ExportService {
 enum ExportError: LocalizedError {
     case renderFailed
 
-    var errorDescription: String? { "生成导出文件失败" }
+    var errorDescription: String? { String(localized: "生成导出文件失败") }
 }
 
 final class ExportCanvasView: NSView {

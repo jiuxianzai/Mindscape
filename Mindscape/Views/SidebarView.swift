@@ -104,6 +104,12 @@ struct SidebarView: View {
                         Label(template.title, systemImage: template.symbol)
                     }
                 }
+                Divider()
+                Button {
+                    app.importDocument()
+                } label: {
+                    Label("导入 Markdown / OPML…", systemImage: "square.and.arrow.down")
+                }
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 12, weight: .semibold))

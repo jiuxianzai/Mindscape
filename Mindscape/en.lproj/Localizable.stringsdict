@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>%lld 张导图 · 当前目录</key>
+    <dict>
+        <key>NSStringLocalizedFormatKey</key>
+        <string>%#@maps@ · Current folder</string>
+        <key>maps</key>
+        <dict>
+            <key>NSStringFormatSpecTypeKey</key>
+            <string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key>
+            <string>lld</string>
+            <key>one</key>
+            <string>%lld map</string>
+            <key>other</key>
+            <string>%lld maps</string>
+        </dict>
+    </dict>
+    <key>%lld 张导图 · 可切换</key>
+    <dict>
+        <key>NSStringLocalizedFormatKey</key>
+        <string>%#@maps@ · Switchable</string>
+        <key>maps</key>
+        <dict>
+            <key>NSStringFormatSpecTypeKey</key>
+            <string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key>
+            <string>lld</string>
+            <key>one</key>
+            <string>%lld map</string>
+            <key>other</key>
+            <string>%lld maps</string>
+        </dict>
+    </dict>
+    <key>%lld 个节点</key>
+    <dict>
+        <key>NSStringLocalizedFormatKey</key>
+        <string>%#@nodes@</string>
+        <key>nodes</key>
+        <dict>
+            <key>NSStringFormatSpecTypeKey</key>
+            <string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key>
+            <string>lld</string>
+            <key>one</key>
+            <string>%lld node</string>
+            <key>other</key>
+            <string>%lld nodes</string>
+        </dict>
+    </dict>
+    <key>%@ · %lld 个节点</key>
+    <dict>
+        <key>NSStringLocalizedFormatKey</key>
+        <string>%@ · %#@nodes@</string>
+        <key>nodes</key>
+        <dict>
+            <key>NSStringFormatSpecTypeKey</key>
+            <string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key>
+            <string>lld</string>
+            <key>one</key>
+            <string>%lld node</string>
+            <key>other</key>
+            <string>%lld nodes</string>
+        </dict>
+    </dict>
+    <key>回收站里的 %lld 张导图将被彻底删除，无法恢复。</key>
+    <dict>
+        <key>NSStringLocalizedFormatKey</key>
+        <string>%#@maps@ in the Trash will be permanently deleted and cannot be recovered.</string>
+        <key>maps</key>
+        <dict>
+            <key>NSStringFormatSpecTypeKey</key>
+            <string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key>
+            <string>lld</string>
+            <key>one</key>
+            <string>%lld map</string>
+            <key>other</key>
+            <string>%lld maps</string>
+        </dict>
+    </dict>
+</dict>
+</plist>

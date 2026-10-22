@@ -1,12 +1,13 @@
 import AppKit
 import Observation
+import UniformTypeIdentifiers
 
 enum LibraryScope: String, CaseIterable, Identifiable {
     case all
     case starred
 
     var id: String { rawValue }
-    var title: String { self == .all ? "全部" : "收藏" }
+    var title: String { self == .all ? String(localized: "全部") : String(localized: "收藏") }
 }
 
 @MainActor
@@ -265,7 +266,7 @@ final class AppModel {
 
     @discardableResult
     func createFolder(parentID: UUID?) -> UUID? {
-        guard let folder = try? store.createFolder(name: "新建目录", parentID: parentID) else {
+        guard let folder = try? store.createFolder(name: String(localized: "新建目录"), parentID: parentID) else {
             return nil
         }
         if let parentID {
@@ -333,17 +334,20 @@ final class AppModel {
         guard let record = documents.first(where: { $0.id == id }) else { return }
         try? store.setStarred(id, starred: !record.starred)
         reload()
-        selectedDocumentID = id
     }
 
     func trashDocument(_ id: UUID) {
-        if selectedDocumentID == id {
+        let wasSelected = selectedDocumentID == id
+        if wasSelected {
             editor?.saveNow()
             editor = nil
             selectedDocumentID = nil
         }
         try? store.trash(id)
         reload()
+        if wasSelected, let next = documents.first(where: { $0.deletedAt == nil }) {
+            selectDocument(next.id)
+        }
     }
 
     func restoreDocument(_ id: UUID) {
@@ -352,11 +356,16 @@ final class AppModel {
     }
 
     func deletePermanently(_ id: UUID) {
+        let wasSelected = selectedDocumentID == id
+        if wasSelected {
+            editor?.saveNow()
+            editor = nil
+            selectedDocumentID = nil
+        }
         try? store.deletePermanently(id)
         reload()
-        if selectedDocumentID == id {
-            selectedDocumentID = nil
-            editor = nil
+        if wasSelected, let next = documents.first(where: { $0.deletedAt == nil }) {
+            selectDocument(next.id)
         }
     }
 
@@ -434,6 +443,42 @@ final class AppModel {
         paths.removeAll { URL(fileURLWithPath: $0).standardizedFileURL.path == normalized.path }
         paths.insert(normalized.path, at: 0)
         UserDefaults.standard.set(Array(paths.prefix(6)), forKey: Self.recentDirectoriesKey)
+    }
+
+    // MARK: - Import
+
+    func importDocument() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = String(localized: "导入")
+        panel.message = String(localized: "选择 Markdown、OPML 或 JSON 文件")
+        var types: [UTType] = [.plainText, .json, .xml]
+        for ext in ["md", "markdown", "opml"] {
+            if let type = UTType(filenameExtension: ext) {
+                types.append(type)
+            }
+        }
+        panel.allowedContentTypes = types
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            var map = try MapImporter.load(
+                url: url,
+                themeID: defaultThemeID,
+                layout: defaultLayout
+            )
+            map.title = uniqueTitle(for: map.title)
+            try store.save(map, folderID: selectedFolderID)
+            reload()
+            if let folderID = selectedFolderID {
+                expandAncestors(of: folderID)
+            }
+            selectDocument(map.id)
+        } catch {
+            startupError = error.localizedDescription
+        }
     }
 
     // MARK: - Export

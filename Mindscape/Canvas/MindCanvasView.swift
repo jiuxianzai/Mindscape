@@ -7,19 +7,47 @@ struct CanvasCamera {
     static let maxZoom: CGFloat = 3.5
 }
 
-final class MindCanvasView: NSView, NSTextViewDelegate {
+final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidations {
     weak var editor: MapEditor?
+    /// 相机缩放变化时回调，供底部缩放栏同步显示
+    var onZoomChanged: ((CGFloat) -> Void)?
+    var currentZoom: CGFloat { camera.zoom }
+
+    /// 演示模式使用：不允许编辑、拖拽和框选，但保留缩放 / 平移
+    var isReadOnly = false
+    /// 专注 / 演示模式下焦点外节点的透明度
+    var focusDimAlpha: CGFloat = 0.35
 
     private var theme: MapTheme = MapTheme.all[0]
     private var layoutResult: LayoutResult?
     private var layoutRevision: Int = -1
     private var layoutDocumentID: UUID?
     private var camera = CanvasCamera()
+    private var displayFrames: [UUID: CGRect] = [:]
+    private var frameAnimation: FrameAnimation?
+    private var animationTimer: Timer?
+    private var dashTimer: Timer?
+    private var dashPhase: CGFloat = 0
+    private var accessibilityObserver: NSObjectProtocol?
+    private var nodeAccessibilityElements: [UUID: MindNodeAccessibilityElement] = [:]
     private var lastFitToken: Int = -1
     private var lastZoomToken: Int = 0
+    private var lastBranchZoomToken: Int = -1
+    private var pendingBranchZoomID: UUID?
+    private var pendingFitAll = false
     private var hasFitted = false
     private var fitBoundsSize: CGSize = .zero
     private var userHasInteracted = false
+    private var searchMatches: Set<UUID> = []
+    private var activeSearchID: UUID?
+    private var marqueeRect: CGRect?
+    private var snapGuides: [SnapGuide] = []
+    private var hoveredControlID: UUID?
+    private var trackingArea: NSTrackingArea?
+    private var collapsedSnapshot: [UUID: Bool] = [:]
+    private var collapseFade: CollapseFade?
+    private var ghostAlpha: CGFloat = 0
+    private var alphaOverrides: [UUID: CGFloat] = [:]
 
     private var drag: DragState?
     private var dragOffset: CGSize = .zero
@@ -27,10 +55,48 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
     private var editTextView: NSTextView?
     private var editingID: UUID?
     private var editingOriginalText = ""
+    /// 当前就地编辑器已经应用过的字号，用于避免每次按键都重设整段属性
+    private var appliedEditingFont: NSFont?
+    /// 组字（marked text）不会触发 textDidChange，靠子类回调补上
+    private final class EditingTextView: NSTextView {
+        var onMarkedTextChange: (() -> Void)?
+
+        override func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+            super.setMarkedText(string, selectedRange: selectedRange, replacementRange: replacementRange)
+            onMarkedTextChange?()
+        }
+
+        override func unmarkText() {
+            super.unmarkText()
+            onMarkedTextChange?()
+        }
+    }
 
     private enum DragState {
         case pan(startPoint: CGPoint, startCenter: CGPoint)
         case node(id: UUID, startPoint: CGPoint, originalFrame: CGRect)
+        case marquee(startPoint: CGPoint, base: Set<UUID>)
+    }
+
+    private struct FrameAnimation {
+        let from: [UUID: CGRect]
+        let to: [UUID: CGRect]
+        let startTime: TimeInterval
+        let duration: TimeInterval
+        /// 每个节点自己的起步延迟（按层级错峰）
+        let delays: [UUID: TimeInterval]
+        let maxDelay: TimeInterval
+    }
+
+    private struct CollapseFade {
+        let startTime: TimeInterval
+        let duration: TimeInterval
+        let ghostFrames: [UUID: CGRect]
+        let ghostLevels: [UUID: Int]
+        let fadeIn: Set<UUID>
+        /// 新出现节点的淡入延迟，跟落位动画保持同一套层级错峰
+        let delays: [UUID: TimeInterval]
+        let maxDelay: TimeInterval
     }
 
     override var isFlipped: Bool { true }
@@ -39,6 +105,9 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        setAccessibilityLabel(loc("思维导图画布"))
     }
 
     required init?(coder: NSCoder) {
@@ -55,29 +124,83 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
             layoutDocumentID = nil
             lastFitToken = -1
             lastZoomToken = 0
+            lastBranchZoomToken = -1
+            pendingBranchZoomID = nil
+            pendingFitAll = false
             hasFitted = false
             fitBoundsSize = .zero
             userHasInteracted = false
             camera = CanvasCamera()
+            stopFrameAnimation()
+            displayFrames = [:]
+            collapsedSnapshot = [:]
+            stopDashTimer()
             cancelEditing()
+            searchMatches = []
+            activeSearchID = nil
+            marqueeRect = nil
+            snapGuides = []
+            notifyZoomChanged()
         }
         self.theme = theme
         rebuildLayoutIfNeeded()
+        syncEditorWithModel(editor)
         if let activeEditor = self.editor, activeEditor.zoomToken != lastZoomToken {
             lastZoomToken = activeEditor.zoomToken
             zoom(by: activeEditor.zoomFactor, at: CGPoint(x: bounds.midX, y: bounds.midY))
         }
+        applyPendingBranchZoomIfPossible()
         needsDisplay = true
+    }
+
+    /// 撤销 / 重做 / 删除之后，编辑器要和模型对齐：
+    /// 节点没了就收起编辑器（否则会留下一段漂浮的文字），内容变了就同步文字。
+    private func syncEditorWithModel(_ editor: MapEditor) {
+        guard let id = editingID else { return }
+        guard let node = editor.map.node(id), layoutResult?.frames[id] != nil else {
+            cancelEditing()
+            return
+        }
+        guard let textView = editTextView, textView.string != node.text else { return }
+        textView.string = node.text
+        appliedEditingFont = nil
+        updateEditorFrame()
     }
 
     // MARK: - Layout cache
 
     private func rebuildLayoutIfNeeded(force: Bool = false) {
         guard let editor else { return }
+        if layoutDocumentID != editor.map.id {
+            collapsedSnapshot = [:]
+        }
+        let previousLayout = layoutResult
+        let previousCollapsed = collapsedSnapshot
+
         if force || layoutResult == nil || layoutRevision != editor.revision || layoutDocumentID != editor.map.id {
-            layoutResult = LayoutEngine.layout(editor.map)
+            let newLayout = LayoutEngine.layout(editor.map)
+            let newSnapshot = Dictionary(uniqueKeysWithValues: editor.map.nodes.map { ($0.id, $0.collapsed) })
+            layoutResult = newLayout
             layoutRevision = editor.revision
             layoutDocumentID = editor.map.id
+
+            let toggled = previousCollapsed.compactMap { id, old -> UUID? in
+                guard let new = newSnapshot[id], new != old else { return nil }
+                return id
+            }
+
+            if !toggled.isEmpty, let previousLayout, animationsAllowed, drag == nil {
+                beginCollapseTransition(
+                    from: previousLayout,
+                    to: newLayout,
+                    toggled: toggled,
+                    newSnapshot: newSnapshot,
+                    editor: editor
+                )
+            } else if frameAnimation == nil && collapseFade == nil && drag == nil {
+                displayFrames = newLayout.frames
+            }
+            collapsedSnapshot = newSnapshot
         }
         if editor.fitToken != lastFitToken {
             lastFitToken = editor.fitToken
@@ -87,6 +210,167 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
                 hasFitted = false
             }
         }
+        if editor.branchZoomToken != lastBranchZoomToken {
+            lastBranchZoomToken = editor.branchZoomToken
+            pendingBranchZoomID = editor.branchZoomNodeID ?? nil
+            applyPendingBranchZoomIfPossible()
+        }
+    }
+
+    private func beginCollapseTransition(
+        from oldLayout: LayoutResult,
+        to newLayout: LayoutResult,
+        toggled: [UUID],
+        newSnapshot: [UUID: Bool],
+        editor: MapEditor
+    ) {
+        var ghostFrames: [UUID: CGRect] = [:]
+        var ghostLevels: [UUID: Int] = [:]
+        var fadeIn: Set<UUID> = []
+
+        // 从屏幕当前可见的位置续接，而不是上一段动画的终点：
+        // 连点时画面不会先跳回终点再重新插值
+        var startFrames = displayFrames
+        if startFrames.isEmpty {
+            startFrames = oldLayout.frames
+        } else {
+            for (id, rect) in oldLayout.frames where startFrames[id] == nil {
+                startFrames[id] = rect
+            }
+        }
+
+        for id in toggled {
+            let descendants = descendantIDs(of: id, in: editor.map)
+            if newSnapshot[id] == true {
+                for child in descendants {
+                    if let frame = startFrames[child] ?? oldLayout.frames[child] {
+                        ghostFrames[child] = frame
+                        ghostLevels[child] = oldLayout.depths[child] ?? 2
+                    }
+                }
+            } else {
+                for child in descendants where oldLayout.frames[child] == nil && newLayout.frames[child] != nil {
+                    fadeIn.insert(child)
+                }
+            }
+        }
+
+        // 重新开始一段转场，避免叠加旧动画
+        frameAnimation = nil
+        stopAnimationTimer()
+        displayFrames = startFrames
+
+        if ghostFrames.isEmpty && fadeIn.isEmpty {
+            collapseFade = nil
+            ghostAlpha = 0
+            alphaOverrides = [:]
+        } else {
+            // 新出现的节点等邻居先落位再淡入，避免刚亮起来就被别的节点压住
+            var fadeDelays: [UUID: TimeInterval] = [:]
+            for id in fadeIn {
+                fadeDelays[id] = CanvasMotion.delay(forDepth: newLayout.depths[id] ?? 0) + 0.02
+            }
+            collapseFade = CollapseFade(
+                startTime: ProcessInfo.processInfo.systemUptime,
+                duration: 0.18,
+                ghostFrames: ghostFrames,
+                ghostLevels: ghostLevels,
+                fadeIn: fadeIn,
+                delays: fadeDelays,
+                maxDelay: fadeDelays.values.max() ?? 0
+            )
+            ghostAlpha = ghostFrames.isEmpty ? 0 : 1
+            alphaOverrides = Dictionary(uniqueKeysWithValues: fadeIn.map { ($0, 0) })
+        }
+
+        animateFrames(from: startFrames, to: newLayout.frames, duration: 0.24)
+        if collapseFade != nil && animationTimer == nil {
+            startAnimationTimer()
+        }
+    }
+
+    private func descendantIDs(of id: UUID, in map: MindMap) -> [UUID] {
+        var result: [UUID] = []
+        var stack = map.children(of: id).map(\.id)
+        while let current = stack.popLast(), result.count < 5000 {
+            result.append(current)
+            stack.append(contentsOf: map.children(of: current).map(\.id))
+        }
+        return result
+    }
+
+    private func applyPendingBranchZoomIfPossible() {
+        guard bounds.width >= 320, bounds.height >= 240 else { return }
+        if pendingFitAll {
+            pendingFitAll = false
+            fitSubtree(nil)
+            return
+        }
+        guard let id = pendingBranchZoomID else { return }
+        pendingBranchZoomID = nil
+        fitSubtree(id)
+    }
+
+    /// 只把某个分支缩放到画布合适大小；id 为 nil 时适配整图
+    func fitSubtree(_ id: UUID?) {
+        rebuildLayoutIfNeeded(force: true)
+        guard bounds.width >= 320, bounds.height >= 240 else {
+            if let id {
+                pendingBranchZoomID = id
+            } else {
+                pendingFitAll = true
+            }
+            return
+        }
+        guard let editor, let layout = layoutResult else { return }
+        let ids = id.map { editor.map.subtreeIDs(of: $0) } ?? Set(layout.frames.keys)
+        guard !ids.isEmpty else { return }
+        var union: CGRect = .null
+        for nodeID in ids {
+            if let frame = layout.frames[nodeID] {
+                union = union.union(frame)
+            }
+        }
+        guard !union.isNull, union.width > 0, union.height > 0 else { return }
+        let padding: CGFloat = 96
+        let availableWidth = max(bounds.width - padding * 2, 100)
+        let availableHeight = max(bounds.height - padding * 2, 100)
+        let scale = min(availableWidth / union.width, availableHeight / union.height)
+        camera.zoom = min(max(scale, CanvasCamera.minZoom), min(CanvasCamera.maxZoom, 1.8))
+        camera.center = CGPoint(x: union.midX, y: union.midY)
+        userHasInteracted = true
+        hasFitted = true
+        fitBoundsSize = bounds.size
+        updateEditorFrame()
+        needsDisplay = true
+        notifyZoomChanged()
+    }
+
+    /// 专注模式 / 演示模式：设置焦点并（可选）把分支缩放适配
+    func focusSubtree(_ id: UUID?, fit: Bool = true) {
+        guard let editor else { return }
+        editor.setFocus(id)
+        if fit {
+            fitSubtree(id)
+        } else {
+            needsDisplay = true
+        }
+    }
+
+    /// 搜索定位：先展开折叠的祖先，再把节点放进可视区域
+    func revealNode(_ id: UUID) {
+        guard let editor, editor.map.node(id) != nil else { return }
+        editor.expandAncestors(of: id)
+        rebuildLayoutIfNeeded(force: true)
+        ensureVisible(id)
+        needsDisplay = true
+    }
+
+    func setSearchResults(_ ids: Set<UUID>, active: UUID?) {
+        guard ids != searchMatches || active != activeSearchID else { return }
+        searchMatches = ids
+        activeSearchID = active
+        needsDisplay = true
     }
 
     func fitToContent() {
@@ -105,6 +389,29 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         fitBoundsSize = bounds.size
         updateEditorFrame()
         needsDisplay = true
+        notifyZoomChanged()
+    }
+
+    /// 直接设置缩放（以视图中心为锚点，中心指向的世界坐标保持不变）
+    func setZoom(_ value: CGFloat) {
+        userHasInteracted = true
+        if editingID != nil { commitEditing() }
+        let clamped = min(max(value, CanvasCamera.minZoom), CanvasCamera.maxZoom)
+        guard abs(clamped - camera.zoom) > 0.0005 else { return }
+        camera.zoom = clamped
+        updateEditorFrame()
+        needsDisplay = true
+        notifyZoomChanged()
+    }
+
+    /// 把整张导图水平、垂直居中到画布
+    func centerContent() {
+        rebuildLayoutIfNeeded()
+        guard let layout = layoutResult, !layout.bounds.isEmpty else { return }
+        userHasInteracted = true
+        camera.center = CGPoint(x: layout.bounds.midX, y: layout.bounds.midY)
+        updateEditorFrame()
+        needsDisplay = true
     }
 
     override func layout() {
@@ -119,6 +426,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
                 rebuildLayoutIfNeeded(force: true)
                 fitToContent()
             }
+            applyPendingBranchZoomIfPossible()
         }
         updateEditorFrame()
     }
@@ -126,6 +434,105 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         window?.makeFirstResponder(self)
+        window?.acceptsMouseMovedEvents = true
+        observeAccessibilityDisplayOptions()
+    }
+
+    private func observeAccessibilityDisplayOptions() {
+        guard accessibilityObserver == nil else { return }
+        accessibilityObserver = NotificationCenter.default.addObserver(
+            forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.accessibilityDisplayOptionsDidChange()
+            }
+        }
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        super.viewWillMove(toWindow: newWindow)
+        if newWindow == nil, let observer = accessibilityObserver {
+            NotificationCenter.default.removeObserver(observer)
+            accessibilityObserver = nil
+        }
+    }
+
+    // MARK: - Accessibility
+
+    override func accessibilityChildren() -> [Any]? {
+        guard let editor, let layout = layoutResult else {
+            return super.accessibilityChildren()
+        }
+        let validIDs = Set(layout.drawOrder)
+        nodeAccessibilityElements = nodeAccessibilityElements.filter { validIDs.contains($0.key) }
+
+        var elements: [MindNodeAccessibilityElement] = []
+        for id in layout.drawOrder {
+            guard let node = editor.map.node(id), let frame = layout.frames[id] else { continue }
+            let element = nodeAccessibilityElements[id] ?? makeAccessibilityElement(for: id)
+            let children = editor.map.children(of: id).count
+            var label = NodeMeasurer.displayText(node)
+            label += String(format: loc("，%lld 个子主题"), children)
+            if node.collapsed, children > 0 { label += loc("，已折叠") }
+            if !node.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { label += loc("，有备注") }
+            if let icon = node.icon, let name = IconCatalog.all.first(where: { $0.symbol == icon })?.name {
+                label += String(format: loc("，图标 %@"), name)
+            }
+            element.setAccessibilityLabel(label)
+            element.setAccessibilityFrame(screenRect(for: frame))
+            element.setAccessibilitySelected(editor.selection.contains(id))
+            elements.append(element)
+        }
+        return elements
+    }
+
+    private func makeAccessibilityElement(for id: UUID) -> MindNodeAccessibilityElement {
+        let element = MindNodeAccessibilityElement()
+        element.canvas = self
+        element.nodeID = id
+        element.setAccessibilityParent(self)
+        element.setAccessibilityRole(.button)
+        element.setAccessibilityCustomActions([
+            NSAccessibilityCustomAction(name: loc("选中节点")) { [weak self] in
+                self?.selectNodeForAccessibility(id)
+                return true
+            },
+            NSAccessibilityCustomAction(name: loc("折叠 / 展开")) { [weak self] in
+                guard let self, let editor = self.editor else { return false }
+                editor.toggleCollapse(id)
+                self.needsDisplay = true
+                return true
+            }
+        ])
+        nodeAccessibilityElements[id] = element
+        return element
+    }
+
+    private func selectNodeForAccessibility(_ id: UUID) {
+        guard let editor, editor.map.node(id) != nil else { return }
+        editor.select(id)
+        needsDisplay = true
+        NSAccessibility.post(element: self, notification: .selectedChildrenChanged)
+    }
+
+    private func screenRect(for worldFrame: CGRect) -> NSRect {
+        let viewRect = worldRectToView(worldFrame)
+        let windowRect = convert(viewRect, to: nil)
+        return window?.convertToScreen(windowRect) ?? .zero
+    }
+
+    private func accessibilityDisplayOptionsDidChange() {
+        guard !animationsAllowed else { return }
+        stopFrameAnimation()
+        stopDashTimer()
+        displayFrames = layoutResult?.frames ?? [:]
+        needsDisplay = true
+    }
+
+    private var animationsAllowed: Bool {
+        CanvasMotion.allowsAnimation(nodeCount: layoutResult?.frames.count ?? 0)
     }
 
     // MARK: - Coordinate conversion
@@ -174,20 +581,81 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         context.translateBy(x: -camera.center.x, y: -camera.center.y)
 
         drawGrid(in: context)
+
+        var renderLayout = layout
+        if !displayFrames.isEmpty {
+            // 动画帧里可能还没有刚新建的节点，补上终态坐标，避免新节点“只有文字没有框”
+            var frames = displayFrames
+            for (id, rect) in layout.frames where frames[id] == nil {
+                frames[id] = rect
+            }
+            renderLayout.frames = frames
+        }
         MapRenderer.draw(
             map: editor.map,
-            layout: layout,
+            layout: renderLayout,
             theme: theme,
             selection: RenderSelection(
                 ids: editor.selection,
                 dragNodeID: dragNodeID,
                 dragOffset: dragOffset,
+                dimmed: dimmedNodeIDs(),
+                dimAlpha: focusDimAlpha,
                 dropTargetID: dropTargetID,
-                editingNodeID: editingID
+                dashPhase: dashPhase,
+                editingNodeID: editingID,
+                searchMatches: searchMatches,
+                activeSearchID: activeSearchID,
+                collapseControlIDs: collapseControlIDs,
+                activeCollapseControlID: activeCollapseControlID,
+                ghostFrames: collapseFade?.ghostFrames ?? [:],
+                ghostLevels: collapseFade?.ghostLevels ?? [:],
+                ghostAlpha: ghostAlpha,
+                alphaOverrides: alphaOverrides
             ),
+            visibleRect: visibleWorldRect.insetBy(dx: -120, dy: -120),
             in: context
         )
+        drawSnapGuides(in: context)
         context.restoreGState()
+        drawMarquee()
+    }
+
+    private func dimmedNodeIDs() -> Set<UUID> {
+        guard let editor, let focusID = editor.focusNodeID else { return [] }
+        let focusIDs = editor.map.subtreeIDs(of: focusID)
+        guard !focusIDs.isEmpty else { return [] }
+        return Set(editor.map.nodes.map(\.id)).subtracting(focusIDs)
+    }
+
+    private func drawSnapGuides(in context: CGContext) {
+        guard !snapGuides.isEmpty else { return }
+        let width = 1 / max(camera.zoom, 0.1)
+        context.setLineWidth(width)
+        context.setStrokeColor(theme.accent.withAlphaComponent(0.75).cgColor)
+        context.setLineDash(phase: 0, lengths: [5 / max(camera.zoom, 0.1), 4 / max(camera.zoom, 0.1)])
+        for guide in snapGuides {
+            switch guide.axis {
+            case .vertical:
+                context.move(to: CGPoint(x: guide.position, y: guide.start))
+                context.addLine(to: CGPoint(x: guide.position, y: guide.end))
+            case .horizontal:
+                context.move(to: CGPoint(x: guide.start, y: guide.position))
+                context.addLine(to: CGPoint(x: guide.end, y: guide.position))
+            }
+        }
+        context.strokePath()
+        context.setLineDash(phase: 0, lengths: [])
+    }
+
+    private func drawMarquee() {
+        guard let rect = marqueeRect else { return }
+        theme.accent.withAlphaComponent(0.10).setFill()
+        rect.fill()
+        theme.accent.withAlphaComponent(0.8).setStroke()
+        let path = NSBezierPath(rect: rect)
+        path.lineWidth = 1
+        path.stroke()
     }
 
     private var dragNodeID: UUID? {
@@ -220,8 +688,18 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
 
     // MARK: - Hit testing
 
+    /// 命中测试用的布局：落位动画期间节点在屏幕上处于插值位置，
+    /// 这时必须按可见位置判断，否则连点会点在“上一帧看到、但已经不是终态”的地方。
+    private var hitTestLayout: LayoutResult? {
+        guard var layout = layoutResult else { return nil }
+        if frameAnimation != nil, !displayFrames.isEmpty {
+            layout.frames = displayFrames
+        }
+        return layout
+    }
+
     private func hitTest(worldPoint: CGPoint, excluding: UUID? = nil) -> UUID? {
-        guard let layout = layoutResult else { return nil }
+        guard let layout = hitTestLayout else { return nil }
         for id in layout.drawOrder.reversed() {
             if id == excluding { continue }
             if layout.frames[id]?.contains(worldPoint) == true { return id }
@@ -233,20 +711,185 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         hitTest(worldPoint: viewToWorld(viewPoint), excluding: excluding)
     }
 
-    private func badgeRect(for id: UUID) -> CGRect? {
-        guard let editor,
-              let layout = layoutResult,
-              let node = editor.map.node(id),
-              node.collapsed,
-              let rules = layout.children[id], !rules.isEmpty,
-              let rect = layout.frames[id] else { return nil }
-        let rootMidX = layout.frames[layout.rootID ?? id]?.midX ?? 0
-        let outward: CGFloat = rect.midX >= rootMidX ? 1 : -1
-        let center = CGPoint(x: rect.midX + outward * (rect.width / 2 + 11), y: rect.midY)
-        return CGRect(x: center.x - 10, y: center.y - 10, width: 20, height: 20)
+    private var hoveredConnectorParentID: UUID?
+    /// 鼠标当前所在节点：悬停即可显示折叠控件，不必先点选
+    private var hoveredNodeID: UUID?
+    private var cursorIsPointing = false
+
+    private func hasChildren(_ id: UUID) -> Bool {
+        layoutResult?.children[id]?.isEmpty == false
+    }
+
+    private var collapseControlIDs: Set<UUID> {
+        guard !isReadOnly, drag == nil, editingID == nil, let editor else { return [] }
+        var ids = Set<UUID>()
+        if editor.selection.count == 1,
+           let id = editor.selection.first,
+           hasChildren(id) {
+            ids.insert(id)
+        }
+        if let hoveredNodeID, hasChildren(hoveredNodeID) {
+            ids.insert(hoveredNodeID)
+        }
+        if let hoveredConnectorParentID, hasChildren(hoveredConnectorParentID) {
+            ids.insert(hoveredConnectorParentID)
+        }
+        // 已折叠的分支常驻显示（+ 和隐藏数量），不用悬停也能一眼看出来哪里收起了
+        for node in editor.map.nodes where node.collapsed && hasChildren(node.id) {
+            ids.insert(node.id)
+        }
+        return ids
+    }
+
+    private var activeCollapseControlID: UUID? {
+        let visible = collapseControlIDs
+        if let hoveredControlID, visible.contains(hoveredControlID) { return hoveredControlID }
+        if let hoveredConnectorParentID, visible.contains(hoveredConnectorParentID) { return hoveredConnectorParentID }
+        if let hoveredNodeID, visible.contains(hoveredNodeID) { return hoveredNodeID }
+        guard editor?.selection.count == 1,
+              let id = editor?.selection.first,
+              visible.contains(id) else { return nil }
+        return id
+    }
+
+    private func collapseControlID(at worldPoint: CGPoint) -> UUID? {
+        guard let editor, let layout = hitTestLayout else { return nil }
+        // 点在节点上就是选节点：小缩放下放大的命中区不能把节点点击抢走
+        guard hitTest(worldPoint: worldPoint) == nil else { return nil }
+        var best: (id: UUID, distance: CGFloat)?
+        for id in collapseControlIDs {
+            guard let center = NodeControlGeometry.collapseControlCenter(for: id, in: editor.map, layout: layout) else { continue }
+            let distance = hypot(worldPoint.x - center.x, worldPoint.y - center.y)
+            guard distance <= controlHitRadius else { continue }
+            if best == nil || distance < best!.distance {
+                best = (id, distance)
+            }
+        }
+        return best?.id
+    }
+
+    /// 控件命中半径：等于「看得见的圆」，并保证至少 12pt 的屏幕面积。
+    /// 放大的上限由可见半径决定，免得高缩放下一大圈看不见的命中区误伤附近的点击。
+    private var controlHitRadius: CGFloat {
+        max(NodeControlGeometry.radius, 12 / max(camera.zoom, CanvasCamera.minZoom))
+    }
+
+    /// 节点边缘到折叠控件圆心之间的走廊：鼠标经过这里时保持控件可见
+    private func isOnControlBridge(
+        _ point: CGPoint,
+        for id: UUID,
+        in map: MindMap,
+        layout: LayoutResult
+    ) -> Bool {
+        guard let frame = layout.frames[id],
+              let center = NodeControlGeometry.collapseControlCenter(for: id, in: map, layout: layout) else {
+            return false
+        }
+        let anchor = CGPoint(
+            x: min(max(center.x, frame.minX), frame.maxX),
+            y: min(max(center.y, frame.minY), frame.maxY)
+        )
+        let dx = center.x - anchor.x
+        let dy = center.y - anchor.y
+        let lengthSquared = dx * dx + dy * dy
+        guard lengthSquared > 0.01 else { return false }
+        let t = min(max(((point.x - anchor.x) * dx + (point.y - anchor.y) * dy) / lengthSquared, 0), 1)
+        let nearest = CGPoint(x: anchor.x + dx * t, y: anchor.y + dy * t)
+        return hypot(point.x - nearest.x, point.y - nearest.y) <= controlHitRadius
+    }
+
+    private func updateHoveredControl(at worldPoint: CGPoint) {
+        guard !isReadOnly, drag == nil, let editor, let layout = hitTestLayout else { return }
+
+        // 节点与 +/- 控件之间有 9pt 空隙，只按节点矩形判定的话，
+        // 鼠标一离开节点控件就会消失，所以把这段走廊也算进悬停区域。
+        let nodeUnderCursor = hitTest(worldPoint: worldPoint)
+        let nextHovered: UUID?
+        if let nodeUnderCursor {
+            nextHovered = nodeUnderCursor
+        } else if let current = hoveredNodeID,
+                  isOnControlBridge(worldPoint, for: current, in: editor.map, layout: layout) {
+            nextHovered = current
+        } else {
+            nextHovered = nil
+        }
+        if nextHovered != hoveredNodeID {
+            hoveredNodeID = nextHovered
+            needsDisplay = true
+        }
+
+        if let hit = collapseControlID(at: worldPoint) {
+            let changed = hoveredControlID != hit
+            hoveredControlID = hit
+            let selectedID = editor.selection.count == 1 ? editor.selection.first : nil
+            if hit != hoveredConnectorParentID, hit != selectedID {
+                hoveredConnectorParentID = nil
+            }
+            setPointingCursor(true)
+            if changed { needsDisplay = true }
+            return
+        }
+
+        setPointingCursor(false)
+        let tolerance = 10 / max(camera.zoom, 0.2)
+        let parent = MapRenderer.connectorParent(
+            at: worldPoint,
+            map: editor.map,
+            layout: layout,
+            tolerance: tolerance
+        )
+        let changed = parent != hoveredConnectorParentID || hoveredControlID != nil
+        hoveredControlID = nil
+        hoveredConnectorParentID = parent
+        if changed { needsDisplay = true }
+    }
+
+    /// 悬停在 +/− 上换成手型指针：画布整体是箭头，不给反馈很难发现这里可点
+    private func setPointingCursor(_ pointing: Bool) {
+        guard cursorIsPointing != pointing else { return }
+        cursorIsPointing = pointing
+        (pointing ? NSCursor.pointingHand : NSCursor.arrow).set()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea { removeTrackingArea(trackingArea) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        updateHoveredControl(at: viewToWorld(point))
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        setPointingCursor(false)
+        guard hoveredControlID != nil || hoveredConnectorParentID != nil || hoveredNodeID != nil else { return }
+        hoveredControlID = nil
+        hoveredConnectorParentID = nil
+        hoveredNodeID = nil
+        needsDisplay = true
     }
 
     // MARK: - Mouse
+
+    /// 双击空白：在当前选中的主题（没有就用根主题）下新建一个子主题并直接进入编辑
+    private func addChildAtEmptySpace() {
+        guard let editor else { return }
+        let parent = editor.selection.first ?? editor.map.rootID
+        guard let newID = editor.addChild(to: parent) else { return }
+        rebuildLayoutIfNeeded(force: true)
+        ensureVisible(newID)
+        needsDisplay = true
+        beginEditing(newID)
+    }
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
@@ -256,32 +899,56 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         let point = convert(event.locationInWindow, from: nil)
         let worldPoint = viewToWorld(point)
 
-        if event.clickCount == 2, let id = hitTest(worldPoint: worldPoint) {
-            beginEditing(id)
+        if isReadOnly {
+            drag = .pan(startPoint: point, startCenter: camera.center)
             return
         }
 
-        if let layout = layoutResult {
-            for (id, _) in layout.frames {
-                if badgeRect(for: id)?.contains(worldPoint) == true {
-                    editor?.toggleCollapse(id)
-                    needsDisplay = true
-                    return
-                }
+        // 折叠控件是开关：每次按下都应该翻转，不能因为系统把连续点击合并成
+        // clickCount 2/3/4 就丢弃中间那些点击。这里也不提前中断落位动画，
+        // 交给新的转场从当前可见位置续接，连点才会跟手。
+        if let editor, let controlID = collapseControlID(at: worldPoint) {
+            editor.toggleCollapse(controlID)
+            needsDisplay = true
+            return
+        }
+
+        // 这里不再 stopFrameAnimation()：点在节点/空白处只是选择，不该让整张图瞬间落位。
+        // 真正开始拖拽时才会收口（见 mouseDragged）。
+        if event.clickCount == 2 {
+            if let id = hitTest(worldPoint: worldPoint) {
+                beginEditing(id)
+            } else {
+                addChildAtEmptySpace()
             }
+            return
         }
 
         if let id = hitTest(worldPoint: worldPoint) {
+            hoveredConnectorParentID = nil
             let additive = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
             editor?.select(id, additive: additive)
-            if let frame = layoutResult?.frames[id] {
+            NSAccessibility.post(element: self, notification: .selectedChildrenChanged)
+            if let frame = currentVisualFrames()[id] ?? layoutResult?.frames[id] {
                 drag = .node(id: id, startPoint: point, originalFrame: frame)
                 dragOffset = .zero
+                snapGuides = []
+                startDashTimer()
             }
             needsDisplay = true
         } else {
-            if !event.modifierFlags.contains(.shift) { editor?.clearSelection() }
-            drag = .pan(startPoint: point, startCenter: camera.center)
+            if event.modifierFlags.contains(.shift) {
+                let base = editor?.selection ?? []
+                drag = .marquee(startPoint: point, base: base)
+                marqueeRect = CGRect(origin: point, size: .zero)
+            } else {
+                editor?.clearSelection()
+                hoveredControlID = nil
+                hoveredConnectorParentID = nil
+                NSAccessibility.post(element: self, notification: .selectedChildrenChanged)
+                drag = .pan(startPoint: point, startCenter: camera.center)
+            }
+            stopDashTimer()
             needsDisplay = true
         }
     }
@@ -295,15 +962,54 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
             camera.center.y = startCenter.y - (point.y - startPoint.y) / camera.zoom
             updateEditorFrame()
             needsDisplay = true
-        case .node(let id, let startPoint, _):
-            dragOffset = CGSize(
+        case .node(let id, let startPoint, let originalFrame):
+            // 真正开始拖拽才让落位动画收口，选择/双击都不打断它
+            if frameAnimation != nil || collapseFade != nil { stopFrameAnimation() }
+            var offset = CGSize(
                 width: (point.x - startPoint.x) / camera.zoom,
                 height: (point.y - startPoint.y) / camera.zoom
             )
-            if editor?.map.layout != .free {
+            if editor?.map.layout == .free {
+                snapGuides = []
+                if !event.modifierFlags.contains(.command), let layout = layoutResult {
+                    let moving = originalFrame.offsetBy(dx: offset.width, dy: offset.height)
+                    let others = layout.frames
+                        .filter { $0.key != id }
+                        .map(\.value)
+                    let result = FreeLayoutSnap.snap(
+                        movingFrame: moving,
+                        otherFrames: others,
+                        threshold: 7 / max(camera.zoom, 0.1)
+                    )
+                    offset.width += result.dx
+                    offset.height += result.dy
+                    snapGuides = result.guides
+                }
+                dropTargetID = nil
+            } else {
                 let world = viewToWorld(point)
                 let target = hitTest(worldPoint: world, excluding: id)
                 dropTargetID = target.flatMap { canDrop(id, on: $0) ? $0 : nil }
+            }
+            dragOffset = offset
+            needsDisplay = true
+        case .marquee(let startPoint, let base):
+            let rect = CGRect(
+                x: min(startPoint.x, point.x),
+                y: min(startPoint.y, point.y),
+                width: abs(point.x - startPoint.x),
+                height: abs(point.y - startPoint.y)
+            )
+            marqueeRect = rect
+            if let layout = layoutResult {
+                let worldRect = CGRect(
+                    x: viewToWorld(CGPoint(x: rect.minX, y: rect.minY)).x,
+                    y: viewToWorld(CGPoint(x: rect.minX, y: rect.minY)).y,
+                    width: rect.width / camera.zoom,
+                    height: rect.height / camera.zoom
+                )
+                let hits = layout.frames.filter { $0.value.intersects(worldRect) }.map(\.key)
+                editor?.setSelection(base.union(hits))
             }
             needsDisplay = true
         }
@@ -311,26 +1017,47 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
 
     override func mouseUp(with event: NSEvent) {
         guard let drag else { return }
-        defer {
+        switch drag {
+        case .pan:
             self.drag = nil
-            dragOffset = .zero
-            dropTargetID = nil
+            needsDisplay = true
+        case .node(let id, _, let originalFrame):
+            finishNodeDrag(id: id, originalFrame: originalFrame, event: event)
+        case .marquee:
+            self.drag = nil
+            marqueeRect = nil
             needsDisplay = true
         }
-        guard case .node(let id, _, let originalFrame) = drag else { return }
+    }
 
+    private func finishNodeDrag(id: UUID, originalFrame: CGRect, event: NSEvent) {
+        let startFrames = currentVisualFrames()
+        let offset = dragOffset
+        let target = dropTargetID
+        dropTargetID = nil
+        stopDashTimer()
+
+        // 自由布局：直接按拖动位移落位
         if editor?.map.layout == .free {
-            if abs(dragOffset.width) > 1 || abs(dragOffset.height) > 1 {
-                let origin = CGPoint(x: originalFrame.minX + dragOffset.width, y: originalFrame.minY + dragOffset.height)
+            if abs(offset.width) > 1 || abs(offset.height) > 1 {
+                let origin = CGPoint(x: originalFrame.minX + offset.width, y: originalFrame.minY + offset.height)
                 editor?.moveFreeNode(id: id, to: origin)
+                rebuildLayoutIfNeeded(force: true)
+                endNodeDrag()
+                animateFrames(from: startFrames, to: layoutResult?.frames ?? [:], duration: 0.2)
+            } else {
+                endNodeDrag()
             }
             return
         }
 
-        guard let target = dropTargetID,
+        guard let target,
               let editor,
               let sourceNode = editor.map.node(id),
-              let targetNode = editor.map.node(target) else { return }
+              let targetNode = editor.map.node(target) else {
+            snapBack(from: startFrames)
+            return
+        }
 
         let point = convert(event.locationInWindow, from: nil)
         let world = viewToWorld(point)
@@ -338,13 +1065,218 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         let relativeY = targetFrame.height > 0
             ? (world.y - targetFrame.minY) / targetFrame.height
             : 0.5
+        var didChange = false
 
         // 默认拖到节点上 = 挂到该节点下面；按住 ⌥ 再拖到同级节点 = 调整兄弟顺序
         if event.modifierFlags.contains(.option), sourceNode.parentID == targetNode.parentID {
             editor.reorder(id: id, relativeTo: target, after: relativeY > 0.5)
+            didChange = true
         } else if editor.canMove(id, to: target) {
             editor.move(id: id, to: target)
+            didChange = true
         }
+
+        if didChange {
+            rebuildLayoutIfNeeded(force: true)
+            endNodeDrag()
+            animateFrames(from: startFrames, to: layoutResult?.frames ?? [:], duration: 0.24)
+        } else {
+            snapBack(from: startFrames)
+        }
+    }
+
+    private func snapBack(from frames: [UUID: CGRect]) {
+        endNodeDrag()
+        guard let target = layoutResult?.frames else { return }
+        animateFrames(from: frames, to: target, duration: 0.18)
+    }
+
+    private func endNodeDrag() {
+        drag = nil
+        dragOffset = .zero
+        dropTargetID = nil
+        snapGuides = []
+        stopDashTimer()
+        needsDisplay = true
+    }
+
+    /// 当前屏幕上看到的节点位置（含正在拖动的偏移），用于作为落位动画的起点
+    private func currentVisualFrames() -> [UUID: CGRect] {
+        var frames = displayFrames
+        if frames.isEmpty { frames = layoutResult?.frames ?? [:] }
+        if case .node(let id, _, _)? = drag, let base = frames[id] {
+            frames[id] = base.offsetBy(dx: dragOffset.width, dy: dragOffset.height)
+        }
+        return frames
+    }
+
+    private func animateFrames(from: [UUID: CGRect], to: [UUID: CGRect], duration: TimeInterval) {
+        guard !to.isEmpty else {
+            displayFrames = to
+            return
+        }
+        guard animationsAllowed else {
+            displayFrames = to
+            frameAnimation = nil
+            collapseFade = nil
+            ghostAlpha = 0
+            alphaOverrides = [:]
+            stopAnimationTimer()
+            needsDisplay = true
+            return
+        }
+        var start = from
+        for (id, rect) in to where start[id] == nil {
+            start[id] = rect
+        }
+        guard hasMovement(from: start, to: to) else {
+            displayFrames = to
+            frameAnimation = nil
+            stopAnimationTimer()
+            needsDisplay = true
+            return
+        }
+
+        displayFrames = start
+        var delays: [UUID: TimeInterval] = [:]
+        delays.reserveCapacity(to.count)
+        for id in to.keys {
+            delays[id] = CanvasMotion.delay(forDepth: layoutResult?.depths[id] ?? 0)
+        }
+        frameAnimation = FrameAnimation(
+            from: start,
+            to: to,
+            startTime: ProcessInfo.processInfo.systemUptime,
+            duration: max(duration, 0.01),
+            delays: delays,
+            maxDelay: delays.values.max() ?? 0
+        )
+        startAnimationTimer()
+        needsDisplay = true
+    }
+
+    private func hasMovement(from: [UUID: CGRect], to: [UUID: CGRect]) -> Bool {
+        for (id, target) in to {
+            let start = from[id] ?? target
+            if abs(start.minX - target.minX) > 0.5
+                || abs(start.minY - target.minY) > 0.5
+                || abs(start.width - target.width) > 0.5
+                || abs(start.height - target.height) > 0.5 {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func startAnimationTimer() {
+        guard animationTimer == nil else { return }
+        let timer = Timer(
+            timeInterval: CanvasMotion.frameInterval(nodeCount: layoutResult?.frames.count ?? 0),
+            target: self,
+            selector: #selector(animationTick(_:)),
+            userInfo: nil,
+            repeats: true
+        )
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
+    }
+
+    @objc private func animationTick(_ timer: Timer) {
+        let now = ProcessInfo.processInfo.systemUptime
+
+        if let animation = frameAnimation {
+            let elapsed = now - animation.startTime
+
+            var frames: [UUID: CGRect] = [:]
+            frames.reserveCapacity(animation.to.count)
+            for (id, target) in animation.to {
+                let start = animation.from[id] ?? target
+                let delay = animation.delays[id] ?? 0
+                let eased = CanvasMotion.easeOutCubic((elapsed - delay) / animation.duration)
+                frames[id] = CGRect(
+                    x: start.minX + (target.minX - start.minX) * eased,
+                    y: start.minY + (target.minY - start.minY) * eased,
+                    width: start.width + (target.width - start.width) * eased,
+                    height: start.height + (target.height - start.height) * eased
+                )
+            }
+            displayFrames = frames
+
+            if elapsed >= animation.duration + animation.maxDelay {
+                displayFrames = animation.to
+                frameAnimation = nil
+            }
+        }
+
+        if let fade = collapseFade {
+            let elapsed = now - fade.startTime
+            let progress = min(max(elapsed / fade.duration, 0), 1)
+            // 淡出用线性：缓出会让残影在前 1/3 就几乎消失，看起来像“闪一下”
+            ghostAlpha = fade.ghostFrames.isEmpty ? 0 : CGFloat(1 - progress)
+
+            var overrides: [UUID: CGFloat] = [:]
+            var allFadedIn = true
+            for id in fade.fadeIn {
+                let delay = fade.delays[id] ?? 0
+                let alpha = CanvasMotion.easeOutCubic((elapsed - delay) / fade.duration)
+                overrides[id] = alpha
+                if alpha < 0.999 { allFadedIn = false }
+            }
+            alphaOverrides = overrides
+
+            if progress >= 1, allFadedIn {
+                ghostAlpha = 0
+                alphaOverrides = [:]
+                collapseFade = nil
+            }
+        }
+
+        needsDisplay = true
+
+        if frameAnimation == nil && collapseFade == nil {
+            timer.invalidate()
+            animationTimer = nil
+        }
+    }
+
+    private func stopAnimationTimer() {
+        animationTimer?.invalidate()
+        animationTimer = nil
+    }
+
+    private func stopFrameAnimation() {
+        if let animation = frameAnimation {
+            displayFrames = animation.to
+        }
+        frameAnimation = nil
+        collapseFade = nil
+        ghostAlpha = 0
+        alphaOverrides = [:]
+        stopAnimationTimer()
+    }
+
+    private func startDashTimer() {
+        guard animationsAllowed, dashTimer == nil else { return }
+        dashPhase = 0
+        let timer = Timer(
+            timeInterval: 1.0 / 30.0,
+            target: self,
+            selector: #selector(dashTick(_:)),
+            userInfo: nil,
+            repeats: true
+        )
+        RunLoop.main.add(timer, forMode: .common)
+        dashTimer = timer
+    }
+
+    @objc private func dashTick(_ timer: Timer) {
+        dashPhase -= 0.9
+        needsDisplay = true
+    }
+
+    private func stopDashTimer() {
+        dashTimer?.invalidate()
+        dashTimer = nil
     }
 
     private func canDrop(_ id: UUID, on target: UUID) -> Bool {
@@ -355,52 +1287,145 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
     }
 
     override func rightMouseDown(with event: NSEvent) {
+        guard !isReadOnly else { return }
         let point = convert(event.locationInWindow, from: nil)
-        guard let id = hitTest(viewPoint: point) else { return }
-        editor?.select(id)
+        guard let id = hitTest(viewPoint: point) else {
+            if let editor, !editor.selection.isEmpty { editor.clearSelection() }
+            needsDisplay = true
+            NSMenu.popUpContextMenu(canvasContextMenu(), with: event, for: self)
+            return
+        }
+        if editor?.selection.contains(id) != true {
+            editor?.select(id)
+        }
         needsDisplay = true
-        NSMenu.popUpContextMenu(contextMenu(for: id), with: event, for: self)
+        let menu = (editor?.selection.count ?? 0) > 1
+            ? batchContextMenu()
+            : contextMenu(for: id)
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    private func loc(_ key: String) -> String {
+        Bundle.main.localizedString(forKey: key, value: key, table: nil)
+    }
+
+    private func menuItem(
+        _ title: String,
+        _ action: Selector,
+        enabled: Bool = true
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.isEnabled = enabled
+        return item
     }
 
     private func contextMenu(for id: UUID) -> NSMenu {
         let menu = NSMenu()
-        let add = NSMenuItem(title: "添加子主题", action: #selector(menuAddChild), keyEquivalent: "")
-        add.target = self
-        menu.addItem(add)
-
-        let edit = NSMenuItem(title: "编辑文字", action: #selector(menuEdit), keyEquivalent: "")
-        edit.target = self
-        menu.addItem(edit)
+        menu.addItem(menuItem(loc("添加子主题"), #selector(menuAddChild)))
+        menu.addItem(menuItem(loc("编辑文字"), #selector(menuEdit)))
 
         if let editor, !editor.map.children(of: id).isEmpty {
             let collapsed = editor.map.node(id)?.collapsed == true
-            let toggle = NSMenuItem(title: collapsed ? "展开分支" : "折叠分支", action: #selector(menuToggleCollapse), keyEquivalent: "")
-            toggle.target = self
-            menu.addItem(toggle)
+            menu.addItem(menuItem(
+                collapsed ? loc("展开分支") : loc("折叠分支"),
+                #selector(menuToggleCollapse)
+            ))
         }
 
         menu.addItem(.separator())
-        let delete = NSMenuItem(title: "删除", action: #selector(menuDelete), keyEquivalent: "")
-        delete.target = self
-        delete.isEnabled = id != editor?.map.rootID
-        menu.addItem(delete)
+        menu.addItem(menuItem(loc("复制子树"), #selector(menuCopy)))
+        menu.addItem(menuItem(loc("创建副本"), #selector(menuDuplicate)))
+        menu.addItem(menuItem(loc("粘贴为子主题"), #selector(menuPaste), enabled: NodeClipboard.hasContent))
+
+        menu.addItem(.separator())
+        menu.addItem(menuItem(loc("专注此分支"), #selector(menuFocusBranch)))
+        menu.addItem(menuItem(loc("缩放到分支"), #selector(menuZoomBranch)))
 
         menu.addItem(.separator())
         let colorMenu = NSMenu()
-        let colors: [(String, String)] = [
-            ("无", ""), ("珊瑚", "#E8836B"), ("琥珀", "#E6B450"), ("薄荷", "#7FB89A"),
-            ("天蓝", "#7BA7D9"), ("紫罗兰", "#A28BC9"), ("石墨", "#4A4A52")
-        ]
-        for (name, hex) in colors {
-            let item = NSMenuItem(title: name, action: #selector(menuSetColor(_:)), keyEquivalent: "")
+        for (name, hex) in colorChoices {
+            let item = NSMenuItem(title: loc(name), action: #selector(menuSetColor(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = hex
             colorMenu.addItem(item)
         }
-        let colorItem = NSMenuItem(title: "节点颜色", action: nil, keyEquivalent: "")
+        let colorItem = NSMenuItem(title: loc("节点颜色"), action: nil, keyEquivalent: "")
         colorItem.submenu = colorMenu
         menu.addItem(colorItem)
 
+        if let editor, editor.map.layout == .free {
+            menu.addItem(arrangeMenu())
+        }
+
+        menu.addItem(.separator())
+        let delete = menuItem(loc("删除"), #selector(menuDelete), enabled: id != editor?.map.rootID)
+        menu.addItem(delete)
+        return menu
+    }
+
+    private func batchContextMenu() -> NSMenu {
+        let menu = NSMenu()
+        let count = editor?.selection.count ?? 0
+        menu.addItem(menuItem(String(format: loc("复制 %lld 个分支"), count), #selector(menuCopy)))
+        menu.addItem(menuItem(String(format: loc("创建 %lld 个副本"), count), #selector(menuDuplicate)))
+        menu.addItem(menuItem(loc("粘贴为子主题"), #selector(menuPaste), enabled: NodeClipboard.hasContent))
+
+        menu.addItem(.separator())
+        let colorMenu = NSMenu()
+        for (name, hex) in colorChoices {
+            let item = NSMenuItem(title: loc(name), action: #selector(menuSetBatchColor(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = hex
+            colorMenu.addItem(item)
+        }
+        let colorItem = NSMenuItem(title: loc("批量颜色"), action: nil, keyEquivalent: "")
+        colorItem.submenu = colorMenu
+        menu.addItem(colorItem)
+
+        menu.addItem(menuItem(loc("清除图标"), #selector(menuClearIcons)))
+
+        if editor?.map.layout == .free {
+            menu.addItem(arrangeMenu())
+        }
+
+        menu.addItem(.separator())
+        menu.addItem(menuItem(loc("删除所选"), #selector(menuDelete)))
+        return menu
+    }
+
+    private var colorChoices: [(String, String)] {
+        [
+            ("无", ""), ("珊瑚", "#E8836B"), ("琥珀", "#E6B450"), ("薄荷", "#7FB89A"),
+            ("天蓝", "#7BA7D9"), ("紫罗兰", "#A28BC9"), ("石墨", "#4A4A52")
+        ]
+    }
+
+    private func arrangeMenu() -> NSMenuItem {
+        let submenu = NSMenu()
+        for option in MapEditor.FreeArrangement.allCases {
+            let item = NSMenuItem(title: loc(option.title), action: #selector(menuArrange(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = option.rawValue
+            item.isEnabled = (editor?.selection.count ?? 0) >= (option.needsThree ? 3 : 2)
+            submenu.addItem(item)
+        }
+        let item = NSMenuItem(title: loc("对齐与等距"), action: nil, keyEquivalent: "")
+        item.submenu = submenu
+        return item
+    }
+
+    private func canvasContextMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(menuItem(loc("粘贴到根主题"), #selector(menuPaste), enabled: NodeClipboard.hasContent))
+        menu.addItem(menuItem(loc("全选"), #selector(menuSelectAll)))
+        menu.addItem(.separator())
+        menu.addItem(menuItem(loc("适配画布"), #selector(menuFit)))
+        menu.addItem(menuItem(loc("水平 + 垂直居中"), #selector(menuCenter)))
+        if editor?.focusNodeID != nil {
+            menu.addItem(.separator())
+            menu.addItem(menuItem(loc("退出专注模式"), #selector(menuExitFocus)))
+        }
         return menu
     }
 
@@ -421,12 +1446,73 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
 
     @objc private func menuDelete() {
         editor?.deleteSelection()
+        rebuildLayoutIfNeeded(force: true)
+        needsDisplay = true
     }
 
     @objc private func menuSetColor(_ sender: NSMenuItem) {
         guard let id = editor?.selection.first else { return }
         let hex = sender.representedObject as? String
         editor?.setColor(hex?.isEmpty == true ? nil : hex, for: id)
+    }
+
+    @objc private func menuSetBatchColor(_ sender: NSMenuItem) {
+        guard let ids = editor?.selection else { return }
+        let hex = sender.representedObject as? String
+        editor?.setColor(hex?.isEmpty == true ? nil : hex, for: ids)
+    }
+
+    @objc private func menuClearIcons() {
+        guard let ids = editor?.selection else { return }
+        editor?.setIcon(nil, for: ids)
+    }
+
+    @objc private func menuCopy() {
+        editor?.copySelection()
+    }
+
+    @objc private func menuDuplicate() {
+        performStructuralEdit { editor?.duplicateSelection() }
+    }
+
+    @objc private func menuPaste() {
+        performStructuralEdit { editor?.paste() }
+    }
+
+    @objc private func menuFocusBranch() {
+        guard let id = editor?.selection.first else { return }
+        editor?.toggleFocus(on: id)
+    }
+
+    @objc private func menuZoomBranch() {
+        editor?.requestZoomToBranch()
+    }
+
+    @objc private func menuArrange(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let arrangement = MapEditor.FreeArrangement(rawValue: raw),
+              let frames = layoutResult?.frames else { return }
+        editor?.arrangeSelection(arrangement, frames: frames)
+        rebuildLayoutIfNeeded(force: true)
+        needsDisplay = true
+    }
+
+    @objc private func menuSelectAll() {
+        editor?.selectAll()
+        needsDisplay = true
+    }
+
+    @objc private func menuFit() {
+        editor?.requestFit()
+    }
+
+    @objc private func menuCenter() {
+        centerContent()
+    }
+
+    @objc private func menuExitFocus() {
+        editor?.setFocus(nil)
+        needsDisplay = true
     }
 
     // MARK: - Scrolling & zoom
@@ -467,12 +1553,27 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         camera.center.y += before.y - after.y
         updateEditorFrame()
         needsDisplay = true
+        notifyZoomChanged()
+    }
+
+    private var zoomNotifyToken: Int = 0
+
+    /// SwiftUI 的缩放栏在布局/更新阶段也可能被回调，异步发一次避免在视图更新中改状态
+    private func notifyZoomChanged() {
+        guard onZoomChanged != nil else { return }
+        zoomNotifyToken &+= 1
+        let token = zoomNotifyToken
+        let zoom = camera.zoom
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.zoomNotifyToken == token else { return }
+            self.onZoomChanged?(zoom)
+        }
     }
 
     // MARK: - Keyboard
 
     override func keyDown(with event: NSEvent) {
-        guard editingID == nil, let editor else {
+        guard !isReadOnly, editingID == nil, let editor else {
             super.keyDown(with: event)
             return
         }
@@ -482,9 +1583,50 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
             return
         }
 
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags.contains(.command) {
+            switch event.keyCode {
+            case 0: // ⌘A
+                editor.selectAll()
+                needsDisplay = true
+                return
+            case 8: // ⌘C
+                editor.copySelection()
+                return
+            case 7: // ⌘X
+                performStructuralEdit { editor.cutSelection() }
+                return
+            case 9: // ⌘V
+                performStructuralEdit { editor.paste() }
+                return
+            case 2: // ⌘D
+                performStructuralEdit { editor.duplicateSelection() }
+                return
+            case 123:
+                navigateStructural(.previousSibling)
+                return
+            case 124:
+                navigateStructural(.nextSibling)
+                return
+            case 125:
+                navigateStructural(.firstChild)
+                return
+            case 126:
+                navigateStructural(.parent)
+                return
+            default:
+                break
+            }
+        }
+
         switch event.keyCode {
         case 53: // Esc
-            editor.clearSelection()
+            if editor.focusNodeID != nil {
+                editor.setFocus(nil)
+            } else {
+                editor.clearSelection()
+            }
+            needsDisplay = true
         case 123:
             navigate(dirX: -1, dirY: 0)
         case 124:
@@ -494,7 +1636,6 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         case 126:
             navigate(dirX: 0, dirY: -1)
         default:
-            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             if !flags.contains(.command), !flags.contains(.control), !flags.contains(.option),
                let characters = event.characters,
                let scalar = characters.unicodeScalars.first,
@@ -504,6 +1645,89 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
                 return
             }
             super.keyDown(with: event)
+        }
+    }
+
+    private enum StructuralDirection {
+        case parent
+        case firstChild
+        case previousSibling
+        case nextSibling
+    }
+
+    private func navigateStructural(_ direction: StructuralDirection) {
+        guard let editor, let currentID = editor.selection.first, let node = editor.map.node(currentID) else { return }
+        var target: UUID?
+        switch direction {
+        case .parent:
+            target = node.parentID
+        case .firstChild:
+            guard let child = editor.map.children(of: currentID).first else { return }
+            if node.collapsed {
+                editor.expandForNavigation(currentID)
+            }
+            target = child.id
+        case .previousSibling, .nextSibling:
+            guard let parentID = node.parentID else { return }
+            let siblings = editor.map.children(of: parentID).map(\.id)
+            guard let index = siblings.firstIndex(of: currentID) else { return }
+            let offset = direction == .previousSibling ? -1 : 1
+            let nextIndex = index + offset
+            guard siblings.indices.contains(nextIndex) else { return }
+            target = siblings[nextIndex]
+        }
+        guard let target else { return }
+        editor.select(target)
+        rebuildLayoutIfNeeded(force: true)
+        ensureVisible(target)
+        needsDisplay = true
+    }
+
+    /// 结构变化（粘贴 / 副本 / 剪切）后统一刷新布局并做落位动画
+    private func performStructuralEdit(_ body: () -> Void) {
+        guard let editor else { return }
+        let startFrames = currentVisualFrames()
+        let before = editor.revision
+        body()
+        guard editor.revision != before else { return }
+        rebuildLayoutIfNeeded(force: true)
+        for id in editor.selection {
+            ensureVisible(id)
+        }
+        animateFrames(from: startFrames, to: layoutResult?.frames ?? [:], duration: 0.22)
+    }
+
+    // MARK: - Copy / paste responder
+
+    @objc func copy(_ sender: Any?) {
+        guard !isReadOnly else { return }
+        editor?.copySelection()
+    }
+
+    @objc func cut(_ sender: Any?) {
+        guard !isReadOnly else { return }
+        performStructuralEdit { editor?.cutSelection() }
+    }
+
+    @objc func paste(_ sender: Any?) {
+        guard !isReadOnly else { return }
+        performStructuralEdit { editor?.paste() }
+    }
+
+    @objc func duplicate(_ sender: Any?) {
+        guard !isReadOnly else { return }
+        performStructuralEdit { editor?.duplicateSelection() }
+    }
+
+    func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool {
+        guard !isReadOnly else { return false }
+        switch item.action {
+        case #selector(copy(_:)), #selector(cut(_:)), #selector(duplicate(_:)):
+            return !(editor?.selection.isEmpty ?? true)
+        case #selector(paste(_:)):
+            return NodeClipboard.hasContent
+        default:
+            return true
         }
     }
 
@@ -555,9 +1779,8 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         }
         if let best {
             editor.select(best.id)
-            if let frame = layout.frames[best.id], !visibleWorldRect.insetBy(dx: 20, dy: 20).contains(frame) {
-                camera.center = CGPoint(x: frame.midX, y: frame.midY)
-                needsDisplay = true
+            if let frame = layout.frames[best.id] {
+                panToReveal(frame, margin: 40)
             }
         }
     }
@@ -571,34 +1794,50 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
 
     private func ensureVisible(_ id: UUID) {
         guard let frame = layoutResult?.frames[id] else { return }
-        if !visibleWorldRect.insetBy(dx: -20, dy: -20).contains(frame) {
-            camera.center = CGPoint(x: frame.midX, y: frame.midY)
-            needsDisplay = true
-        }
+        panToReveal(frame, margin: 24)
+    }
+
+    /// 只把差的那一点平移进视野，不做整屏居中。
+    /// 居中在 100% 缩放下看不出问题，一旦放大到 128% 之后节点常有一半在视口外，
+    /// 每次点进编辑都会被“搬”到屏幕中央，看起来就像文字位置突然变了。
+    private func panToReveal(_ rect: CGRect, margin: CGFloat) {
+        let visible = visibleWorldRect
+        guard visible.width > margin * 2, visible.height > margin * 2 else { return }
+        var dx: CGFloat = 0
+        var dy: CGFloat = 0
+        if rect.minX < visible.minX + margin { dx = rect.minX - (visible.minX + margin) }
+        if rect.maxX > visible.maxX - margin { dx = rect.maxX - (visible.maxX - margin) }
+        if rect.minY < visible.minY + margin { dy = rect.minY - (visible.minY + margin) }
+        if rect.maxY > visible.maxY - margin { dy = rect.maxY - (visible.maxY - margin) }
+        guard abs(dx) > 0.5 || abs(dy) > 0.5 else { return }
+        camera.center.x += dx
+        camera.center.y += dy
+        needsDisplay = true
     }
 
     // MARK: - Inline editing
 
     func beginEditing(_ id: UUID, replacingWith replacement: String? = nil) {
         guard let editor, let node = editor.map.node(id) else { return }
+        stopFrameAnimation()
         commitEditing()
         editor.select(id)
         rebuildLayoutIfNeeded(force: true)
         guard let layout = layoutResult, let frame = layout.frames[id] else { return }
-        if !visibleWorldRect.contains(frame) {
-            camera.center = CGPoint(x: frame.midX, y: frame.midY)
-            needsDisplay = true
-        }
+        panToReveal(frame, margin: 32)
 
         let level = min(layout.depths[id] ?? 0, 2)
         let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: level)
-        let textRect = worldRectToView(textLayout.textRect)
-        let font = NSFont(
-            descriptor: textLayout.font.fontDescriptor,
-            size: max(textLayout.font.pointSize * camera.zoom, 9)
-        ) ?? textLayout.font
+        let font = editingFont(for: textLayout)
+        let textRect = editingRect(
+            editingRect(for: textLayout, level: level, nodeFrame: frame),
+            fitting: node.text,
+            font: font,
+            level: level,
+            node: node
+        )
 
-        let textView = NSTextView(frame: textRect)
+        let textView = EditingTextView(frame: textRect)
         textView.isRichText = false
         textView.importsGraphics = false
         textView.allowsUndo = true
@@ -620,7 +1859,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         textView.isAutomaticSpellingCorrectionEnabled = false
         textView.insertionPointColor = theme.accent
         textView.selectedTextAttributes = [
-            .backgroundColor: theme.accent.withAlphaComponent(0.20),
+            .backgroundColor: theme.accent.withAlphaComponent(0.35),
             .foregroundColor: textColor(for: node, level: level)
         ]
         textView.delegate = self
@@ -633,11 +1872,18 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
             font: font,
             alignment: textLayout.alignment
         )
+        fitEditorHeight(textView)
         addSubview(textView)
 
         editTextView = textView
         editingID = id
         editingOriginalText = node.text
+        appliedEditingFont = font
+        textView.onMarkedTextChange = { [weak self] in
+            // 组字不进 textDidChange：先把容器撑开（纯几何），模型更新延后一拍
+            self?.refreshEditingWidth()
+            DispatchQueue.main.async { self?.syncEditingText() }
+        }
         needsDisplay = true
 
         window?.makeFirstResponder(textView)
@@ -650,6 +1896,78 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
             }
         } else {
             textView.selectAll(nil)
+        }
+    }
+
+    /// 编辑器字号必须与画布完全一致（pointSize × zoom）。这里不设最小字号，
+    /// 否则缩得比较小的时候，一进入编辑文字就会比画布上大一圈。
+    private func editingFont(for textLayout: NodeMeasurer.NodeTextLayout) -> NSFont {
+        let target = max(textLayout.font.pointSize * camera.zoom, 1)
+        let descriptor = textLayout.font.fontDescriptor
+        if let font = NSFont(descriptor: descriptor, size: target), abs(font.pointSize - target) < 0.05 {
+            return font
+        }
+        if let font = NSFont(descriptor: descriptor.withSize(target), size: target), abs(font.pointSize - target) < 0.05 {
+            return font
+        }
+        return NSFontManager.shared.convert(textLayout.font, toSize: target)
+    }
+
+    /// 编辑器在视图坐标里的位置和宽度。
+    ///
+    /// 换行宽度必须和画布一致（`contentWidth`）：根节点的画布文字是按节点居中的，
+    /// 如果拿“文字实际宽度”当容器宽度，同一个根节点一进入编辑就可能被挤成两行，
+    /// 多出来的那行又被节点高度裁掉，看起来就像字号突然变小了。
+    private func editingRect(
+        for textLayout: NodeMeasurer.NodeTextLayout,
+        level: Int,
+        nodeFrame: CGRect
+    ) -> CGRect {
+        let width = max(textLayout.contentWidth * camera.zoom, 10)
+        var rect = worldRectToView(textLayout.textRect)
+        if level == 0 {
+            // 根节点是「图标 + 文字」整体居中的，容器要对齐文字块的中心而不是节点中心
+            rect.origin.x = worldRectToView(textLayout.textRect).midX - width / 2
+        }
+        rect.size.width = width
+        rect.size.height += 4
+        return rect
+    }
+
+    /// 编辑期间容器要能装下当前输入（含输入法组字）：否则会先按旧宽度折行、
+    /// 下一拍节点变宽再弹回第一行，看起来就是闪一下。
+    private func editingRect(
+        _ rect: CGRect,
+        fitting string: String,
+        font: NSFont,
+        level: Int,
+        node: MindNode
+    ) -> CGRect {
+        let maxContent: CGFloat = (level == 0 ? 226 : 192) - (node.icon == nil ? 0 : 20)
+        let maxWidth = max(maxContent * camera.zoom, rect.width)
+        let measured = (string as NSString).boundingRect(
+            with: CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font]
+        ).width
+        let fitted = min(max(rect.width, ceil(measured) + 2), maxWidth)
+        guard fitted > rect.width + 0.5 else { return rect }
+        var out = rect
+        if level == 0 {
+            out.origin.x -= (fitted - rect.width) / 2   // 根节点保持居中
+        }
+        out.size.width = fitted
+        return out
+    }
+
+    /// 兜底：如果排版出来的高度超过节点，扩高而不是裁掉最后一行
+    private func fitEditorHeight(_ textView: NSTextView) {
+        guard let layoutManager = textView.layoutManager,
+              let container = textView.textContainer else { return }
+        layoutManager.ensureLayout(for: container)
+        let needed = layoutManager.usedRect(for: container).height + 4
+        if needed > textView.frame.height {
+            textView.setFrameSize(NSSize(width: textView.frame.width, height: needed))
         }
     }
 
@@ -706,6 +2024,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         editingID = nil
         editTextView = nil
         editingOriginalText = ""
+        appliedEditingFont = nil
         textView.delegate = nil
         textView.removeFromSuperview()
 
@@ -730,6 +2049,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
         editingID = nil
         editTextView = nil
         editingOriginalText = ""
+        appliedEditingFont = nil
         textView.delegate = nil
         textView.removeFromSuperview()
 
@@ -747,29 +2067,68 @@ final class MindCanvasView: NSView, NSTextViewDelegate {
               let node = editor.map.node(id) else { return }
 
         let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: min(level, 2))
-        ensureVisible(id)
-        let textRect = worldRectToView(textLayout.textRect)
-        let font = NSFont(
-            descriptor: textLayout.font.fontDescriptor,
-            size: max(textLayout.font.pointSize * camera.zoom, 9)
-        ) ?? textLayout.font
+        // 打字不移动画布；只有整个节点完全跑出视野时才最小幅度跟一下
+        if !visibleWorldRect.intersects(frame) {
+            panToReveal(frame, margin: 32)
+        }
+        let font = editingFont(for: textLayout)
+        let textRect = editingRect(
+            editingRect(for: textLayout, level: min(level, 2), nodeFrame: frame),
+            fitting: textView.string,
+            font: font,
+            level: min(level, 2),
+            node: node
+        )
 
         textView.frame = textRect
-        applyTextAttributes(
-            to: textView,
-            node: node,
-            level: min(level, 2),
-            font: font,
-            alignment: textLayout.alignment
-        )
+        // 打字过程中字号并不会变，只在缩放变化时才需要重设属性；
+        // 每次按键都写一遍 textStorage 会打断中文输入法的组字。
+        if appliedEditingFont?.pointSize != font.pointSize || appliedEditingFont?.fontName != font.fontName {
+            applyTextAttributes(
+                to: textView,
+                node: node,
+                level: min(level, 2),
+                font: font,
+                alignment: textLayout.alignment
+            )
+            appliedEditingFont = font
+        }
         updateTextContainer(textView, width: textRect.width)
+        fitEditorHeight(textView)
         textView.needsDisplay = true
     }
 
     // MARK: - NSTextViewDelegate
 
     func textDidChange(_ notification: Notification) {
-        guard let textView = editTextView, let id = editingID, let editor else { return }
+        syncEditingText()
+    }
+
+    /// 只调整编辑框几何（不碰模型）：组字变长时先把容器撑开，避免这一帧折行
+    private func refreshEditingWidth() {
+        guard let textView = editTextView, let id = editingID, let editor,
+              let layout = layoutResult, let frame = layout.frames[id],
+              let level = layout.depths[id], let node = editor.map.node(id) else { return }
+        let lvl = min(level, 2)
+        let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: lvl)
+        let font = editingFont(for: textLayout)
+        let rect = editingRect(
+            editingRect(for: textLayout, level: lvl, nodeFrame: frame),
+            fitting: textView.string,
+            font: font,
+            level: lvl,
+            node: node
+        )
+        guard abs(rect.width - textView.frame.width) > 0.5 else { return }
+        textView.frame = rect
+        updateTextContainer(textView, width: rect.width)
+    }
+
+    /// 把输入框里的文字（含输入法组字）同步回模型，让节点跟着变宽，
+    /// 组字就不会提前折行、候选框也不会飘到节点外面。
+    private func syncEditingText() {
+        guard let textView = editTextView, let id = editingID, let editor,
+              let node = editor.map.node(id), node.text != textView.string else { return }
         editor.setText(textView.string, for: id)
         rebuildLayoutIfNeeded(force: true)
         updateEditorFrame()

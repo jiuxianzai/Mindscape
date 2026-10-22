@@ -12,23 +12,23 @@ enum MapTemplate: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .blank: return "空白导图"
-        case .project: return "项目规划"
-        case .meeting: return "会议纪要"
-        case .reading: return "读书笔记"
-        case .swot: return "SWOT 分析"
-        case .weekly: return "周计划"
+        case .blank: return String(localized: "空白导图")
+        case .project: return String(localized: "项目规划")
+        case .meeting: return String(localized: "会议纪要")
+        case .reading: return String(localized: "读书笔记")
+        case .swot: return String(localized: "SWOT 分析")
+        case .weekly: return String(localized: "周计划")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .blank: return "从中心主题开始"
-        case .project: return "目标、里程碑与风险"
-        case .meeting: return "议题、结论与待办"
-        case .reading: return "观点、金句与联想"
-        case .swot: return "优势、劣势、机会、威胁"
-        case .weekly: return "本周重点与安排"
+        case .blank: return String(localized: "从中心主题开始")
+        case .project: return String(localized: "目标、里程碑与风险")
+        case .meeting: return String(localized: "议题、结论与待办")
+        case .reading: return String(localized: "观点、金句与联想")
+        case .swot: return String(localized: "优势、劣势、机会、威胁")
+        case .weekly: return String(localized: "本周重点与安排")
         }
     }
 
@@ -44,6 +44,15 @@ enum MapTemplate: String, CaseIterable, Identifiable, Sendable {
     }
 
     func makeMap(themeID: String, layout: MapLayout) -> MindMap {
+        var map = makeRawMap(themeID: themeID, layout: layout)
+        for index in map.nodes.indices {
+            map.nodes[index].text = map.nodes[index].text.l10n
+            map.nodes[index].note = map.nodes[index].note.l10n
+        }
+        return map
+    }
+
+    private func makeRawMap(themeID: String, layout: MapLayout) -> MindMap {
         switch self {
         case .blank:
             let root = MindNode(parentID: nil, text: "中心主题", order: 0)

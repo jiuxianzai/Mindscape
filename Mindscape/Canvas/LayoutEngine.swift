@@ -127,6 +127,15 @@ enum LayoutEngine {
         return max(own, total)
     }
 
+    /// 忽略折叠状态的高度：只用于给一级分支分左右侧，保证结构稳定
+    private static func expandedSubtreeHeight(_ id: UUID, _ ctx: inout Context) -> CGFloat {
+        let own = nodeHeight(id, &ctx)
+        let kids = ctx.kids(id)
+        guard !kids.isEmpty else { return own }
+        let total = kids.reduce(CGFloat(0)) { $0 + expandedSubtreeHeight($1, &ctx) } + vGap * CGFloat(kids.count - 1)
+        return max(own, total)
+    }
+
     private static func subtreeWidth(_ id: UUID, _ ctx: inout Context) -> CGFloat {
         let own = ctx.size(id).width
         let kids = ctx.kids(id)
@@ -150,7 +159,9 @@ enum LayoutEngine {
         var rightHeight: CGFloat = 0
         var leftHeight: CGFloat = 0
         for kid in kids {
-            let height = subtreeHeight(kid, &ctx)
+            // 用“完全展开时”的高度分侧：折叠 / 展开不应让一级分支换边，
+            // 否则转场时整个分支会横穿根节点，看起来像糊成一团。
+            let height = expandedSubtreeHeight(kid, &ctx)
             if rightHeight <= leftHeight {
                 right.append(kid)
                 rightHeight += height + vGap

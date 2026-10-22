@@ -10,9 +10,9 @@ enum SettingsTab: Int, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .general: return "通用"
-        case .shortcuts: return "快捷键"
-        case .about: return "关于"
+        case .general: return String(localized: "通用")
+        case .shortcuts: return String(localized: "快捷键")
+        case .about: return String(localized: "关于")
         }
     }
 
@@ -140,9 +140,9 @@ struct SettingsPageHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
+            Text(title.l10n)
                 .font(.system(size: 20, weight: .semibold, design: .rounded))
-            Text(subtitle)
+            Text(subtitle.l10n)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -160,7 +160,7 @@ struct SettingsSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(title)
+            Text(title.l10n)
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
@@ -214,10 +214,10 @@ private func settingsRow<Content: View>(
 ) -> some View {
     HStack(spacing: 12) {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
+            Text(title.l10n)
                 .font(.system(size: 12, weight: .medium))
             if let subtitle {
-                Text(subtitle)
+                Text(subtitle.l10n)
                     .font(.system(size: 9.5))
                     .foregroundStyle(.secondary)
             }
@@ -433,10 +433,10 @@ struct GeneralSettingsContent: View {
 
         if hasExisting {
             let alert = NSAlert()
-            alert.messageText = "该目录中已有 Mindscape 数据"
-            alert.informativeText = "切换后会打开该目录中的导图。当前目录的数据仍会保留在原处，不会被删除。"
-            alert.addButton(withTitle: "使用该目录")
-            alert.addButton(withTitle: "取消")
+            alert.messageText = String(localized: "该目录中已有 Mindscape 数据")
+            alert.informativeText = String(localized: "切换后会打开该目录中的导图。当前目录的数据仍会保留在原处，不会被删除。")
+            alert.addButton(withTitle: String(localized: "使用该目录"))
+            alert.addButton(withTitle: String(localized: "取消"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
             if let error = app.switchDataDirectory(to: url, useExisting: true) {
                 errorMessage = error
@@ -456,12 +456,12 @@ struct GeneralSettingsContent: View {
         )
 
         let alert = NSAlert()
-        alert.messageText = "恢复默认数据目录？"
+        alert.messageText = String(localized: "恢复默认数据目录？")
         alert.informativeText = hasExisting
-            ? "将打开默认目录中已有的导图，当前目录的数据仍会保留。"
-            : "当前数据会复制到默认目录。"
-        alert.addButton(withTitle: "恢复")
-        alert.addButton(withTitle: "取消")
+            ? String(localized: "将打开默认目录中已有的导图，当前目录的数据仍会保留。")
+            : String(localized: "当前数据会复制到默认目录。")
+        alert.addButton(withTitle: String(localized: "恢复"))
+        alert.addButton(withTitle: String(localized: "取消"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         if let error = app.resetDataDirectory() {
@@ -476,7 +476,10 @@ struct ShortcutSettingsContent: View {
     @ObservedObject var store: ShortcutStore
     @State private var recording: ShortcutAction?
 
-    private let categories = ["文件", "编辑", "节点", "视图", "历史"]
+    private var categories: [String] {
+        var seen = Set<String>()
+        return ShortcutAction.allCases.map(\.category).filter { seen.insert($0).inserted }
+    }
 
     var body: some View {
         let conflicts = store.conflictingActions()
@@ -681,11 +684,11 @@ struct AboutSettingsContent: View {
 
     private func infoRow(_ label: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(label)
+            Text(label.l10n)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .frame(width: 64, alignment: .leading)
-            Text(value)
+            Text(value.l10n)
                 .font(.system(size: 10.5, design: .monospaced))
                 .foregroundStyle(.primary.opacity(0.8))
                 .textSelection(.enabled)

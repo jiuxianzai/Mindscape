@@ -23,36 +23,56 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
     case editNode
     case deleteNode
     case toggleCollapse
+    case findNode
+    case duplicateNode
+    case importDocument
+    case focusMode
+    case zoomToBranch
+    case collapseAll
+    case expandAll
+    case toggleOutline
+    case presentMode
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .newDocument: return "新建导图"
-        case .saveDocument: return "保存"
-        case .exportDocument: return "导出…"
-        case .undo: return "撤销"
-        case .redo: return "重做"
-        case .showHistory: return "历史版本"
-        case .fitCanvas: return "适配画布"
-        case .zoomIn: return "放大"
-        case .zoomOut: return "缩小"
-        case .toggleInspector: return "显示 / 隐藏属性面板"
-        case .newChild: return "新建子主题"
-        case .newSibling: return "新建同级主题"
-        case .editNode: return "编辑当前节点"
-        case .deleteNode: return "删除节点"
-        case .toggleCollapse: return "折叠 / 展开"
+        case .newDocument: return String(localized: "新建导图")
+        case .saveDocument: return String(localized: "保存")
+        case .exportDocument: return String(localized: "导出…")
+        case .undo: return String(localized: "撤销")
+        case .redo: return String(localized: "重做")
+        case .showHistory: return String(localized: "历史版本")
+        case .fitCanvas: return String(localized: "适配画布")
+        case .zoomIn: return String(localized: "放大")
+        case .zoomOut: return String(localized: "缩小")
+        case .toggleInspector: return String(localized: "显示 / 隐藏属性面板")
+        case .newChild: return String(localized: "新建子主题")
+        case .newSibling: return String(localized: "新建同级主题")
+        case .editNode: return String(localized: "编辑当前节点")
+        case .deleteNode: return String(localized: "删除节点")
+        case .toggleCollapse: return String(localized: "折叠 / 展开")
+        case .findNode: return String(localized: "图内搜索")
+        case .duplicateNode: return String(localized: "创建副本")
+        case .importDocument: return String(localized: "导入…")
+        case .focusMode: return String(localized: "专注模式")
+        case .zoomToBranch: return String(localized: "缩放到分支")
+        case .collapseAll: return String(localized: "折叠全部子分支")
+        case .expandAll: return String(localized: "展开全部")
+        case .toggleOutline: return String(localized: "显示 / 隐藏大纲")
+        case .presentMode: return String(localized: "演示模式")
         }
     }
 
     var category: String {
         switch self {
-        case .newDocument, .saveDocument, .exportDocument: return "文件"
-        case .undo, .redo: return "编辑"
-        case .newChild, .newSibling, .editNode, .deleteNode, .toggleCollapse: return "节点"
-        case .fitCanvas, .zoomIn, .zoomOut, .toggleInspector: return "视图"
-        case .showHistory: return "历史"
+        case .newDocument, .saveDocument, .exportDocument, .importDocument: return String(localized: "文件")
+        case .undo, .redo, .findNode, .duplicateNode: return String(localized: "编辑")
+        case .newChild, .newSibling, .editNode, .deleteNode, .toggleCollapse: return String(localized: "节点")
+        case .fitCanvas, .zoomIn, .zoomOut, .toggleInspector,
+             .focusMode, .zoomToBranch, .collapseAll, .expandAll, .toggleOutline, .presentMode:
+            return String(localized: "视图")
+        case .showHistory: return String(localized: "历史")
         }
     }
 
@@ -82,6 +102,15 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
         case .editNode: return KeyCombo(key: "f2")
         case .deleteNode: return KeyCombo(key: "delete")
         case .toggleCollapse: return KeyCombo(key: "space")
+        case .findNode: return KeyCombo(key: "f", command: true)
+        case .duplicateNode: return KeyCombo(key: "d", command: true)
+        case .importDocument: return KeyCombo(key: "i", command: true, shift: true)
+        case .focusMode: return KeyCombo(key: "f", command: true, shift: true)
+        case .zoomToBranch: return KeyCombo(key: "b", command: true, shift: true)
+        case .collapseAll: return KeyCombo(key: "c", command: true, shift: true)
+        case .expandAll: return KeyCombo(key: "e", command: true, shift: true)
+        case .toggleOutline: return KeyCombo(key: "o", command: true, shift: true)
+        case .presentMode: return KeyCombo(key: "p", command: true, shift: true)
         }
     }
 
@@ -120,7 +149,7 @@ struct KeyCombo: Codable, Equatable, Hashable {
     var hasCommandLikeModifier: Bool { command || option || control }
 
     var display: String {
-        guard !key.isEmpty else { return "未设置" }
+        guard !key.isEmpty else { return String(localized: "未设置") }
         var result = ""
         if control { result += "⌃" }
         if option { result += "⌥" }
@@ -329,15 +358,15 @@ final class ShortcutStore: ObservableObject {
     }
 
     func validationError(for candidate: KeyCombo, action: ShortcutAction) -> String? {
-        if candidate.isEmpty { return "快捷键不能为空" }
+        if candidate.isEmpty { return String(localized: "快捷键不能为空") }
         if action.scope == .menu && !candidate.hasCommandLikeModifier {
-            return "菜单快捷键至少需要 ⌘ / ⌥ / ⌃ 中的一个，避免和输入冲突"
+            return String(localized: "菜单快捷键至少需要 ⌘ / ⌥ / ⌃ 中的一个，避免和输入冲突")
         }
         if let conflict = conflict(with: candidate, excluding: action) {
-            return "该快捷键已被「\(conflict.title)」使用"
+            return String(localized: "该快捷键已被「\(conflict.title)」使用")
         }
         if candidate.command, candidate.key == "q", !candidate.shift, !candidate.option, !candidate.control {
-            return "⌘Q 是系统退出快捷键"
+            return String(localized: "⌘Q 是系统退出快捷键")
         }
         return nil
     }
@@ -372,4 +401,7 @@ extension Notification.Name {
     static let mindscapeShowHistory = Notification.Name("mindscape.showHistory")
     static let mindscapeToggleInspector = Notification.Name("mindscape.toggleInspector")
     static let mindscapeShowExport = Notification.Name("mindscape.showExport")
+    static let mindscapeFind = Notification.Name("mindscape.find")
+    static let mindscapeToggleOutline = Notification.Name("mindscape.toggleOutline")
+    static let mindscapePresent = Notification.Name("mindscape.present")
 }

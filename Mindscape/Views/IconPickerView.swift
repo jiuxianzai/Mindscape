@@ -2,13 +2,26 @@ import SwiftUI
 
 struct IconPickerView: View {
     @Bindable var editor: MapEditor
-    let node: MindNode
+    let nodeIDs: [UUID]
+    let currentIcon: String?
 
     @State private var expanded = true
     @State private var query = ""
 
     private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 5), count: 6)
+
+    init(editor: MapEditor, node: MindNode) {
+        self._editor = Bindable(wrappedValue: editor)
+        self.nodeIDs = [node.id]
+        self.currentIcon = node.icon
+    }
+
+    init(editor: MapEditor, nodeIDs: [UUID], currentIcon: String?) {
+        self._editor = Bindable(wrappedValue: editor)
+        self.nodeIDs = nodeIDs
+        self.currentIcon = currentIcon
+    }
 
     private var results: [IconChoice] {
         IconCatalog.search(query)
@@ -39,12 +52,12 @@ struct IconPickerView: View {
 
                 Spacer()
 
-                if let icon = node.icon {
+                if let icon = currentIcon {
                     Image(systemName: icon)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(accent)
                     Button("清除") {
-                        editor.setIcon(nil, for: node.id)
+                        editor.setIcon(nil, for: Set(nodeIDs))
                     }
                     .buttonStyle(.plain)
                     .font(.system(size: 9.5))
@@ -102,9 +115,9 @@ struct IconPickerView: View {
     }
 
     private func iconButton(_ choice: IconChoice) -> some View {
-        let selected = node.icon == choice.symbol
+        let selected = currentIcon == choice.symbol
         return Button {
-            editor.setIcon(choice.symbol, for: node.id)
+            editor.setIcon(choice.symbol, for: Set(nodeIDs))
         } label: {
             Image(systemName: choice.symbol)
                 .font(.system(size: 12.5, weight: .medium))

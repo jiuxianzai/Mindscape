@@ -14,14 +14,14 @@ enum MapLayout: String, CaseIterable, Codable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .mindMap: return "思维导图"
-        case .logicRight: return "逻辑图（右）"
-        case .logicLeft: return "逻辑图（左）"
-        case .orgChart: return "组织架构图"
-        case .tree: return "树形图"
-        case .timeline: return "时间轴"
-        case .braceMap: return "括号图"
-        case .free: return "自由布局"
+        case .mindMap: return String(localized: "思维导图")
+        case .logicRight: return String(localized: "逻辑图（右）")
+        case .logicLeft: return String(localized: "逻辑图（左）")
+        case .orgChart: return String(localized: "组织架构图")
+        case .tree: return String(localized: "树形图")
+        case .timeline: return String(localized: "时间轴")
+        case .braceMap: return String(localized: "括号图")
+        case .free: return String(localized: "自由布局")
         }
     }
 

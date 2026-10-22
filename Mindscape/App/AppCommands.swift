@@ -16,6 +16,11 @@ struct AppCommands: Commands {
                 app.createDocument(template: .blank)
             }
             .appShortcut(shortcuts.combo(for: .newDocument))
+
+            Button("导入 Markdown / OPML…") {
+                app.importDocument()
+            }
+            .appShortcut(shortcuts.combo(for: .importDocument))
         }
 
         CommandGroup(replacing: .undoRedo) {
@@ -28,6 +33,18 @@ struct AppCommands: Commands {
                 app.editor?.redo()
             }
             .appShortcut(shortcuts.combo(for: .redo))
+
+            Divider()
+
+            Button("查找节点…") {
+                NotificationCenter.default.post(name: .mindscapeFind, object: nil)
+            }
+            .appShortcut(shortcuts.combo(for: .findNode))
+
+            Button("创建副本") {
+                app.editor?.duplicateSelection()
+            }
+            .appShortcut(shortcuts.combo(for: .duplicateNode))
         }
 
         CommandGroup(replacing: .saveItem) {
@@ -51,6 +68,42 @@ struct AppCommands: Commands {
             Button("创建快照") {
                 app.editor?.createSnapshot()
             }
+
+            Divider()
+
+            Button("显示 / 隐藏大纲") {
+                NotificationCenter.default.post(name: .mindscapeToggleOutline, object: nil)
+            }
+            .appShortcut(shortcuts.combo(for: .toggleOutline))
+
+            Divider()
+
+            Button("专注当前分支") {
+                app.editor?.toggleFocus()
+            }
+            .appShortcut(shortcuts.combo(for: .focusMode))
+
+            Button("缩放到分支") {
+                app.editor?.requestZoomToBranch()
+            }
+            .appShortcut(shortcuts.combo(for: .zoomToBranch))
+
+            Button("折叠全部子分支") {
+                app.editor?.collapseAll()
+            }
+            .appShortcut(shortcuts.combo(for: .collapseAll))
+
+            Button("展开全部") {
+                app.editor?.expandAll()
+            }
+            .appShortcut(shortcuts.combo(for: .expandAll))
+
+            Divider()
+
+            Button("演示模式") {
+                NotificationCenter.default.post(name: .mindscapePresent, object: nil)
+            }
+            .appShortcut(shortcuts.combo(for: .presentMode))
 
             Divider()
 

@@ -10,6 +10,11 @@ final class MapEditor {
     private(set) var fitToken: Int = 0
     private(set) var zoomToken: Int = 0
     private(set) var zoomFactor: CGFloat = 1
+    /// 专注模式聚焦的节点；nil 表示未开启
+    private(set) var focusNodeID: UUID?
+    /// 请求画布把某个分支缩放到合适大小
+    private(set) var branchZoomToken: Int = 0
+    private(set) var branchZoomNodeID: UUID?
     private(set) var lastSavedAt: Date?
     private(set) var saveError: String?
 
@@ -57,12 +62,28 @@ final class MapEditor {
         revision += 1
     }
 
+    /// 框选、全选等批量选择入口
+    func setSelection(_ ids: Set<UUID>) {
+        let valid = ids.filter { map.node($0) != nil }
+        guard valid != selection else { return }
+        selection = valid
+        revision += 1
+    }
+
+    func selectAll() {
+        setSelection(Set(map.nodes.map(\.id)))
+    }
+
+    var selectedNodes: [MindNode] {
+        map.nodes.filter { selection.contains($0.id) }
+    }
+
     // MARK: - Structure
 
     @discardableResult
     func addChild(to parentID: UUID) -> UUID? {
         guard map.node(parentID) != nil else { return nil }
-        var node = MindNode(parentID: parentID, text: "新主题", order: nextOrder(parentID))
+        var node = MindNode(parentID: parentID, text: String(localized: "新主题"), order: nextOrder(parentID))
         node.icon = nil
         mutate { map in
             if let index = map.nodes.firstIndex(where: { $0.id == parentID }) {
@@ -80,7 +101,7 @@ final class MapEditor {
         guard let parentID = current.parentID else {
             return addChild(to: current.id)
         }
-        let node = MindNode(parentID: parentID, text: "新主题", order: nextOrder(parentID))
+        let node = MindNode(parentID: parentID, text: String(localized: "新主题"), order: nextOrder(parentID))
         mutate { map in
             map.nodes.append(node)
         }
@@ -96,7 +117,7 @@ final class MapEditor {
         delete(ids: [id])
     }
 
-    private func delete(ids: Set<UUID>) {
+    func delete(ids: Set<UUID>) {
         var toRemove: Set<UUID> = []
         for id in ids where id != map.rootID {
             collectSubtree(id, into: &toRemove)
@@ -108,6 +129,405 @@ final class MapEditor {
             map.nodes.removeAll { toRemove.contains($0.id) }
         }
         selection = [fallback]
+        if let focusNodeID, toRemove.contains(focusNodeID) {
+            self.focusNodeID = nil
+        }
+    }
+
+    // MARK: - Copy / paste
+
+    /// 复制选中分支（自动去掉被其它选中节点包含的子节点）
+    @discardableResult
+    func copySelection() -> Bool {
+        guard let payload = clipboardPayload(for: selection) else { return false }
+        NodeClipboard.write(payload)
+        return true
+    }
+
+    @discardableResult
+    func cutSelection() -> Bool {
+        guard copySelection() else { return false }
+        delete(ids: selection)
+        return true
+    }
+
+    /// 把剪贴板里的分支粘贴到目标节点下面；默认粘贴到当前选中节点
+    @discardableResult
+    func paste(into targetID: UUID? = nil) -> Bool {
+        guard let payload = NodeClipboard.read() else { return false }
+        let target = targetID ?? selectedNodes.first?.id ?? map.rootID
+        guard map.node(target) != nil else { return false }
+        var newRoots: [UUID] = []
+        mutate { map in
+            if let index = map.nodes.firstIndex(where: { $0.id == target }) {
+                map.nodes[index].collapsed = false
+            }
+            newRoots = insert(payload: payload, into: &map) { _ in target }
+        }
+        guard !newRoots.isEmpty else { return false }
+        selection = Set(newRoots)
+        return true
+    }
+
+    /// 创建副本：复制选中分支，挂到原节点同一父级下面
+    @discardableResult
+    func duplicateSelection() -> Bool {
+        guard let payload = clipboardPayload(for: selection) else { return false }
+        var parents: [UUID: UUID] = [:]
+        for node in payload.nodes where node.parentID == nil {
+            parents[node.id] = map.node(node.id)?.parentID ?? map.rootID
+        }
+        let rootFallback = map.rootID
+        var newRoots: [UUID] = []
+        mutate { map in
+            newRoots = insert(payload: payload, into: &map) { oldID in
+                parents[oldID] ?? rootFallback
+            }
+        }
+        guard !newRoots.isEmpty else { return false }
+        selection = Set(newRoots)
+        return true
+    }
+
+    private func clipboardPayload(for ids: Set<UUID>) -> NodeClipboardPayload? {
+        let roots = ids
+            .filter { id in
+                guard map.node(id) != nil else { return false }
+                var parent = map.node(id)?.parentID
+                var guardCount = 0
+                while let current = parent, guardCount < map.nodes.count + 4 {
+                    if ids.contains(current) { return false }
+                    parent = map.node(current)?.parentID
+                    guardCount += 1
+                }
+                return true
+            }
+            .sorted { lhs, rhs in
+                (map.nodes.firstIndex(where: { $0.id == lhs }) ?? 0) <
+                (map.nodes.firstIndex(where: { $0.id == rhs }) ?? 0)
+            }
+        guard !roots.isEmpty else { return nil }
+
+        var nodes: [MindNode] = []
+        func collect(_ id: UUID) {
+            guard let node = map.node(id) else { return }
+            nodes.append(node)
+            for child in map.children(of: id) {
+                collect(child.id)
+            }
+        }
+        for root in roots {
+            collect(root)
+        }
+        return NodeClipboardPayload(nodes: nodes, rootIDs: roots, sourceTitle: map.title)
+    }
+
+    /// 把 payload 里的节点用新 ID 插进 map，rootParent 决定每个顶层节点挂到哪里
+    private func insert(
+        payload: NodeClipboardPayload,
+        into map: inout MindMap,
+        rootParent: (UUID) -> UUID?
+    ) -> [UUID] {
+        var idMap: [UUID: UUID] = [:]
+        for node in payload.nodes {
+            idMap[node.id] = UUID()
+        }
+
+        var nextOrder: [UUID: Int] = [:]
+        func order(for parent: UUID) -> Int {
+            if let value = nextOrder[parent] { return value }
+            let value = (map.children(of: parent).map(\.order).max() ?? -1) + 1
+            nextOrder[parent] = value
+            return value
+        }
+
+        var newRoots: [UUID] = []
+        let roots = Set(payload.rootIDs)
+        for old in payload.nodes {
+            guard let newID = idMap[old.id] else { continue }
+            let parentID: UUID?
+            if roots.contains(old.id) {
+                parentID = rootParent(old.id)
+            } else if let oldParent = old.parentID {
+                parentID = idMap[oldParent]
+            } else {
+                parentID = rootParent(old.id)
+            }
+            guard let parentID, map.node(parentID) != nil else { continue }
+
+            var node = old
+            node.id = newID
+            node.parentID = parentID
+            node.order = order(for: parentID)
+            nextOrder[parentID, default: 0] += 1
+            if let position = node.position {
+                node.position = CGPoint(x: position.x + 24, y: position.y + 24)
+            }
+            map.nodes.append(node)
+            if roots.contains(old.id) {
+                newRoots.append(newID)
+            }
+        }
+        return newRoots
+    }
+
+    // MARK: - Batch
+
+    func setColor(_ hex: String?, for ids: Set<UUID>) {
+        let targets = ids.filter { map.node($0) != nil }
+        guard !targets.isEmpty else { return }
+        guard targets.contains(where: { map.node($0)?.colorHex != hex }) else { return }
+        mutate { map in
+            for index in map.nodes.indices where targets.contains(map.nodes[index].id) {
+                map.nodes[index].colorHex = hex
+            }
+        }
+    }
+
+    func setIcon(_ icon: String?, for ids: Set<UUID>) {
+        let targets = ids.filter { map.node($0) != nil }
+        guard !targets.isEmpty else { return }
+        guard targets.contains(where: { map.node($0)?.icon != icon }) else { return }
+        mutate { map in
+            for index in map.nodes.indices where targets.contains(map.nodes[index].id) {
+                map.nodes[index].icon = icon
+            }
+        }
+    }
+
+    func toggleCollapse(ids: Set<UUID>) {
+        let targets = ids.filter { map.node($0) != nil && !map.children(of: $0).isEmpty }
+        guard !targets.isEmpty else { return }
+        let shouldCollapse = targets.contains { map.node($0)?.collapsed == false }
+        mutate { map in
+            for index in map.nodes.indices where targets.contains(map.nodes[index].id) {
+                map.nodes[index].collapsed = shouldCollapse
+            }
+        }
+        guard shouldCollapse else { return }
+        let hidden = targets.reduce(into: Set<UUID>()) { result, id in
+            result.formUnion(map.subtreeIDs(of: id))
+        }.subtracting(targets)
+        if !selection.isDisjoint(with: hidden), let first = targets.first {
+            selection = [first]
+        }
+    }
+
+    // MARK: - Focus & collapse
+
+    func setFocus(_ id: UUID?) {
+        let next = id.flatMap { map.node($0) != nil ? $0 : nil }
+        guard next != focusNodeID else { return }
+        focusNodeID = next
+        revision += 1
+    }
+
+    func toggleFocus(on id: UUID? = nil) {
+        let target = id ?? selectedNodes.first?.id ?? map.rootID
+        guard map.node(target) != nil else { return }
+        // 聚焦根节点等同于显示整图，没有专注意义
+        guard target != map.rootID else {
+            setFocus(nil)
+            return
+        }
+        if focusNodeID == target {
+            setFocus(nil)
+        } else {
+            setFocus(target)
+            requestZoomToBranch(target)
+        }
+    }
+
+    func requestZoomToBranch(_ id: UUID? = nil) {
+        let target = id ?? selectedNodes.first?.id ?? map.rootID
+        guard map.node(target) != nil else { return }
+        branchZoomNodeID = target
+        branchZoomToken += 1
+        revision += 1
+    }
+
+    /// 一键折叠：保留根节点和一级分支，收起所有更深的子分支
+    func collapseAll() {
+        let targets = Set(map.nodes.filter { node in
+            node.id != map.rootID
+                && !map.children(of: node.id).isEmpty
+                && !node.collapsed
+        }.map(\.id))
+        guard !targets.isEmpty else { return }
+        mutate { map in
+            for index in map.nodes.indices where targets.contains(map.nodes[index].id) {
+                map.nodes[index].collapsed = true
+            }
+        }
+    }
+
+    func expandAll() {
+        let targets = Set(map.nodes.filter { $0.collapsed }.map(\.id))
+        guard !targets.isEmpty else { return }
+        mutate { map in
+            for index in map.nodes.indices where targets.contains(map.nodes[index].id) {
+                map.nodes[index].collapsed = false
+            }
+        }
+    }
+
+    /// 展开目标节点的所有折叠祖先，保证搜索结果 / 大纲定位时节点真实存在于布局中
+    func expandAncestors(of id: UUID) {
+        var targets: Set<UUID> = []
+        var current = map.node(id)?.parentID
+        var guardCount = 0
+        while let parentID = current, guardCount < map.nodes.count + 4 {
+            if map.node(parentID)?.collapsed == true {
+                targets.insert(parentID)
+            }
+            current = map.node(parentID)?.parentID
+            guardCount += 1
+        }
+        guard !targets.isEmpty else { return }
+        mutate(undoable: false) { map in
+            for index in map.nodes.indices where targets.contains(map.nodes[index].id) {
+                map.nodes[index].collapsed = false
+            }
+        }
+    }
+
+    /// 仅用于导航 / 搜索定位的展开，不写入撤销栈
+    func expandForNavigation(_ id: UUID) {
+        guard map.node(id)?.collapsed == true else { return }
+        mutate(undoable: false) { map in
+            if let index = map.nodes.firstIndex(where: { $0.id == id }) {
+                map.nodes[index].collapsed = false
+            }
+        }
+    }
+
+    // MARK: - Free layout arrangement
+
+    enum FreeArrangement: String, CaseIterable, Identifiable {
+        case alignLeft
+        case alignCenterX
+        case alignRight
+        case alignTop
+        case alignMiddleY
+        case alignBottom
+        case distributeHorizontally
+        case distributeVertically
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .alignLeft: return String(localized: "左对齐")
+            case .alignCenterX: return String(localized: "水平居中")
+            case .alignRight: return String(localized: "右对齐")
+            case .alignTop: return String(localized: "顶对齐")
+            case .alignMiddleY: return String(localized: "垂直居中")
+            case .alignBottom: return String(localized: "底对齐")
+            case .distributeHorizontally: return String(localized: "水平等距")
+            case .distributeVertically: return String(localized: "垂直等距")
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .alignLeft: return "align.horizontal.left"
+            case .alignCenterX: return "align.horizontal.center"
+            case .alignRight: return "align.horizontal.right"
+            case .alignTop: return "align.vertical.top"
+            case .alignMiddleY: return "align.vertical.center"
+            case .alignBottom: return "align.vertical.bottom"
+            case .distributeHorizontally: return "distribute.horizontal"
+            case .distributeVertically: return "distribute.vertical"
+            }
+        }
+
+        var needsThree: Bool {
+            self == .distributeHorizontally || self == .distributeVertically
+        }
+    }
+
+    @discardableResult
+    func arrangeSelection(_ arrangement: FreeArrangement, frames: [UUID: CGRect]) -> Bool {
+        let entries = selectedNodes.compactMap { node -> (UUID, CGRect)? in
+            guard let frame = frames[node.id] else { return nil }
+            return (node.id, frame)
+        }
+        guard entries.count >= (arrangement.needsThree ? 3 : 2) else { return false }
+
+        var positions: [UUID: CGPoint] = [:]
+        switch arrangement {
+        case .alignLeft:
+            let x = entries.map(\.1.minX).min() ?? 0
+            for (id, frame) in entries { positions[id] = CGPoint(x: x, y: frame.minY) }
+        case .alignCenterX:
+            let center = (entries.map(\.1.minX).min() ?? 0) + ((entries.map(\.1.maxX).max() ?? 0) - (entries.map(\.1.minX).min() ?? 0)) / 2
+            for (id, frame) in entries { positions[id] = CGPoint(x: center - frame.width / 2, y: frame.minY) }
+        case .alignRight:
+            let x = entries.map(\.1.maxX).max() ?? 0
+            for (id, frame) in entries { positions[id] = CGPoint(x: x - frame.width, y: frame.minY) }
+        case .alignTop:
+            let y = entries.map(\.1.minY).min() ?? 0
+            for (id, frame) in entries { positions[id] = CGPoint(x: frame.minX, y: y) }
+        case .alignMiddleY:
+            let center = (entries.map(\.1.minY).min() ?? 0) + ((entries.map(\.1.maxY).max() ?? 0) - (entries.map(\.1.minY).min() ?? 0)) / 2
+            for (id, frame) in entries { positions[id] = CGPoint(x: frame.minX, y: center - frame.height / 2) }
+        case .alignBottom:
+            let y = entries.map(\.1.maxY).max() ?? 0
+            for (id, frame) in entries { positions[id] = CGPoint(x: frame.minX, y: y - frame.height) }
+        case .distributeHorizontally:
+            let sorted = entries.sorted { $0.1.minX < $1.1.minX }
+            guard let first = sorted.first, let last = sorted.last else { return false }
+            let span = last.1.maxX - first.1.minX
+            let widths = sorted.reduce(CGFloat(0)) { $0 + $1.1.width }
+            let gap = (span - widths) / CGFloat(sorted.count - 1)
+            var x = first.1.minX
+            for (id, frame) in sorted {
+                positions[id] = CGPoint(x: x, y: frame.minY)
+                x += frame.width + gap
+            }
+        case .distributeVertically:
+            let sorted = entries.sorted { $0.1.minY < $1.1.minY }
+            guard let first = sorted.first, let last = sorted.last else { return false }
+            let span = last.1.maxY - first.1.minY
+            let heights = sorted.reduce(CGFloat(0)) { $0 + $1.1.height }
+            let gap = (span - heights) / CGFloat(sorted.count - 1)
+            var y = first.1.minY
+            for (id, frame) in sorted {
+                positions[id] = CGPoint(x: frame.minX, y: y)
+                y += frame.height + gap
+            }
+        }
+
+        guard !positions.isEmpty else { return false }
+        mutate { map in
+            for index in map.nodes.indices {
+                if let position = positions[map.nodes[index].id] {
+                    map.nodes[index].position = position
+                }
+            }
+        }
+        return true
+    }
+
+    // MARK: - Search
+
+    /// 图内搜索：文字、备注、图标名称都参与匹配，结果按 BFS 顺序返回
+    func searchMatches(_ query: String) -> [UUID] {
+        let keyword = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !keyword.isEmpty else { return [] }
+        return map.breadthFirstIDs.filter { id in
+            guard let node = map.node(id) else { return false }
+            if node.text.localizedCaseInsensitiveContains(keyword) { return true }
+            if node.note.localizedCaseInsensitiveContains(keyword) { return true }
+            if let icon = node.icon {
+                if icon.localizedCaseInsensitiveContains(keyword) { return true }
+                if let name = IconCatalog.all.first(where: { $0.symbol == icon })?.name,
+                   name.localizedCaseInsensitiveContains(keyword) {
+                    return true
+                }
+            }
+            return false
+        }
     }
 
     private func collectSubtree(_ id: UUID, into set: inout Set<UUID>) {
@@ -120,9 +540,16 @@ final class MapEditor {
 
     func toggleCollapse(_ id: UUID) {
         guard map.node(id) != nil, !map.children(of: id).isEmpty else { return }
+        let wasCollapsed = map.node(id)?.collapsed ?? false
         mutate { map in
             if let index = map.nodes.firstIndex(where: { $0.id == id }) {
                 map.nodes[index].collapsed.toggle()
+            }
+        }
+        if !wasCollapsed {
+            let hidden = map.subtreeIDs(of: id).subtracting([id])
+            if !selection.isDisjoint(with: hidden) {
+                selection = [id]
             }
         }
     }
@@ -268,6 +695,7 @@ final class MapEditor {
         redoStack.append(map)
         map = previous
         selection = selection.filter { map.node($0) != nil }
+        sanitizeFocus()
         revision += 1
         scheduleSave()
     }
@@ -277,8 +705,18 @@ final class MapEditor {
         undoStack.append(map)
         map = next
         selection = selection.filter { map.node($0) != nil }
+        sanitizeFocus()
         revision += 1
         scheduleSave()
+    }
+
+    private func sanitizeFocus() {
+        if let focusNodeID, map.node(focusNodeID) == nil {
+            self.focusNodeID = nil
+        }
+        if let branchZoomNodeID, map.node(branchZoomNodeID) == nil {
+            self.branchZoomNodeID = nil
+        }
     }
 
     private func mutate(undoable: Bool = true, _ body: (inout MindMap) -> Void) {
@@ -326,7 +764,7 @@ final class MapEditor {
         let now = Date()
         guard now.timeIntervalSince(lastAutoSnapshot) > 600 else { return }
         lastAutoSnapshot = now
-        try? store.addSnapshot(map, name: "自动快照", kind: "auto")
+        try? store.addSnapshot(map, name: String(localized: "自动快照"), kind: "auto")
     }
 
     // MARK: - History
@@ -335,13 +773,13 @@ final class MapEditor {
         (try? store.snapshots(for: map.id)) ?? []
     }
 
-    func createSnapshot(name: String = "手动快照") {
+    func createSnapshot(name: String = String(localized: "手动快照")) {
         try? store.addSnapshot(map, name: name, kind: "manual")
     }
 
     func restore(snapshot: SnapshotRecord) {
         guard let restored = try? store.loadSnapshot(snapshot.id) else { return }
-        try? store.addSnapshot(map, name: "恢复前", kind: "manual")
+        try? store.addSnapshot(map, name: String(localized: "恢复前"), kind: "manual")
         undoStack.append(map)
         if undoStack.count > 150 { undoStack.removeFirst() }
         redoStack.removeAll()
@@ -351,6 +789,7 @@ final class MapEditor {
         next.updatedAt = Date()
         map = next
         selection = [map.rootID]
+        focusNodeID = nil
         revision += 1
         fitToken += 1
         saveNow()

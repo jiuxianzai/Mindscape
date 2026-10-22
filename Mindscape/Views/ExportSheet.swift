@@ -179,7 +179,7 @@ struct ExportSheet: View {
     }
 
     private func sectionLabel(_ text: String) -> some View {
-        Text(text)
+        Text(text.l10n)
             .font(.system(size: 10.5, weight: .semibold))
             .foregroundStyle(.secondary)
             .textCase(.uppercase)

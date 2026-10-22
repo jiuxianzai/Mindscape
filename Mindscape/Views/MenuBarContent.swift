@@ -79,11 +79,11 @@ struct MenuBarContent: View {
 
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "清空回收站？"
-        alert.informativeText = "回收站里的 \(count) 张导图将被彻底删除，无法恢复。"
+        alert.messageText = String(localized: "清空回收站？")
+        alert.informativeText = String(localized: "回收站里的 \(count) 张导图将被彻底删除，无法恢复。")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "清空")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: String(localized: "清空"))
+        alert.addButton(withTitle: String(localized: "取消"))
         if alert.runModal() == .alertFirstButtonReturn {
             app.emptyTrash()
         }
