@@ -1497,3 +1497,39 @@ extension MindscapeFeatureTests {
         XCTAssertLessThanOrEqual(editor.undoCount, 30, "大图撤销栈没有按节点数收缩")
     }
 }
+
+extension MindscapeFeatureTests {
+    /// 组织架构图折叠分支 / 根节点时，节点不能整体左右跳
+    func testOrgChartCollapseKeepsNodePositions() throws {
+        let map = makeThreeBranchOrgMap()
+        let expanded = LayoutEngine.layout(map)
+        let root = map.rootID
+        let rootFrame = try XCTUnwrap(expanded.frames[root])
+        let branches = map.children(of: root)
+        let design = try XCTUnwrap(branches.first(where: { $0.text == "设计" }))
+        let designChild = try XCTUnwrap(map.children(of: design.id).first)
+        let designFrame = try XCTUnwrap(expanded.frames[design.id])
+
+        var branchCollapsed = map
+        if let index = branchCollapsed.nodes.firstIndex(where: { $0.id == design.id }) {
+            branchCollapsed.nodes[index].collapsed = true
+        }
+        let afterBranch = LayoutEngine.layout(branchCollapsed)
+        XCTAssertEqual(afterBranch.frames[root]?.origin, rootFrame.origin, "折叠分支后根节点移位")
+        XCTAssertEqual(afterBranch.frames[design.id]?.origin, designFrame.origin, "被折叠的节点自己移位")
+        XCTAssertNil(afterBranch.frames[designChild.id])
+        for branch in branches where branch.id != design.id {
+            XCTAssertEqual(afterBranch.frames[branch.id]?.origin, expanded.frames[branch.id]?.origin, "兄弟分支移位")
+        }
+
+        var rootCollapsed = map
+        if let index = rootCollapsed.nodes.firstIndex(where: { $0.id == root }) {
+            rootCollapsed.nodes[index].collapsed = true
+        }
+        let afterRoot = LayoutEngine.layout(rootCollapsed)
+        XCTAssertEqual(afterRoot.frames[root]?.origin, rootFrame.origin, "折叠根节点后根节点移位")
+        for branch in branches {
+            XCTAssertNil(afterRoot.frames[branch.id])
+        }
+    }
+}

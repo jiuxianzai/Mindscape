@@ -212,6 +212,19 @@ enum LayoutEngine {
         return max(own, total)
     }
 
+    /// 忽略折叠状态的宽度：组织架构图用它分配水平槽位。
+    /// 折叠某个分支后如果按实际宽度重排，根节点和同级分支会整体左右跳；
+    /// 保留展开时的槽位，收起/展开位置才稳定。
+    private static func expandedSubtreeWidth(_ id: UUID, _ ctx: inout Context, depth: Int = 0) -> CGFloat {
+        let own = ctx.size(id).width
+        let kids = ctx.kids(id)
+        guard !kids.isEmpty, depth < 256 else { return own }
+        let total = kids.reduce(CGFloat(0)) {
+            $0 + expandedSubtreeWidth($1, &ctx, depth: depth + 1)
+        } + hGap * CGFloat(kids.count - 1)
+        return max(own, total)
+    }
+
     // MARK: - Mind map
 
     private static func layoutMindMap(rootID: UUID, _ ctx: inout Context) {
@@ -325,7 +338,7 @@ enum LayoutEngine {
     // MARK: - Org / tree
 
     private static func layoutOrg(rootID: UUID, _ ctx: inout Context) {
-        let width = subtreeWidth(rootID, &ctx)
+        let width = expandedSubtreeWidth(rootID, &ctx)
         placeOrg(id: rootID, centerX: width / 2, top: 0, &ctx)
     }
 
@@ -339,7 +352,7 @@ enum LayoutEngine {
         let kids = ctx.kids(id)
         guard !kids.isEmpty, !ctx.isCollapsed(id) else { return rect.maxY }
 
-        let widths = kids.map { subtreeWidth($0, &ctx) }
+        let widths = kids.map { expandedSubtreeWidth($0, &ctx) }
         let total = widths.reduce(0, +) + hGap * CGFloat(kids.count - 1)
         var left = centerX - total / 2
         var maxY = rect.maxY

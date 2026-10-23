@@ -1,6 +1,6 @@
 .PHONY: generate build run release package install clean
 
-VERSION := 0.5.1
+VERSION := 0.5.2
 APP := build/Build/Products/Debug/Mindscape.app
 RELEASE_APP := build-release/Build/Products/Release/Mindscape.app
 DIST := dist
