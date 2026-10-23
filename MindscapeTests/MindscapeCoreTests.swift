@@ -882,8 +882,8 @@ extension MindscapeFeatureTests {
 }
 
 extension MindscapeFeatureTests {
-    /// 128% 缩放下点进编辑不应该把节点“搬”到屏幕中央
-    func testEditingDoesNotRecenterCanvas() throws {
+    /// 进入编辑时节点要按当前缩放居中，而不是只做最小幅度平移
+    func testEditingCentersNodeInViewport() throws {
         let editor = try makeEditor()
         let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 420, height: 320))
         canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
@@ -892,24 +892,18 @@ extension MindscapeFeatureTests {
         canvas.centerContent()
 
         let layout = LayoutEngine.layout(editor.map)
-        // 找一个已经跑出右边界（或贴边）的节点
-        let outside = layout.frames.first { _, frame in
-            let origin = canvas.worldToView(frame.origin)
-            return origin.x + frame.width * canvas.currentZoom > canvas.bounds.width - 8
-        }
-        guard let (id, frame) = outside else { return XCTFail("测试需要一张超出视口的节点") }
-        let before = canvas.worldToView(frame.origin)
-
+        guard let (id, frame) = layout.frames.first else { return XCTFail("fixture missing") }
         canvas.beginEditing(id)
-        let after = canvas.worldToView(frame.origin)
 
-        XCTAssertGreaterThan(after.x, canvas.bounds.width * 0.45, "编辑时节点被搬到了屏幕中间")
-        XCTAssertLessThan(abs(after.x - before.x), canvas.bounds.width * 0.4, "镜头移动幅度过大")
+        let center = canvas.worldToView(CGPoint(x: frame.midX, y: frame.midY))
+        XCTAssertEqual(center.x, canvas.bounds.midX, accuracy: 1, "编辑时节点没有水平居中")
+        XCTAssertEqual(center.y, canvas.bounds.midY, accuracy: 1, "编辑时节点没有垂直居中")
+        XCTAssertEqual(canvas.currentZoom, 1.28, accuracy: 0.001, "居中不能改变缩放")
         canvas.commitEditing()
     }
 
-    /// 打字过程中画布不应该移动
-    func testTypingDoesNotMoveCamera() throws {
+    /// 打字导致节点变宽时，节点中心仍保持在视口中心
+    func testTypingKeepsNodeCentered() throws {
         let editor = try makeEditor()
         let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 420, height: 320))
         canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
@@ -922,12 +916,34 @@ extension MindscapeFeatureTests {
         guard let tv = canvas.subviews.compactMap({ $0 as? NSTextView }).last else {
             return XCTFail("编辑器没有创建")
         }
-        let cameraProbeBefore = canvas.worldToView(.zero)
-        tv.insertText("追加一小段文字看看画布会不会动", replacementRange: NSRange(location: tv.string.count, length: 0))
-        let cameraProbeAfter = canvas.worldToView(.zero)
-        XCTAssertEqual(cameraProbeAfter.x, cameraProbeBefore.x, accuracy: 0.5)
-        XCTAssertEqual(cameraProbeAfter.y, cameraProbeBefore.y, accuracy: 0.5)
+        tv.insertText("追加一小段文字看看节点会不会跑出屏幕", replacementRange: NSRange(location: tv.string.count, length: 0))
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        let layout = LayoutEngine.layout(editor.map)
+        guard let frame = layout.frames[branch.id] else { return XCTFail("fixture missing") }
+        let center = canvas.worldToView(CGPoint(x: frame.midX, y: frame.midY))
+        XCTAssertEqual(center.x, canvas.bounds.midX, accuracy: 1, "打字后节点没有水平居中")
+        XCTAssertEqual(center.y, canvas.bounds.midY, accuracy: 1, "打字后节点没有垂直居中")
         canvas.commitEditing()
+    }
+
+    /// 从 Inspector 等非画布入口新增节点，也要把新节点居中
+    func testNewChildCentersViewport() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 420, height: 320))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        _ = canvas.attachToTestWindow()
+        canvas.setZoom(1.28)
+        canvas.centerContent()
+
+        let newID = try XCTUnwrap(editor.addChild(to: editor.map.rootID))
+        canvas.layout()
+
+        let layout = LayoutEngine.layout(editor.map)
+        guard let frame = layout.frames[newID] else { return XCTFail("new node missing") }
+        let center = canvas.worldToView(CGPoint(x: frame.midX, y: frame.midY))
+        XCTAssertEqual(center.x, canvas.bounds.midX, accuracy: 1, "新增节点没有水平居中")
+        XCTAssertEqual(center.y, canvas.bounds.midY, accuracy: 1, "新增节点没有垂直居中")
     }
 }
 

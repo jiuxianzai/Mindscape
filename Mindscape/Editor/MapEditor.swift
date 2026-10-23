@@ -15,6 +15,9 @@ final class MapEditor {
     /// 请求画布把某个分支缩放到合适大小
     private(set) var branchZoomToken: Int = 0
     private(set) var branchZoomNodeID: UUID?
+    /// 请求画布把某个节点移到视口中心（新增节点 / 开始编辑时）
+    private(set) var centerToken: Int = 0
+    private(set) var centerNodeID: UUID?
 
     var onSaved: (() -> Void)?
 
@@ -49,6 +52,17 @@ final class MapEditor {
             selection = [id]
         }
         revision += 1
+    }
+
+    /// 请求画布把节点居中；由画布在下次布局时消费。
+    func requestCenter(_ id: UUID?) {
+        markCenterRequest(id)
+        revision += 1
+    }
+
+    private func markCenterRequest(_ id: UUID?) {
+        centerNodeID = id
+        centerToken &+= 1
     }
 
     func clearSelection() {
@@ -87,6 +101,7 @@ final class MapEditor {
             map.nodes.append(node)
         }
         selection = [node.id]
+        requestCenter(node.id)
         return node.id
     }
 
@@ -105,6 +120,7 @@ final class MapEditor {
             refreshTitleIfFollowing(wasFollowing, in: &map)
         }
         selection = [node.id]
+        requestCenter(node.id)
         return node.id
     }
 
@@ -119,6 +135,7 @@ final class MapEditor {
             map.nodes.append(node)
         }
         selection = [node.id]
+        requestCenter(node.id)
         return node.id
     }
 
@@ -191,6 +208,7 @@ final class MapEditor {
         }
         guard !newRoots.isEmpty else { return false }
         selection = Set(newRoots)
+        requestCenter(newRoots.first)
         return true
     }
 
@@ -214,6 +232,7 @@ final class MapEditor {
         }
         guard !newRoots.isEmpty else { return false }
         selection = Set(newRoots)
+        requestCenter(newRoots.first)
         return true
     }
 
@@ -681,6 +700,7 @@ final class MapEditor {
                 map.title = trimmed.isEmpty ? String(localized: "新主题") : trimmed
             }
         }
+        markCenterRequest(id)
         lastTextEditID = id
         lastTextEditAt = now
     }

@@ -33,6 +33,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     private var lastFitToken: Int = -1
     private var lastZoomToken: Int = 0
     private var lastBranchZoomToken: Int = -1
+    private var lastCenterToken: Int = 0
     private var pendingBranchZoomID: UUID?
     private var pendingFitAll = false
     private var hasFitted = false
@@ -125,6 +126,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             lastFitToken = -1
             lastZoomToken = 0
             lastBranchZoomToken = -1
+            lastCenterToken = editor.centerToken
             pendingBranchZoomID = nil
             pendingFitAll = false
             hasFitted = false
@@ -150,6 +152,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             zoom(by: activeEditor.zoomFactor, at: CGPoint(x: bounds.midX, y: bounds.midY))
         }
         applyPendingBranchZoomIfPossible()
+        applyPendingCenterIfPossible()
         needsDisplay = true
     }
 
@@ -418,6 +421,9 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
     override func layout() {
         super.layout()
+        // 模型可能刚发生变化（例如从属性面板新增节点），layout 阶段先把布局跑出来，
+        // 后面的 fit / 居中请求才能拿到新节点坐标。
+        rebuildLayoutIfNeeded()
         if bounds.width > 40, bounds.height > 40 {
             if !hasFitted {
                 rebuildLayoutIfNeeded(force: true)
@@ -433,6 +439,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                 fitToContent()
             }
             applyPendingBranchZoomIfPossible()
+            applyPendingCenterIfPossible()
         }
         updateEditorFrame()
     }
@@ -587,6 +594,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             return
         }
         rebuildLayoutIfNeeded()
+        applyPendingCenterIfPossible()
 
         MapRenderer.drawBackground(theme: theme, in: bounds)
         guard let layout = layoutResult, let context = NSGraphicsContext.current?.cgContext else { return }
@@ -909,7 +917,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         let position = editor.map.layout == .free ? worldPoint : nil
         guard let newID = editor.addRoot(at: position) else { return }
         rebuildLayoutIfNeeded(force: true)
-        ensureVisible(newID)
+        centerOnNode(newID)
         needsDisplay = true
         beginEditing(newID)
     }
@@ -1730,8 +1738,8 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         body()
         guard editor.revision != before else { return }
         rebuildLayoutIfNeeded(force: true)
-        for id in editor.selection {
-            ensureVisible(id)
+        if let id = editor.selection.first {
+            centerOnNode(id)
         }
         animateFrames(from: startFrames, to: layoutResult?.frames ?? [:], duration: 0.22)
     }
@@ -1828,7 +1836,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
     private func focusNewNode(_ id: UUID) {
         rebuildLayoutIfNeeded(force: true)
-        ensureVisible(id)
+        centerOnNode(id)
         editor?.select(id)
         needsDisplay = true
     }
@@ -1838,9 +1846,29 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         panToReveal(frame, margin: 24)
     }
 
-    /// 只把差的那一点平移进视野，不做整屏居中。
-    /// 居中在 100% 缩放下看不出问题，一旦放大到 128% 之后节点常有一半在视口外，
-    /// 每次点进编辑都会被“搬”到屏幕中央，看起来就像文字位置突然变了。
+    /// 把节点放到视口正中心，缩放不变。新增 / 编辑节点时使用。
+    func centerOnNode(_ id: UUID) {
+        guard let frame = currentVisualFrames()[id] ?? layoutResult?.frames[id] else { return }
+        userHasInteracted = true
+        let target = CGPoint(x: frame.midX, y: frame.midY)
+        if abs(camera.center.x - target.x) > 0.5 || abs(camera.center.y - target.y) > 0.5 {
+            camera.center = target
+            needsDisplay = true
+        }
+        updateEditorFrame()
+    }
+
+    /// 消费 MapEditor 的居中请求。放在 fit / 分支缩放之后调用，
+    /// 避免初次布局的 fitToContent 把刚算好的中心覆盖掉。
+    private func applyPendingCenterIfPossible() {
+        guard let editor, editor.centerToken != lastCenterToken else { return }
+        guard let id = editor.centerNodeID, layoutResult?.frames[id] != nil else { return }
+        lastCenterToken = editor.centerToken
+        centerOnNode(id)
+    }
+
+    /// 只把差的那一点平移进视野。用于搜索定位、大纲跳转等临时操作；
+    /// 编辑 / 新增节点走 centerOnNode，会按当前缩放居中。
     private func panToReveal(_ rect: CGRect, margin: CGFloat) {
         let visible = visibleWorldRect
         guard visible.width > margin * 2, visible.height > margin * 2 else { return }
@@ -1865,7 +1893,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         editor.select(id)
         rebuildLayoutIfNeeded(force: true)
         guard let layout = layoutResult, let frame = layout.frames[id] else { return }
-        panToReveal(frame, margin: 32)
+        centerOnNode(id)
 
         let level = min(layout.depths[id] ?? 0, 2)
         let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: level)
@@ -2063,6 +2091,10 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             editor?.setText(text, for: id)
         }
 
+        if editor?.map.node(id) != nil {
+            rebuildLayoutIfNeeded(force: true)
+            centerOnNode(id)
+        }
         window?.makeFirstResponder(self)
         needsDisplay = true
     }
@@ -2092,7 +2124,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
               let node = editor.map.node(id) else { return }
 
         let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: min(level, 2))
-        // 打字不移动画布；只有整个节点完全跑出视野时才最小幅度跟一下
+        // 正常打字由 syncEditingText 把节点居中；这里只兜底外部变化导致节点完全跑出视野
         if !visibleWorldRect.intersects(frame) {
             panToReveal(frame, margin: 32)
         }
@@ -2156,7 +2188,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
               let node = editor.map.node(id), node.text != textView.string else { return }
         editor.setText(textView.string, for: id)
         rebuildLayoutIfNeeded(force: true)
-        updateEditorFrame()
+        centerOnNode(id)
         needsDisplay = true
     }
 
