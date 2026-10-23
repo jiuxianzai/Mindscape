@@ -7,3 +7,13 @@ DerivedData/
 *.xcworkspace
 xcuserdata/
 .swiftpm/
+
+# 本地凭证 / 签名材料，避免误提交
+.env
+.env.*
+*.p8
+*.p12
+*.pfx
+*.mobileprovision
+*.cer
+*.key

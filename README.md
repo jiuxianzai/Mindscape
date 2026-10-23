@@ -15,6 +15,7 @@
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
   <img src="https://img.shields.io/badge/tests-67-brightgreen?style=flat-square" alt="67 tests">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.3-lightgrey?style=flat-square" alt="Status 0.5.3">
 </p>
 
@@ -371,7 +372,7 @@ Mindscape/
 
 ## License
 
-许可证尚未最终确定，确定后会补充 `LICENSE` 文件。
+本项目使用 [MIT License](LICENSE)。
 
 ## 致谢
 
