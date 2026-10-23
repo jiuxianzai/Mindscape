@@ -179,7 +179,9 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
         if force || layoutResult == nil || layoutRevision != editor.revision || layoutDocumentID != editor.map.id {
             let newLayout = LayoutEngine.layout(editor.map)
-            let newSnapshot = Dictionary(uniqueKeysWithValues: editor.map.nodes.map { ($0.id, $0.collapsed) })
+            var newSnapshot: [UUID: Bool] = [:]
+            newSnapshot.reserveCapacity(editor.map.nodes.count)
+            for node in editor.map.nodes { newSnapshot[node.id] = node.collapsed }
             layoutResult = newLayout
             layoutRevision = editor.revision
             layoutDocumentID = editor.map.id
@@ -422,7 +424,11 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                 fitToContent()
             } else if !userHasInteracted,
                       fitBoundsSize.width > 0,
-                      bounds.width > fitBoundsSize.width * 1.25 {
+                      abs(bounds.width - fitBoundsSize.width) > 4
+                        || abs(bounds.height - fitBoundsSize.height) > 4 {
+                // 用户还没动过画布时，「适配」是一种持续状态：
+                // 启动阶段画布会先按较窄的宽度适配一次，等侧栏 / 属性面板就位后宽度还会变，
+                // 原来只在「变宽超过 25%」时重算，21% 的变化就被漏掉了，整张图一直偏小。
                 rebuildLayoutIfNeeded(force: true)
                 fitToContent()
             }
@@ -453,9 +459,15 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
     override func viewWillMove(toWindow newWindow: NSWindow?) {
         super.viewWillMove(toWindow: newWindow)
-        if newWindow == nil, let observer = accessibilityObserver {
-            NotificationCenter.default.removeObserver(observer)
-            accessibilityObserver = nil
+        if newWindow == nil {
+            // Timer 会强引用 target；视图离开窗口时不停掉，拖拽 / 动画中的
+            // timer 会一直把画布留在内存里。
+            stopAnimationTimer()
+            stopDashTimer()
+            if let observer = accessibilityObserver {
+                NotificationCenter.default.removeObserver(observer)
+                accessibilityObserver = nil
+            }
         }
     }
 
@@ -468,11 +480,15 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         let validIDs = Set(layout.drawOrder)
         nodeAccessibilityElements = nodeAccessibilityElements.filter { validIDs.contains($0.key) }
 
+        var nodesByID: [UUID: MindNode] = [:]
+        nodesByID.reserveCapacity(editor.map.nodes.count)
+        for node in editor.map.nodes { nodesByID[node.id] = node }
+
         var elements: [MindNodeAccessibilityElement] = []
         for id in layout.drawOrder {
-            guard let node = editor.map.node(id), let frame = layout.frames[id] else { continue }
+            guard let node = nodesByID[id], let frame = layout.frames[id] else { continue }
             let element = nodeAccessibilityElements[id] ?? makeAccessibilityElement(for: id)
-            let children = editor.map.children(of: id).count
+            let children = layout.children[id]?.count ?? 0
             var label = NodeMeasurer.displayText(node)
             label += String(format: loc("，%lld 个子主题"), children)
             if node.collapsed, children > 0 { label += loc("，已折叠") }
@@ -754,15 +770,21 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
     private func collapseControlID(at worldPoint: CGPoint) -> UUID? {
         guard let editor, let layout = hitTestLayout else { return nil }
-        // 点在节点上就是选节点：小缩放下放大的命中区不能把节点点击抢走
-        guard hitTest(worldPoint: worldPoint) == nil else { return nil }
-        var best: (id: UUID, distance: CGFloat)?
+        let nodeUnderPoint = hitTest(worldPoint: worldPoint)
+        var best: (id: UUID, distance: CGFloat, onVisibleCircle: Bool)?
         for id in collapseControlIDs {
             guard let center = NodeControlGeometry.collapseControlCenter(for: id, in: editor.map, layout: layout) else { continue }
             let distance = hypot(worldPoint.x - center.x, worldPoint.y - center.y)
-            guard distance <= controlHitRadius else { continue }
-            if best == nil || distance < best!.distance {
-                best = (id, distance)
+            // 圆本身画在节点之上，点中看得见的圆就优先当作点控件；
+            // 小缩放下额外放大的命中区不能抢走节点点击（节点命中时只认可见圆）。
+            let onVisibleCircle = distance <= NodeControlGeometry.radius
+            if !onVisibleCircle {
+                guard nodeUnderPoint == nil, distance <= controlHitRadius else { continue }
+            }
+            if best == nil
+                || (onVisibleCircle && !best!.onVisibleCircle)
+                || (onVisibleCircle == best!.onVisibleCircle && distance < best!.distance) {
+                best = (id, distance, onVisibleCircle)
             }
         }
         return best?.id
@@ -880,11 +902,12 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
     // MARK: - Mouse
 
-    /// 双击空白：在当前选中的主题（没有就用根主题）下新建一个子主题并直接进入编辑
-    private func addChildAtEmptySpace() {
+    /// 双击空白：新建一个头部节点并直接进入编辑。
+    /// 自由布局会把头部放在双击位置，其它布局按顺序追加到头部列表末尾。
+    private func addHeadAtEmptySpace(at worldPoint: CGPoint) {
         guard let editor else { return }
-        let parent = editor.selection.first ?? editor.map.rootID
-        guard let newID = editor.addChild(to: parent) else { return }
+        let position = editor.map.layout == .free ? worldPoint : nil
+        guard let newID = editor.addRoot(at: position) else { return }
         rebuildLayoutIfNeeded(force: true)
         ensureVisible(newID)
         needsDisplay = true
@@ -919,7 +942,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             if let id = hitTest(worldPoint: worldPoint) {
                 beginEditing(id)
             } else {
-                addChildAtEmptySpace()
+                addHeadAtEmptySpace(at: worldPoint)
             }
             return
         }
@@ -1280,7 +1303,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     }
 
     private func canDrop(_ id: UUID, on target: UUID) -> Bool {
-        guard let editor, id != target, id != editor.map.rootID else { return false }
+        guard let editor, id != target else { return false }
         guard let source = editor.map.node(id), let targetNode = editor.map.node(target) else { return false }
         if source.parentID == targetNode.parentID { return true }
         return editor.canMove(id, to: target)
@@ -1318,6 +1341,11 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         item.target = self
         item.isEnabled = enabled
         return item
+    }
+
+    private func canDeleteNode(_ id: UUID) -> Bool {
+        guard let editor else { return false }
+        return !editor.map.rootIDs.contains(id) || editor.map.rootIDs.count > 1
     }
 
     private func contextMenu(for id: UUID) -> NSMenu {
@@ -1359,7 +1387,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         }
 
         menu.addItem(.separator())
-        let delete = menuItem(loc("删除"), #selector(menuDelete), enabled: id != editor?.map.rootID)
+        let delete = menuItem(loc("删除"), #selector(menuDelete), enabled: canDeleteNode(id))
         menu.addItem(delete)
         return menu
     }
@@ -1641,8 +1669,15 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                let scalar = characters.unicodeScalars.first,
                scalar.value >= 32,
                let id = editor.selection.first {
-                beginEditing(id, replacingWith: characters)
-                return
+                // 不要预先把 event.characters 写进节点：中文输入法下第一个按键
+                // 只是拼音字母（如 n / z），提前写入会把英文留在节点里，
+                // 输入法反而收不到这次按键。先进入编辑，再把事件原样交给输入框，
+                // 由 NSTextView 的输入上下文决定是插入字符还是开始组字。
+                beginEditing(id)
+                if let textView = editTextView {
+                    textView.interpretKeyEvents([event])
+                    return
+                }
             }
             super.keyDown(with: event)
         }
@@ -1668,8 +1703,12 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             }
             target = child.id
         case .previousSibling, .nextSibling:
-            guard let parentID = node.parentID else { return }
-            let siblings = editor.map.children(of: parentID).map(\.id)
+            let siblings: [UUID]
+            if let parentID = node.parentID {
+                siblings = editor.map.children(of: parentID).map(\.id)
+            } else {
+                siblings = editor.map.rootIDs
+            }
             guard let index = siblings.firstIndex(of: currentID) else { return }
             let offset = direction == .previousSibling ? -1 : 1
             let nextIndex = index + offset
@@ -1741,12 +1780,14 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         case .newSibling:
             if let id = editor.selection.first, let newID = editor.addSibling(after: id) {
                 focusNewNode(newID)
-            } else if let newID = editor.addChild(to: editor.map.rootID) {
+            } else if let newID = editor.addRoot() {
                 focusNewNode(newID)
             }
         case .editNode:
             if let id = editor.selection.first {
                 beginEditing(id)
+            } else {
+                beginEditing(editor.map.rootID)
             }
         case .deleteNode:
             editor.deleteSelection()
@@ -1817,7 +1858,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
     // MARK: - Inline editing
 
-    func beginEditing(_ id: UUID, replacingWith replacement: String? = nil) {
+    func beginEditing(_ id: UUID) {
         guard let editor, let node = editor.map.node(id) else { return }
         stopFrameAnimation()
         commitEditing()
@@ -1830,7 +1871,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: level)
         let font = editingFont(for: textLayout)
         let textRect = editingRect(
-            editingRect(for: textLayout, level: level, nodeFrame: frame),
+            editingRect(for: textLayout),
             fitting: node.text,
             font: font,
             level: level,
@@ -1863,7 +1904,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             .foregroundColor: textColor(for: node, level: level)
         ]
         textView.delegate = self
-        textView.string = replacement ?? node.text
+        textView.string = node.text
         updateTextContainer(textView, width: textRect.width)
         applyTextAttributes(
             to: textView,
@@ -1887,16 +1928,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         needsDisplay = true
 
         window?.makeFirstResponder(textView)
-        if let replacement {
-            textView.setSelectedRange(NSRange(location: (replacement as NSString).length, length: 0))
-            if node.text != replacement {
-                editor.setText(replacement, for: id)
-                rebuildLayoutIfNeeded(force: true)
-                updateEditorFrame()
-            }
-        } else {
-            textView.selectAll(nil)
-        }
+        textView.selectAll(nil)
     }
 
     /// 编辑器字号必须与画布完全一致（pointSize × zoom）。这里不设最小字号，
@@ -1915,20 +1947,15 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
     /// 编辑器在视图坐标里的位置和宽度。
     ///
-    /// 换行宽度必须和画布一致（`contentWidth`）：根节点的画布文字是按节点居中的，
-    /// 如果拿“文字实际宽度”当容器宽度，同一个根节点一进入编辑就可能被挤成两行，
-    /// 多出来的那行又被节点高度裁掉，看起来就像字号突然变小了。
+    /// 换行宽度必须和画布一致（`contentWidth`），否则同一个节点一进入编辑就可能
+    /// 被挤成两行，多出来的那行又被节点高度裁掉，看起来就像字号突然变小了。
+    /// 文字在节点里居中后，编辑容器也要以文字块中心对齐，输入时文字才不会左右跳。
     private func editingRect(
-        for textLayout: NodeMeasurer.NodeTextLayout,
-        level: Int,
-        nodeFrame: CGRect
+        for textLayout: NodeMeasurer.NodeTextLayout
     ) -> CGRect {
         let width = max(textLayout.contentWidth * camera.zoom, 10)
         var rect = worldRectToView(textLayout.textRect)
-        if level == 0 {
-            // 根节点是「图标 + 文字」整体居中的，容器要对齐文字块的中心而不是节点中心
-            rect.origin.x = worldRectToView(textLayout.textRect).midX - width / 2
-        }
+        rect.origin.x = rect.midX - width / 2
         rect.size.width = width
         rect.size.height += 4
         return rect
@@ -1953,9 +1980,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         let fitted = min(max(rect.width, ceil(measured) + 2), maxWidth)
         guard fitted > rect.width + 0.5 else { return rect }
         var out = rect
-        if level == 0 {
-            out.origin.x -= (fitted - rect.width) / 2   // 根节点保持居中
-        }
+        out.origin.x -= (fitted - rect.width) / 2   // 始终围绕文字块中心扩宽
         out.size.width = fitted
         return out
     }
@@ -2073,7 +2098,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         }
         let font = editingFont(for: textLayout)
         let textRect = editingRect(
-            editingRect(for: textLayout, level: min(level, 2), nodeFrame: frame),
+            editingRect(for: textLayout),
             fitting: textView.string,
             font: font,
             level: min(level, 2),
@@ -2113,7 +2138,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: lvl)
         let font = editingFont(for: textLayout)
         let rect = editingRect(
-            editingRect(for: textLayout, level: lvl, nodeFrame: frame),
+            editingRect(for: textLayout),
             fitting: textView.string,
             font: font,
             level: lvl,

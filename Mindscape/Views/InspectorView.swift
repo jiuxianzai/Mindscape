@@ -5,7 +5,6 @@ struct InspectorView: View {
     var onShowHistory: () -> Void = {}
 
     @State private var showLayoutPicker = false
-    @State private var showThemePicker = false
 
     private var selectedNode: MindNode? {
         guard editor.selection.count == 1, let id = editor.selection.first else { return nil }
@@ -122,7 +121,7 @@ struct InspectorView: View {
                         "删除节点",
                         icon: "trash",
                         destructive: true,
-                        enabled: node.id != editor.map.rootID
+                        enabled: !editor.map.rootIDs.contains(node.id) || editor.map.rootIDs.count > 1
                     ) {
                         editor.delete(id: node.id)
                     }
@@ -282,12 +281,11 @@ struct InspectorView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("主题")
-                HStack(spacing: 7) {
-                    ForEach(MapTheme.all) { theme in
-                        themeSwatch(theme)
-                    }
+                // 直接铺成两列网格：8 套主题一眼看全，不会因为菜单滚动
+                // 只显示当前选中项附近的几个，让新用户以为主题丢了。
+                ThemePickerGrid(selectedID: editor.map.themeID) { themeID in
+                    editor.setTheme(themeID)
                 }
-                themePickerButton
             }
 
             VStack(alignment: .leading, spacing: 7) {
@@ -307,7 +305,7 @@ struct InspectorView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 sectionLabel("小提示")
-                Text("拖到节点上改层级；⌥ 拖到同级节点排序。双击编辑。方向键移动，⌘↑ / ↓ / ← / → 跳父级 / 子级 / 同级；⌘F 搜索，Shift 拖拽框选，⌘D 创建副本。")
+                Text("Space 编辑，Enter 新建同级 / 头部，Tab 新建子节点；双击空白新建头部。拖到节点上改层级；⌥ 拖到同级节点排序。方向键移动，⌘↑ / ↓ / ← / → 跳父级 / 子级 / 同级；⌘F 搜索，Shift 拖拽框选，⌘D 创建副本。")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -334,37 +332,7 @@ struct InspectorView: View {
                         pickerOption(
                             title: layout.title,
                             icon: layout.symbol,
-                            color: nil,
                             selected: editor.map.layout == layout
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(6)
-            .frame(width: 200)
-        }
-    }
-
-    private var themePickerButton: some View {
-        Button {
-            showThemePicker.toggle()
-        } label: {
-            pickerLabel(icon: "paintpalette", title: editor.theme.name)
-        }
-        .buttonStyle(.plain)
-        .popover(isPresented: $showThemePicker, arrowEdge: .bottom) {
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(MapTheme.all) { theme in
-                    Button {
-                        editor.setTheme(theme.id)
-                        showThemePicker = false
-                    } label: {
-                        pickerOption(
-                            title: theme.name,
-                            icon: nil,
-                            color: Color(nsColor: theme.accent),
-                            selected: editor.map.themeID == theme.id
                         )
                     }
                     .buttonStyle(.plain)
@@ -394,17 +362,12 @@ struct InspectorView: View {
         .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 
-    private func pickerOption(title: String, icon: String?, color: Color?, selected: Bool) -> some View {
+    private func pickerOption(title: String, icon: String?, selected: Bool) -> some View {
         HStack(spacing: 8) {
             if let icon {
                 Image(systemName: icon)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 14)
-            } else if let color {
-                Circle()
-                    .fill(color)
-                    .frame(width: 9, height: 9)
                     .frame(width: 14)
             }
             Text(title)
@@ -495,29 +458,6 @@ struct InspectorView: View {
         case "#4A4A52": return String(localized: "石墨")
         default: return hex ?? String(localized: "默认颜色")
         }
-    }
-
-    private func themeSwatch(_ theme: MapTheme) -> some View {
-        let selected = editor.map.themeID == theme.id
-        return Button {
-            editor.setTheme(theme.id)
-        } label: {
-            ZStack {
-                Circle().fill(Color(nsColor: theme.background))
-                Circle().fill(Color(nsColor: theme.accent)).frame(width: 9, height: 9)
-            }
-            .frame(width: 19, height: 19)
-            .overlay(Circle().strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
-            .overlay(
-                Circle()
-                    .strokeBorder(Color(nsColor: NSColor(hex: "#C26A4A")), lineWidth: selected ? 1.8 : 0)
-                    .frame(width: 24, height: 24)
-            )
-        }
-        .buttonStyle(.plain)
-        .help(theme.name)
-        .accessibilityLabel(theme.name)
-        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func infoRow(_ label: String, value: String) -> some View {

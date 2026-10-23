@@ -242,7 +242,8 @@ final class AppModel {
         let layout = defaultLayout
         let themeID = defaultThemeID
         var map = template.makeMap(themeID: themeID, layout: layout)
-        map.title = uniqueTitle(for: template.title)
+        // 标题默认跟随第一个头部节点；用户之后手动改名才会脱离跟随
+        map.title = map.primaryHeadText
         map.createdAt = Date()
         map.updatedAt = Date()
 

@@ -52,6 +52,7 @@ struct WorkspaceView: View {
     @State private var searchText = ""
     @State private var searchIndex = 0
     @State private var canvasBridge = CanvasBridge()
+    @State private var showThemePicker = false
 
     private var matches: [UUID] {
         guard showSearch else { return [] }
@@ -282,18 +283,36 @@ struct WorkspaceView: View {
             }
             .help("切换布局")
 
-            Picker("主题", selection: Binding(
-                get: { editor.map.themeID },
-                set: { editor.setTheme($0) }
-            )) {
-                ForEach(MapTheme.all) { theme in
-                    Text(theme.name).tag(theme.id)
+            Button {
+                showThemePicker.toggle()
+            } label: {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(Color(nsColor: editor.theme.accent))
+                        .frame(width: 8, height: 8)
+                    Text(editor.theme.name)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
+                .padding(.horizontal, 8)
+                .frame(width: 100, height: 24)
+                .background(Color.primary.opacity(0.06), in: Capsule())
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .frame(width: 96)
+            .buttonStyle(.plain)
             .help("切换主题")
+            .accessibilityLabel("切换主题")
+            .popover(isPresented: $showThemePicker, arrowEdge: .bottom) {
+                ThemePickerGrid(selectedID: editor.map.themeID) { themeID in
+                    editor.setTheme(themeID)
+                    showThemePicker = false
+                }
+                .padding(10)
+                .frame(width: 236)
+            }
 
             Button {
                 showHistory = true

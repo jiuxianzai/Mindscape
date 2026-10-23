@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-46-brightgreen?style=flat-square" alt="46 tests">
+  <img src="https://img.shields.io/badge/tests-65-brightgreen?style=flat-square" alt="65 tests">
   <img src="https://img.shields.io/badge/status-0.5.1-lightgrey?style=flat-square" alt="Status 0.5.1">
 </p>
 
@@ -67,13 +67,15 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 - 无限画布：双指平移、捏合缩放、⌘ + 滚轮缩放、⌘0 适配
 - 节点：新增、重命名、折叠、多选、拖动、复制剪切粘贴、创建副本
+- 支持多个头部节点；双击空白处新建头部节点并进入编辑
 - 拖动改层级：拖到节点上挂到它下面；按住 ⌥ 拖到同级节点可调整顺序
-- 双击空白处直接新建子主题并进入编辑
-- 多行就地编辑：双击 / F2 / 选中后直接打字
+- 画布快捷键：Space 进入编辑，Enter 新建同级节点（头部节点则新建头部），Tab 新建子节点
+- 导图标题默认跟随第一个头部节点的文字；手动改过标题后不再自动覆盖
+- 多行就地编辑：Space / 双击 / 选中后直接打字
   - 进入编辑不跳动，字号与画布严格一致（任何缩放比例）
   - 节点随内容扩展，长文本自动换行，左右内边距对称
   - 中文输入法组字时节点实时变宽，不再“先折行再弹回”，候选框始终贴着光标
-- `Enter` 提交，`Shift+Enter` 换行，`Esc` 取消并恢复
+- 编辑时 `Enter` 提交，`Shift+Enter` 换行，`Esc` 取消并恢复
 - 方向键在节点之间跳转，跨出视口时做最小幅度平移
 - 浏览器式搜索条：⌘F 输入即高亮匹配节点，↑↓ 逐个跳转，已匹配数量实时显示
 - 缩放条：底部常驻显示百分比，可直接点击档位或输入数值
@@ -250,10 +252,10 @@ xcodebuild test -project Mindscape.xcodeproj -scheme Mindscape -derivedDataPath 
 | 保存 | ⌘S |
 | 导出 / 分享 | ⌘E |
 | 新建子主题 | Tab |
-| 新建同级主题 | ↩ |
-| 编辑当前节点 | 双击 / F2 / 直接打字 |
+| 新建同级主题 / 新头部 | ↩ |
+| 编辑当前节点 | Space / 双击 / 直接打字 |
 | 删除节点 | Delete |
-| 折叠 / 展开 | Space |
+| 折叠 / 展开 | F3 |
 | 创建副本 | ⌘D |
 | 移动选择 | 方向键 |
 | 撤销 / 重做 | ⌘Z / ⇧⌘Z |

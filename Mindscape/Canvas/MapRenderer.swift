@@ -26,8 +26,6 @@ struct RenderSelection {
 }
 
 enum MapRenderer {
-    static let cornerRadius: CGFloat = 12
-
     // MARK: - Background
 
     static func drawBackground(theme: MapTheme, in rect: CGRect) {
@@ -116,7 +114,8 @@ enum MapRenderer {
             default:
                 path = beamPath(from: parentRect, to: childRect)
             }
-            path.lineWidth = node.parentID == layout.rootID ? 2.2 : 1.7
+            let isRootBranch = node.parentID.map { layout.rootIDs.contains($0) } ?? false
+            path.lineWidth = isRootBranch ? 2.2 : 1.7
             path.lineCapStyle = .round
             path.lineJoinStyle = .round
             path.stroke()
@@ -223,17 +222,20 @@ enum MapRenderer {
         dimmed: Set<UUID>,
         dimAlpha: CGFloat
     ) {
-        guard let rootID = layout.rootID, let rootRect = layout.frames[rootID] else { return }
-        let milestones = (layout.children[rootID] ?? []).compactMap { layout.frames[$0] }
-        guard let last = milestones.max(by: { $0.maxX < $1.maxX }) else { return }
+        let roots = layout.rootIDs
+        for rootID in roots {
+            guard let rootRect = layout.frames[rootID] else { continue }
+            let milestones = (layout.children[rootID] ?? []).compactMap { layout.frames[$0] }
+            guard let last = milestones.max(by: { $0.maxX < $1.maxX }) else { continue }
 
-        let alpha = dimmed.contains(rootID) ? max(0.06, dimAlpha * 0.7) : 0.55
-        let path = NSBezierPath()
-        path.move(to: CGPoint(x: rootRect.maxX, y: rootRect.midY))
-        path.line(to: CGPoint(x: last.maxX, y: rootRect.midY))
-        path.lineWidth = 1.4
-        theme.connector.withAlphaComponent(alpha).setStroke()
-        path.stroke()
+            let alpha = dimmed.contains(rootID) ? max(0.06, dimAlpha * 0.7) : 0.55
+            let path = NSBezierPath()
+            path.move(to: CGPoint(x: rootRect.maxX, y: rootRect.midY))
+            path.line(to: CGPoint(x: last.maxX, y: rootRect.midY))
+            path.lineWidth = 1.4
+            theme.connector.withAlphaComponent(alpha).setStroke()
+            path.stroke()
+        }
     }
 
     private static func beamPath(from parent: CGRect, to child: CGRect) -> NSBezierPath {
@@ -264,7 +266,10 @@ enum MapRenderer {
             return path
         }
 
-        let midY = start.y + max((end.y - start.y) * 0.5, 14)
+        // 真正取上下节点之间的中点。原来把半程夹到至少 14pt，
+        // 小层间距（旧的 16pt）时横线会被推到子节点顶边，竖线只剩 1~2pt，
+        // 看起来就像竖线消失。层间距加大后这里也保持对称的上下竖线。
+        let midY = start.y + (end.y - start.y) * 0.5
         path.move(to: start)
         path.line(to: CGPoint(x: start.x, y: midY))
         path.line(to: CGPoint(x: end.x, y: midY))
@@ -304,11 +309,18 @@ enum MapRenderer {
             placeholder.stroke()
         }
 
+        // 每帧只建一次节点索引：原来每个节点都调用 map.node(id)（线性查找），
+        // 大图会退化成 O(n²)。这里一次建表，后面都是 O(1)。
+        var nodesByID: [UUID: MindNode] = [:]
+        nodesByID.reserveCapacity(map.nodes.count)
+        for node in map.nodes { nodesByID[node.id] = node }
+
         // 残影先画：折叠过程中它们是“退场”的一方，要压在下面，
         // 否则会盖住正在移动的真实节点，观感像糊在一起
-        for (id, frame) in selection.ghostFrames where map.node(id) != nil {
+        for (id, frame) in selection.ghostFrames {
+            guard let node = nodesByID[id] else { continue }
             drawNodeIfPresent(
-                id, map: map, layout: layout, theme: theme, selection: selection,
+                node, layout: layout, theme: theme, selection: selection,
                 dragging: false, frameOverride: frame,
                 levelOverride: selection.ghostLevels[id],
                 alphaScale: selection.ghostAlpha,
@@ -318,15 +330,16 @@ enum MapRenderer {
 
         // 被拖动的节点最后画，保证浮在其它节点之上
         for id in layout.drawOrder where id != draggedID {
+            guard let node = nodesByID[id] else { continue }
             drawNodeIfPresent(
-                id, map: map, layout: layout, theme: theme, selection: selection,
+                node, layout: layout, theme: theme, selection: selection,
                 dragging: false, alphaScale: selection.alphaOverrides[id] ?? 1,
                 visibleRect: visibleRect
             )
         }
-        if let draggedID {
+        if let draggedID, let node = nodesByID[draggedID] {
             drawNodeIfPresent(
-                draggedID, map: map, layout: layout, theme: theme, selection: selection,
+                node, layout: layout, theme: theme, selection: selection,
                 dragging: true, alphaScale: selection.alphaOverrides[draggedID] ?? 1,
                 visibleRect: visibleRect
             )
@@ -334,7 +347,7 @@ enum MapRenderer {
 
         // 所有有子节点的父节点都有自己的 +/− 控件，当前悬停/选中的那个高亮
         for controlID in selection.collapseControlIDs where controlID != selection.activeCollapseControlID {
-            guard let node = map.node(controlID),
+            guard let node = nodesByID[controlID],
                   let frame = layout.frames[controlID], frame.intersects(visibleRect),
                   let center = NodeControlGeometry.collapseControlCenter(for: controlID, in: map, layout: layout) else { continue }
             drawCollapseControl(
@@ -349,7 +362,7 @@ enum MapRenderer {
         }
         if let active = selection.activeCollapseControlID,
            selection.collapseControlIDs.contains(active),
-           let node = map.node(active),
+           let node = nodesByID[active],
            let frame = layout.frames[active], frame.intersects(visibleRect),
            let center = NodeControlGeometry.collapseControlCenter(for: active, in: map, layout: layout) {
             drawCollapseControl(
@@ -372,8 +385,10 @@ enum MapRenderer {
     /// 折叠后被藏起来的节点数量（含更深层级），用于在控件旁给出提示
     static func hiddenDescendantCount(of id: UUID, layout: LayoutResult) -> Int {
         var count = 0
+        var seen: Set<UUID> = []
         var stack = layout.children[id] ?? []
         while let current = stack.popLast() {
+            guard seen.insert(current).inserted else { continue }
             count += 1
             stack.append(contentsOf: layout.children[current] ?? [])
         }
@@ -444,8 +459,7 @@ enum MapRenderer {
     }
 
     private static func drawNodeIfPresent(
-        _ id: UUID,
-        map: MindMap,
+        _ node: MindNode,
         layout: LayoutResult,
         theme: MapTheme,
         selection: RenderSelection,
@@ -455,7 +469,7 @@ enum MapRenderer {
         alphaScale: CGFloat = 1,
         visibleRect: CGRect
     ) {
-        guard let node = map.node(id) else { return }
+        let id = node.id
         guard var rect = frameOverride ?? layout.frames[id] else { return }
         if dragging {
             rect.origin.x += selection.dragOffset.width
@@ -477,8 +491,7 @@ enum MapRenderer {
             editing: selection.editingNodeID == id,
             searchMatch: selection.searchMatches.contains(id),
             activeSearch: selection.activeSearchID == id,
-            alphaScale: alphaScale,
-            layout: layout
+            alphaScale: alphaScale
         )
     }
 
@@ -496,8 +509,7 @@ enum MapRenderer {
         editing: Bool,
         searchMatch: Bool,
         activeSearch: Bool,
-        alphaScale: CGFloat = 1,
-        layout: LayoutResult
+        alphaScale: CGFloat = 1
     ) {
         if dragging {
             NSGraphicsContext.saveGraphicsState()
@@ -671,6 +683,7 @@ enum MapRenderer {
     }
 
     private static var textCache: [TextCacheKey: NSAttributedString] = [:]
+    private static var textCacheCost = 0
 
     private static func cachedText(
         _ text: String,
@@ -688,8 +701,14 @@ enum MapRenderer {
         )
         if let cached = textCache[key] { return cached }
         let string = makeText(text, font: font, color: color, alignment: alignment)
-        if textCache.count > 600 { textCache.removeAll(keepingCapacity: true) }
+        let cost = text.utf16.count * 2 + 128
+        guard cost <= 8_000_000 else { return string }
+        if textCache.count > 600 || textCacheCost + cost > 8_000_000 {
+            textCache.removeAll(keepingCapacity: true)
+            textCacheCost = 0
+        }
         textCache[key] = string
+        textCacheCost += cost
         return string
     }
 
@@ -713,6 +732,7 @@ enum MapRenderer {
     }
 
     private static var symbolCache: [String: NSImage] = [:]
+    private static var symbolCacheCost = 0
 
     /// 把 SF Symbol 栅格化成位图再上色。
     /// `box` 是图标可占用的矩形：内部按符号原始比例等比缩放并居中，绝不做非等比拉伸。
@@ -755,8 +775,9 @@ enum MapRenderer {
         ) else { return nil }
         representation.size = NSSize(width: glyph.width, height: glyph.height)
 
+        guard let context = NSGraphicsContext(bitmapImageRep: representation) else { return nil }
         NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: representation)
+        NSGraphicsContext.current = context
         NSColor.clear.setFill()
         NSRect(origin: .zero, size: glyph).fill()
         symbol.draw(
@@ -772,8 +793,13 @@ enum MapRenderer {
 
         let image = NSImage(size: NSSize(width: glyph.width, height: glyph.height))
         image.addRepresentation(representation)
+        let cost = pixelWidth * pixelHeight * 4
+        if symbolCache.count > 300 || symbolCacheCost + cost > 40_000_000 {
+            symbolCache.removeAll()
+            symbolCacheCost = 0
+        }
         symbolCache[cacheKey] = image
-        if symbolCache.count > 300 { symbolCache.removeAll() }
+        symbolCacheCost += cost
         return image
     }
 

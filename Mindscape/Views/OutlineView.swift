@@ -14,12 +14,14 @@ struct OutlineView: View {
             Divider()
             ScrollView {
                 LazyVStack(spacing: 1) {
-                    OutlineSubtree(
-                        editor: editor,
-                        nodeID: editor.map.rootID,
-                        depth: 0,
-                        onReveal: onReveal
-                    )
+                    ForEach(editor.map.rootIDs, id: \.self) { rootID in
+                        OutlineSubtree(
+                            editor: editor,
+                            nodeID: rootID,
+                            depth: 0,
+                            onReveal: onReveal
+                        )
+                    }
                 }
                 .padding(.horizontal, 7)
                 .padding(.vertical, 6)
@@ -72,7 +74,7 @@ private struct OutlineSubtree: View {
     var onReveal: (UUID) -> Void
 
     var body: some View {
-        if let node = editor.map.node(nodeID) {
+        if depth < 200, let node = editor.map.node(nodeID) {
             OutlineRow(
                 editor: editor,
                 node: node,

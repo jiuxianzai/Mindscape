@@ -4,11 +4,11 @@ import CoreGraphics
 struct LayoutResult {
     var frames: [UUID: CGRect] = [:]
     var depths: [UUID: Int] = [:]
-    var parents: [UUID: UUID] = [:]
     var children: [UUID: [UUID]] = [:]
     var drawOrder: [UUID] = []
     var bounds: CGRect = .zero
-    var rootID: UUID?
+    /// 所有头部节点，按顺序排列
+    var rootIDs: [UUID] = []
 }
 
 enum LayoutEngine {
@@ -18,14 +18,22 @@ enum LayoutEngine {
     private static let vGap: CGFloat = 16
     /// 根节点与一级分支的额外间距
     private static let rootGap: CGFloat = 78
+    /// 组织架构 / 树形图上下层之间的间距。
+    /// 原来沿用 vGap（16pt），父节点到子节点之间几乎只剩一条线，
+    /// 折叠控件还会压在子节点上；这里单独给足走线和按钮的空间。
+    private static let orgLevelGap: CGFloat = 54
+    /// 多个头部节点时，每棵树（岛）之间的垂直间距
+    private static let islandGap: CGFloat = 84
 
     static func layout(_ map: MindMap) -> LayoutResult {
         var result = LayoutResult()
         guard !map.nodes.isEmpty else { return result }
 
-        let byID = Dictionary(uniqueKeysWithValues: map.nodes.map { ($0.id, $0) })
-        let rootID = map.rootID
-        result.rootID = rootID
+        // 不用 uniqueKeysWithValues：导入/损坏数据里若有重复 ID，那个构造器会直接崩溃
+        var byID: [UUID: MindNode] = [:]
+        byID.reserveCapacity(map.nodes.count)
+        for node in map.nodes { byID[node.id] = node }
+        var roots = map.rootIDs
 
         var childrenMap: [UUID: [UUID]] = [:]
         for node in map.nodes {
@@ -40,23 +48,32 @@ enum LayoutEngine {
             }
         }
         result.children = childrenMap
-        for node in map.nodes {
-            if let parentID = node.parentID { result.parents[node.id] = parentID }
-        }
 
-        // 深度 + 绘制顺序（BFS，父节点先画）
-        var depths: [UUID: Int] = [rootID: 0]
-        var queue: [UUID] = [rootID]
+        // 深度 + 绘制顺序（BFS，父节点先画）。所有头部节点都是第 0 层。
+        var depths: [UUID: Int] = [:]
         var order: [UUID] = []
-        while !queue.isEmpty {
-            let current = queue.removeFirst()
-            order.append(current)
-            let depth = depths[current] ?? 0
-            for child in childrenMap[current] ?? [] {
-                depths[child] = depth + 1
-                queue.append(child)
+        var visited: Set<UUID> = []
+        func walk(from start: UUID) {
+            var queue: [UUID] = [start]
+            depths[start] = 0
+            while !queue.isEmpty {
+                let current = queue.removeFirst()
+                guard visited.insert(current).inserted else { continue }
+                order.append(current)
+                let depth = depths[current] ?? 0
+                for child in childrenMap[current] ?? [] {
+                    depths[child] = depth + 1
+                    queue.append(child)
+                }
             }
         }
+        for root in roots { walk(from: root) }
+        // 数据损坏 / 环：把没走到的节点也当成独立头部，保证所有节点都有坐标
+        for node in map.nodes where !visited.contains(node.id) {
+            roots.append(node.id)
+            walk(from: node.id)
+        }
+        result.rootIDs = roots
         result.depths = depths
         result.drawOrder = order
 
@@ -66,7 +83,7 @@ enum LayoutEngine {
             sizes[node.id] = NodeMeasurer.size(for: node, level: level)
         }
 
-        var context = Context(
+        let context = Context(
             byID: byID,
             sizes: sizes,
             children: childrenMap,
@@ -74,31 +91,76 @@ enum LayoutEngine {
             frames: [:]
         )
 
-        switch map.layout {
-        case .mindMap:
-            layoutMindMap(rootID: rootID, &context)
-        case .logicRight:
-            layoutLogic(rootID: rootID, direction: 1, &context)
-        case .logicLeft:
-            layoutLogic(rootID: rootID, direction: -1, &context)
-        case .braceMap:
-            layoutLogic(rootID: rootID, direction: 1, &context)
-        case .orgChart, .tree:
-            layoutOrg(rootID: rootID, &context)
-        case .timeline:
-            layoutTimeline(rootID: rootID, &context)
-        case .free:
-            layoutFree(rootID: rootID, &context)
+        if roots.count <= 1, let rootID = roots.first {
+            var single = context
+            layoutIsland(rootID: rootID, style: map.layout, &single)
+            result.frames = single.frames
+        } else {
+            result.frames = layoutForest(roots: roots, style: map.layout, base: context)
         }
 
-        result.frames = context.frames
-
         var union: CGRect = .null
-        for rect in context.frames.values {
+        for rect in result.frames.values {
             union = union.union(rect)
         }
         result.bounds = union.isNull ? .zero : union.insetBy(dx: -60, dy: -50)
         return result
+    }
+
+    private static func layoutIsland(rootID: UUID, style: MapLayout, _ ctx: inout Context) {
+        switch style {
+        case .mindMap:
+            layoutMindMap(rootID: rootID, &ctx)
+        case .logicRight:
+            layoutLogic(rootID: rootID, direction: 1, &ctx)
+        case .logicLeft:
+            layoutLogic(rootID: rootID, direction: -1, &ctx)
+        case .braceMap:
+            layoutLogic(rootID: rootID, direction: 1, &ctx)
+        case .orgChart, .tree:
+            layoutOrg(rootID: rootID, &ctx)
+        case .timeline:
+            layoutTimeline(rootID: rootID, &ctx)
+        case .free:
+            layoutFree(rootID: rootID, &ctx)
+        }
+    }
+
+    /// 多个头部节点：每棵树独立布局，然后按顺序垂直堆叠，水平居中对齐。
+    private static func layoutForest(roots: [UUID], style: MapLayout, base: Context) -> [UUID: CGRect] {
+        var frames: [UUID: CGRect] = [:]
+        var cursorY: CGFloat = 0
+
+        for root in roots {
+            var island = Context(
+                byID: base.byID,
+                sizes: base.sizes,
+                children: base.children,
+                collapsed: base.collapsed,
+                frames: [:]
+            )
+            layoutIsland(rootID: root, style: style, &island)
+            guard let bounds = union(of: island.frames.values) else { continue }
+
+            let dx = -bounds.midX
+            let dy = cursorY - bounds.minY
+            for (id, rect) in island.frames {
+                // 自由布局里用户摆好的位置是绝对坐标，不能被堆叠偏移改掉
+                if style == .free, let position = base.byID[id]?.position {
+                    frames[id] = CGRect(origin: position, size: rect.size)
+                } else {
+                    frames[id] = rect.offsetBy(dx: dx, dy: dy)
+                }
+            }
+            cursorY += bounds.height + islandGap
+        }
+        return frames
+    }
+
+    private static func union(of rects: Dictionary<UUID, CGRect>.Values) -> CGRect? {
+        var union: CGRect = .null
+        for rect in rects { union = union.union(rect) }
+        return union.isNull ? nil : union
     }
 
     // MARK: - Context
@@ -119,28 +181,34 @@ enum LayoutEngine {
         ctx.size(id).height
     }
 
-    private static func subtreeHeight(_ id: UUID, _ ctx: inout Context) -> CGFloat {
+    private static func subtreeHeight(_ id: UUID, _ ctx: inout Context, depth: Int = 0) -> CGFloat {
         let own = nodeHeight(id, &ctx)
         let kids = ctx.kids(id)
-        guard !kids.isEmpty, !ctx.isCollapsed(id) else { return own }
-        let total = kids.reduce(CGFloat(0)) { $0 + subtreeHeight($1, &ctx) } + vGap * CGFloat(kids.count - 1)
+        guard !kids.isEmpty, !ctx.isCollapsed(id), depth < 256 else { return own }
+        let total = kids.reduce(CGFloat(0)) {
+            $0 + subtreeHeight($1, &ctx, depth: depth + 1)
+        } + vGap * CGFloat(kids.count - 1)
         return max(own, total)
     }
 
     /// 忽略折叠状态的高度：只用于给一级分支分左右侧，保证结构稳定
-    private static func expandedSubtreeHeight(_ id: UUID, _ ctx: inout Context) -> CGFloat {
+    private static func expandedSubtreeHeight(_ id: UUID, _ ctx: inout Context, depth: Int = 0) -> CGFloat {
         let own = nodeHeight(id, &ctx)
         let kids = ctx.kids(id)
-        guard !kids.isEmpty else { return own }
-        let total = kids.reduce(CGFloat(0)) { $0 + expandedSubtreeHeight($1, &ctx) } + vGap * CGFloat(kids.count - 1)
+        guard !kids.isEmpty, depth < 256 else { return own }
+        let total = kids.reduce(CGFloat(0)) {
+            $0 + expandedSubtreeHeight($1, &ctx, depth: depth + 1)
+        } + vGap * CGFloat(kids.count - 1)
         return max(own, total)
     }
 
-    private static func subtreeWidth(_ id: UUID, _ ctx: inout Context) -> CGFloat {
+    private static func subtreeWidth(_ id: UUID, _ ctx: inout Context, depth: Int = 0) -> CGFloat {
         let own = ctx.size(id).width
         let kids = ctx.kids(id)
-        guard !kids.isEmpty, !ctx.isCollapsed(id) else { return own }
-        let total = kids.reduce(CGFloat(0)) { $0 + subtreeWidth($1, &ctx) } + hGap * CGFloat(kids.count - 1)
+        guard !kids.isEmpty, !ctx.isCollapsed(id), depth < 256 else { return own }
+        let total = kids.reduce(CGFloat(0)) {
+            $0 + subtreeWidth($1, &ctx, depth: depth + 1)
+        } + hGap * CGFloat(kids.count - 1)
         return max(own, total)
     }
 
@@ -193,6 +261,7 @@ enum LayoutEngine {
     }
 
     private static func placeRight(id: UUID, x: CGFloat, centerY: CGFloat, _ ctx: inout Context) {
+        guard ctx.frames[id] == nil else { return }
         let size = ctx.size(id)
         let rect = CGRect(x: x, y: centerY - size.height / 2, width: size.width, height: size.height)
         ctx.frames[id] = rect
@@ -211,6 +280,7 @@ enum LayoutEngine {
     }
 
     private static func placeLeft(id: UUID, x: CGFloat, centerY: CGFloat, _ ctx: inout Context) {
+        guard ctx.frames[id] == nil else { return }
         let size = ctx.size(id)
         let rect = CGRect(x: x - size.width, y: centerY - size.height / 2, width: size.width, height: size.height)
         ctx.frames[id] = rect
@@ -261,6 +331,7 @@ enum LayoutEngine {
 
     @discardableResult
     private static func placeOrg(id: UUID, centerX: CGFloat, top: CGFloat, _ ctx: inout Context) -> CGFloat {
+        if let existing = ctx.frames[id] { return existing.maxY }
         let size = ctx.size(id)
         let rect = CGRect(x: centerX - size.width / 2, y: top, width: size.width, height: size.height)
         ctx.frames[id] = rect
@@ -274,7 +345,7 @@ enum LayoutEngine {
         var maxY = rect.maxY
         for (index, kid) in kids.enumerated() {
             let width = widths[index]
-            let childMaxY = placeOrg(id: kid, centerX: left + width / 2, top: rect.maxY + vGap, &ctx)
+            let childMaxY = placeOrg(id: kid, centerX: left + width / 2, top: rect.maxY + orgLevelGap, &ctx)
             maxY = max(maxY, childMaxY)
             left += width + hGap
         }
@@ -299,10 +370,12 @@ enum LayoutEngine {
 
             var columnWidth = size.width
             var descendants: [(UUID, Int)] = ctx.isCollapsed(milestone) ? [] : ctx.kids(milestone).map { ($0, 1) }
+            var seen: Set<UUID> = [milestone, rootID]
             var index = 0
             while index < descendants.count {
                 let (child, depth) = descendants[index]
                 index += 1
+                guard seen.insert(child).inserted else { continue }
                 columnWidth = max(columnWidth, ctx.size(child).width + CGFloat(depth) * 14)
                 if !ctx.isCollapsed(child) {
                     for grandchild in ctx.kids(child) {
@@ -329,11 +402,20 @@ enum LayoutEngine {
     private static func layoutFree(rootID: UUID, _ ctx: inout Context) {
         // 先用逻辑图给出默认位置，用户拖动后再覆盖
         layoutLogic(rootID: rootID, direction: 1, &ctx)
-        for (id, node) in Array(ctx.byID) {
-            if let position = node.position {
-                let size = ctx.size(id)
-                ctx.frames[id] = CGRect(x: position.x, y: position.y, width: size.width, height: size.height)
-            }
+        for id in subtreeIDs(of: rootID, in: ctx) {
+            guard let position = ctx.byID[id]?.position else { continue }
+            let size = ctx.size(id)
+            ctx.frames[id] = CGRect(x: position.x, y: position.y, width: size.width, height: size.height)
         }
+    }
+
+    private static func subtreeIDs(of id: UUID, in ctx: Context) -> Set<UUID> {
+        var result: Set<UUID> = []
+        var stack: [UUID] = [id]
+        while let current = stack.popLast() {
+            guard result.insert(current).inserted else { continue }
+            stack.append(contentsOf: ctx.kids(current))
+        }
+        return result
     }
 }

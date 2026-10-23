@@ -5,9 +5,6 @@ struct NodeClipboardPayload: Codable, Sendable {
     var nodes: [MindNode]
     var rootIDs: [UUID]
     var sourceTitle: String
-
-    var rootCount: Int { rootIDs.count }
-    var nodeCount: Int { nodes.count }
 }
 
 /// 应用内的分支剪贴板：内存缓存 + 自定义 NSPasteboard 类型，

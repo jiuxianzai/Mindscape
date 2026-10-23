@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 struct MapTheme: Identifiable, Hashable {
     let id: String
@@ -130,6 +129,4 @@ struct MapTheme: Identifiable, Hashable {
     static func byID(_ id: String) -> MapTheme {
         all.first(where: { $0.id == id }) ?? all[0]
     }
-
-    var swiftUIColor: Color { Color(nsColor: accent) }
 }

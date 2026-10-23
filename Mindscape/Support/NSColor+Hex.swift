@@ -22,28 +22,11 @@ extension NSColor {
         self.init(srgbRed: r, green: g, blue: b, alpha: a)
     }
 
-    convenience init(light: String, dark: String, appearance: NSAppearance? = NSApp.effectiveAppearance) {
-        let isDark = appearance?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        self.init(hex: isDark ? dark : light)
-    }
-
     var hexString: String {
         guard let rgb = usingColorSpace(.sRGB) else { return "#000000" }
         let r = Int((rgb.redComponent * 255).rounded())
         let g = Int((rgb.greenComponent * 255).rounded())
         let b = Int((rgb.blueComponent * 255).rounded())
         return String(format: "#%02X%02X%02X", r, g, b)
-    }
-}
-
-extension NSColor {
-    static func blend(_ a: NSColor, _ b: NSColor, _ t: CGFloat) -> NSColor {
-        guard let ca = a.usingColorSpace(.sRGB), let cb = b.usingColorSpace(.sRGB) else { return a }
-        return NSColor(
-            srgbRed: ca.redComponent + (cb.redComponent - ca.redComponent) * t,
-            green: ca.greenComponent + (cb.greenComponent - ca.greenComponent) * t,
-            blue: ca.blueComponent + (cb.blueComponent - ca.blueComponent) * t,
-            alpha: ca.alphaComponent + (cb.alphaComponent - ca.alphaComponent) * t
-        )
     }
 }

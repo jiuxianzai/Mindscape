@@ -205,10 +205,10 @@ enum ExportService {
 
     static func markdown(map: MindMap) -> String {
         var lines: [String] = ["# \(map.title)", ""]
-        let rootID = map.rootID
 
+        var visited: Set<UUID> = []
         func walk(_ id: UUID, depth: Int) {
-            guard let node = map.node(id) else { return }
+            guard visited.insert(id).inserted, let node = map.node(id) else { return }
             let indent = String(repeating: "  ", count: depth)
             let text = node.text.trimmingCharacters(in: .whitespacesAndNewlines)
             let line = "\(indent)- \(text.isEmpty ? "未命名" : text)"
@@ -224,7 +224,10 @@ enum ExportService {
             }
         }
 
-        walk(rootID, depth: 0)
+        for (index, rootID) in map.rootIDs.enumerated() {
+            if index > 0 { lines.append("") }
+            walk(rootID, depth: 0)
+        }
         lines.append("")
         return lines.joined(separator: "\n")
     }
@@ -237,8 +240,9 @@ enum ExportService {
             "<body>"
         ]
 
+        var visited: Set<UUID> = []
         func walk(_ id: UUID, depth: Int) {
-            guard let node = map.node(id) else { return }
+            guard visited.insert(id).inserted, let node = map.node(id) else { return }
             let indent = String(repeating: "  ", count: depth)
             var attributes = "text=\"\(escapeXML(node.text.isEmpty ? "未命名" : node.text))\""
             let note = node.note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -257,7 +261,9 @@ enum ExportService {
             }
         }
 
-        walk(map.rootID, depth: 1)
+        for rootID in map.rootIDs {
+            walk(rootID, depth: 1)
+        }
         lines.append("</body>")
         lines.append("</opml>")
         return lines.joined(separator: "\n")

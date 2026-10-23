@@ -30,9 +30,10 @@ final class PresentationModel {
                 subtitle: String(format: String(localized: "整张导图 · %lld 个节点"), map.nodes.count)
             )
         ]
-        for id in map.breadthFirstIDs where id != map.rootID {
+        let rootIDs = Set(map.rootIDs)
+        for id in map.breadthFirstIDs where !rootIDs.contains(id) {
             guard let node = map.node(id) else { continue }
-            let isFirstLevel = node.parentID == map.rootID
+            let isFirstLevel = node.parentID.map { rootIDs.contains($0) } ?? false
             let hasChildren = !map.children(of: id).isEmpty
             guard isFirstLevel || hasChildren else { continue }
             let count = map.subtreeIDs(of: id).count

@@ -15,8 +15,6 @@ final class MapEditor {
     /// 请求画布把某个分支缩放到合适大小
     private(set) var branchZoomToken: Int = 0
     private(set) var branchZoomNodeID: UUID?
-    private(set) var lastSavedAt: Date?
-    private(set) var saveError: String?
 
     var onSaved: (() -> Void)?
 
@@ -29,15 +27,12 @@ final class MapEditor {
     private var lastTextEditAt = Date.distantPast
 
     var theme: MapTheme { MapTheme.byID(map.themeID) }
-    var canUndo: Bool { !undoStack.isEmpty }
-    var canRedo: Bool { !redoStack.isEmpty }
     var undoCount: Int { undoStack.count }
-    var redoCount: Int { redoStack.count }
 
     init(map: MindMap, store: DocumentStore) {
         self.map = map
         self.store = store
-        self.selection = [map.rootID]
+        self.selection = map.root == nil ? [] : [map.rootID]
         self.lastAutoSnapshot = Date()
     }
 
@@ -95,11 +90,29 @@ final class MapEditor {
         return node.id
     }
 
+    /// 新建一个头部节点。`position` 只对自由布局生效，其它布局会按顺序堆叠。
+    @discardableResult
+    func addRoot(at position: CGPoint? = nil) -> UUID? {
+        let wasFollowing = map.nodes.isEmpty || titleFollowsPrimaryHead
+        var node = MindNode(
+            parentID: nil,
+            text: String(localized: "新主题"),
+            order: nextRootOrder()
+        )
+        node.position = position
+        mutate { map in
+            map.nodes.append(node)
+            refreshTitleIfFollowing(wasFollowing, in: &map)
+        }
+        selection = [node.id]
+        return node.id
+    }
+
     @discardableResult
     func addSibling(after id: UUID) -> UUID? {
         guard let current = map.node(id) else { return nil }
         guard let parentID = current.parentID else {
-            return addChild(to: current.id)
+            return addRoot()
         }
         let node = MindNode(parentID: parentID, text: String(localized: "新主题"), order: nextOrder(parentID))
         mutate { map in
@@ -118,15 +131,27 @@ final class MapEditor {
     }
 
     func delete(ids: Set<UUID>) {
+        let roots = map.rootIDs
+        let rootSet = Set(roots)
+        var rootsToDelete = roots.filter { ids.contains($0) }
+        // 至少保留一个头部节点：批量删到只剩最后一个时把它留下
+        if !roots.isEmpty, rootsToDelete.count == roots.count {
+            rootsToDelete.removeAll { $0 == roots.last }
+        }
+
         var toRemove: Set<UUID> = []
-        for id in ids where id != map.rootID {
-            collectSubtree(id, into: &toRemove)
+        for id in ids where !(rootSet.contains(id) && !rootsToDelete.contains(id)) {
+            toRemove.formUnion(map.subtreeIDs(of: id))
         }
         guard !toRemove.isEmpty else { return }
 
-        let fallback = ids.compactMap { map.node($0)?.parentID }.first ?? map.rootID
+        let fallback = ids.compactMap { map.node($0)?.parentID }.first(where: { !toRemove.contains($0) })
+            ?? map.rootIDs.first(where: { !toRemove.contains($0) })
+            ?? map.rootID
+        let wasFollowing = titleFollowsPrimaryHead
         mutate { map in
             map.nodes.removeAll { toRemove.contains($0.id) }
+            refreshTitleIfFollowing(wasFollowing, in: &map)
         }
         selection = [fallback]
         if let focusNodeID, toRemove.contains(focusNodeID) {
@@ -174,14 +199,17 @@ final class MapEditor {
     func duplicateSelection() -> Bool {
         guard let payload = clipboardPayload(for: selection) else { return false }
         var parents: [UUID: UUID] = [:]
-        for node in payload.nodes where node.parentID == nil {
-            parents[node.id] = map.node(node.id)?.parentID ?? map.rootID
+        let payloadRoots = Set(payload.rootIDs)
+        for node in payload.nodes where payloadRoots.contains(node.id) {
+            if let parentID = map.node(node.id)?.parentID {
+                parents[node.id] = parentID
+            }
         }
-        let rootFallback = map.rootID
         var newRoots: [UUID] = []
         mutate { map in
+            // 顶层节点原本就是头部 → 复制成新头部；原本是某棵树的子节点 → 留在同一父级
             newRoots = insert(payload: payload, into: &map) { oldID in
-                parents[oldID] ?? rootFallback
+                parents[oldID]
             }
         }
         guard !newRoots.isEmpty else { return false }
@@ -209,8 +237,9 @@ final class MapEditor {
         guard !roots.isEmpty else { return nil }
 
         var nodes: [MindNode] = []
+        var visited: Set<UUID> = []
         func collect(_ id: UUID) {
-            guard let node = map.node(id) else { return }
+            guard visited.insert(id).inserted, let node = map.node(id) else { return }
             nodes.append(node)
             for child in map.children(of: id) {
                 collect(child.id)
@@ -243,28 +272,37 @@ final class MapEditor {
 
         var newRoots: [UUID] = []
         let roots = Set(payload.rootIDs)
+        func nextRootOrder() -> Int {
+            (map.rootIDs.compactMap { map.node($0)?.order }.max() ?? -1) + 1
+        }
         for old in payload.nodes {
             guard let newID = idMap[old.id] else { continue }
+            let isPayloadRoot = roots.contains(old.id)
             let parentID: UUID?
-            if roots.contains(old.id) {
+            if isPayloadRoot {
                 parentID = rootParent(old.id)
             } else if let oldParent = old.parentID {
                 parentID = idMap[oldParent]
             } else {
                 parentID = rootParent(old.id)
             }
-            guard let parentID, map.node(parentID) != nil else { continue }
+            if let parentID, map.node(parentID) == nil { continue }
+            if parentID == nil, !isPayloadRoot { continue }
 
             var node = old
             node.id = newID
             node.parentID = parentID
-            node.order = order(for: parentID)
-            nextOrder[parentID, default: 0] += 1
+            if let parentID {
+                node.order = order(for: parentID)
+                nextOrder[parentID, default: 0] += 1
+            } else {
+                node.order = nextRootOrder()
+            }
             if let position = node.position {
                 node.position = CGPoint(x: position.x + 24, y: position.y + 24)
             }
             map.nodes.append(node)
-            if roots.contains(old.id) {
+            if isPayloadRoot {
                 newRoots.append(newID)
             }
         }
@@ -325,8 +363,9 @@ final class MapEditor {
     func toggleFocus(on id: UUID? = nil) {
         let target = id ?? selectedNodes.first?.id ?? map.rootID
         guard map.node(target) != nil else { return }
-        // 聚焦根节点等同于显示整图，没有专注意义
-        guard target != map.rootID else {
+        // 只有一个头部节点时，聚焦它等同于显示整图，没有专注意义；
+        // 多个头部节点时，聚焦某个头部可以只看它这一棵树。
+        if map.rootIDs.count == 1, map.rootIDs.contains(target) {
             setFocus(nil)
             return
         }
@@ -348,9 +387,11 @@ final class MapEditor {
 
     /// 一键折叠：保留根节点和一级分支，收起所有更深的子分支
     func collapseAll() {
+        let roots = Set(map.rootIDs)
+        let parents = Set(map.nodes.compactMap(\.parentID))
         let targets = Set(map.nodes.filter { node in
-            node.id != map.rootID
-                && !map.children(of: node.id).isEmpty
+            !roots.contains(node.id)
+                && parents.contains(node.id)
                 && !node.collapsed
         }.map(\.id))
         guard !targets.isEmpty else { return }
@@ -530,14 +571,6 @@ final class MapEditor {
         }
     }
 
-    private func collectSubtree(_ id: UUID, into set: inout Set<UUID>) {
-        guard !set.contains(id) else { return }
-        set.insert(id)
-        for child in map.children(of: id) {
-            collectSubtree(child.id, into: &set)
-        }
-    }
-
     func toggleCollapse(_ id: UUID) {
         guard map.node(id) != nil, !map.children(of: id).isEmpty else { return }
         let wasCollapsed = map.node(id)?.collapsed ?? false
@@ -555,14 +588,17 @@ final class MapEditor {
     }
 
     func canMove(_ id: UUID, to newParent: UUID) -> Bool {
-        guard id != map.rootID, id != newParent else { return false }
+        guard id != newParent else { return false }
         guard map.node(newParent) != nil else { return false }
         guard !map.isDescendant(newParent, of: id) else { return false }
+        // 只有一个头部节点时不能把它拖成子节点，否则整张图就没有根了
+        if map.rootIDs.count <= 1, map.rootIDs.contains(id) { return false }
         return map.node(id)?.parentID != newParent
     }
 
     func move(id: UUID, to newParent: UUID) {
         guard canMove(id, to: newParent) else { return }
+        let wasFollowing = titleFollowsPrimaryHead
         mutate { map in
             let newOrder = map.children(of: newParent).count
             if let index = map.nodes.firstIndex(where: { $0.id == id }) {
@@ -572,6 +608,7 @@ final class MapEditor {
             if let parentIndex = map.nodes.firstIndex(where: { $0.id == newParent }) {
                 map.nodes[parentIndex].collapsed = false
             }
+            refreshTitleIfFollowing(wasFollowing, in: &map)
         }
     }
 
@@ -585,10 +622,30 @@ final class MapEditor {
     }
 
     func reorder(id: UUID, relativeTo targetID: UUID, after: Bool) {
-        guard id != map.rootID, id != targetID,
+        guard id != targetID,
               let node = map.node(id),
-              let target = map.node(targetID),
-              node.parentID == target.parentID,
+              let target = map.node(targetID) else { return }
+
+        // 头部节点之间也可以排序
+        if node.parentID == nil, target.parentID == nil {
+            let roots = map.rootIDs
+            guard roots.contains(id), roots.contains(targetID) else { return }
+            let wasFollowing = titleFollowsPrimaryHead
+            mutate { map in
+                var ids = roots.filter { $0 != id }
+                guard let index = ids.firstIndex(of: targetID) else { return }
+                ids.insert(id, at: after ? index + 1 : index)
+                for (order, rootID) in ids.enumerated() {
+                    if let nodeIndex = map.nodes.firstIndex(where: { $0.id == rootID }) {
+                        map.nodes[nodeIndex].order = order
+                    }
+                }
+                refreshTitleIfFollowing(wasFollowing, in: &map)
+            }
+            return
+        }
+
+        guard node.parentID == target.parentID,
               let parentID = node.parentID else { return }
 
         let siblings = map.children(of: parentID).map(\.id)
@@ -612,9 +669,16 @@ final class MapEditor {
         guard let node = map.node(id), node.text != text else { return }
         let now = Date()
         let coalesce = lastTextEditID == id && now.timeIntervalSince(lastTextEditAt) < 1.0
+        let primaryRoot = map.primaryRoot
+        let wasFollowing = titleFollows(primaryRoot: primaryRoot)
+        let isPrimaryHead = primaryRoot?.id == id
         mutate(undoable: !coalesce) { map in
             if let index = map.nodes.firstIndex(where: { $0.id == id }) {
                 map.nodes[index].text = text
+            }
+            if isPrimaryHead, wasFollowing {
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                map.title = trimmed.isEmpty ? String(localized: "新主题") : trimmed
             }
         }
         lastTextEditID = id
@@ -693,6 +757,7 @@ final class MapEditor {
     func undo() {
         guard let previous = undoStack.popLast() else { return }
         redoStack.append(map)
+        trim(&redoStack)
         map = previous
         selection = selection.filter { map.node($0) != nil }
         sanitizeFocus()
@@ -703,6 +768,7 @@ final class MapEditor {
     func redo() {
         guard let next = redoStack.popLast() else { return }
         undoStack.append(map)
+        trim(&undoStack)
         map = next
         selection = selection.filter { map.node($0) != nil }
         sanitizeFocus()
@@ -722,7 +788,7 @@ final class MapEditor {
     private func mutate(undoable: Bool = true, _ body: (inout MindMap) -> Void) {
         if undoable {
             undoStack.append(map)
-            if undoStack.count > 150 { undoStack.removeFirst() }
+            trim(&undoStack)
             redoStack.removeAll()
         }
         body(&map)
@@ -731,8 +797,42 @@ final class MapEditor {
         scheduleSave()
     }
 
+    /// 标题是否还在跟随第一个头部节点（用户手动改名后就不再跟随）
+    private var titleFollowsPrimaryHead: Bool {
+        titleFollows(primaryRoot: map.primaryRoot)
+    }
+
+    private func titleFollows(primaryRoot: MindNode?) -> Bool {
+        let trimmed = map.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == String(localized: "未命名导图") {
+            return true
+        }
+        let headText = primaryRoot?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return map.title == (headText.isEmpty ? String(localized: "新主题") : headText)
+    }
+
+    private func refreshTitleIfFollowing(_ wasFollowing: Bool, in map: inout MindMap) {
+        guard wasFollowing else { return }
+        map.title = map.primaryHeadText
+    }
+
+    /// 撤销栈同时按「步数」和「节点总数」限制：大图连续编辑时，
+    /// 150 份完整快照可能占掉几百 MB；节点总数超预算就先丢最旧的快照。
+    private func trim(_ stack: inout [MindMap]) {
+        let maxSteps = 150
+        let maxNodes = 40_000
+        var totalNodes = stack.reduce(0) { $0 + $1.nodes.count }
+        while stack.count > maxSteps || (totalNodes > maxNodes && stack.count > 1) {
+            totalNodes -= stack.removeFirst().nodes.count
+        }
+    }
+
     private func nextOrder(_ parentID: UUID) -> Int {
         (map.children(of: parentID).map(\.order).max() ?? -1) + 1
+    }
+
+    private func nextRootOrder() -> Int {
+        (map.rootIDs.compactMap { map.node($0)?.order }.max() ?? -1) + 1
     }
 
     // MARK: - Saving
@@ -751,12 +851,10 @@ final class MapEditor {
         saveTask = nil
         do {
             try store.save(map)
-            lastSavedAt = Date()
-            saveError = nil
             maybeAutoSnapshot()
             onSaved?()
         } catch {
-            saveError = error.localizedDescription
+            // 自动保存失败时不打断编辑；下一次编辑会再次尝试。
         }
     }
 
@@ -781,14 +879,14 @@ final class MapEditor {
         guard let restored = try? store.loadSnapshot(snapshot.id) else { return }
         try? store.addSnapshot(map, name: String(localized: "恢复前"), kind: "manual")
         undoStack.append(map)
-        if undoStack.count > 150 { undoStack.removeFirst() }
+        trim(&undoStack)
         redoStack.removeAll()
 
         var next = restored
         next.id = map.id
         next.updatedAt = Date()
         map = next
-        selection = [map.rootID]
+        selection = map.root == nil ? [] : [map.rootID]
         focusNodeID = nil
         revision += 1
         fitToken += 1

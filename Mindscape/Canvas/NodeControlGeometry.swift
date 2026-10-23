@@ -35,9 +35,19 @@ enum NodeControlGeometry {
         }
 
         if direction == .down || direction == .up {
+            // 控件放在上下层之间的空隙中间，而不是固定贴在节点边上。
+            // 组织架构图原来只有 16pt 的层间距，+18 的圆心会直接落进子节点，
+            // 点击被当成选中子节点，折叠按钮看起来就「失效」了。
+            let gap: CGFloat
+            if direction == .down {
+                gap = (childFrames.map(\.minY).min() ?? rect.maxY + 36) - rect.maxY
+            } else {
+                gap = rect.minY - (childFrames.map(\.maxY).max() ?? rect.minY - 36)
+            }
+            let offset = min(max(gap / 2, 18), 30)
             return CGPoint(
                 x: rect.midX,
-                y: direction == .down ? rect.maxY + 18 : rect.minY - 18
+                y: direction == .down ? rect.maxY + offset : rect.minY - offset
             )
         }
 

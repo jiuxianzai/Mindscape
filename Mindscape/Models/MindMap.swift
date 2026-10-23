@@ -11,11 +11,64 @@ struct MindMap: Identifiable, Codable, Equatable, Sendable {
 
     // MARK: - Lookup
 
-    var rootID: UUID {
-        nodes.first(where: { $0.parentID == nil })?.id ?? nodes.first?.id ?? UUID()
+    /// 所有头部节点（没有父节点，或父节点已丢失的节点），按同级顺序排列。
+    /// 一张导图允许有多个头部节点；第一个就是主头部节点。
+    var rootIDs: [UUID] {
+        let existing = Set(nodes.map(\.id))
+        let roots = nodes.enumerated()
+            .filter { _, node in
+                guard let parentID = node.parentID else { return true }
+                return !existing.contains(parentID)
+            }
+            .sorted { lhs, rhs in
+                if lhs.element.order != rhs.element.order {
+                    return lhs.element.order < rhs.element.order
+                }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element.id)
+        if roots.isEmpty, let first = nodes.first {
+            return [first.id]
+        }
+        // 防御重复 ID 的损坏数据：同一个头部只返回一次
+        var seen: Set<UUID> = []
+        return roots.filter { seen.insert($0).inserted }
     }
 
-    var root: MindNode? { node(rootID) }
+    /// 主头部节点：按 order 最小的根节点。这里不排序整个 rootIDs，
+    /// 因为标题跟随检查会在每次输入时调用，避免 O(n log n) 的临时数组。
+    var primaryRoot: MindNode? {
+        let existing = Set(nodes.map(\.id))
+        var best: MindNode?
+        for node in nodes {
+            let isRoot: Bool
+            if let parentID = node.parentID {
+                isRoot = !existing.contains(parentID)
+            } else {
+                isRoot = true
+            }
+            guard isRoot else { continue }
+            if let current = best {
+                if node.order < current.order { best = node }
+            } else {
+                best = node
+            }
+        }
+        return best
+    }
+
+    /// 主头部节点，保留给单根布局和旧代码使用。
+    var rootID: UUID {
+        primaryRoot?.id ?? nodes.first?.id ?? UUID()
+    }
+
+    var root: MindNode? { primaryRoot }
+
+    /// 第一个头部节点的显示文字，用作导图默认标题。
+    var primaryHeadText: String {
+        let text = primaryRoot?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return text.isEmpty ? String(localized: "新主题") : text
+    }
 
     func node(_ id: UUID) -> MindNode? {
         nodes.first(where: { $0.id == id })
@@ -23,6 +76,21 @@ struct MindMap: Identifiable, Codable, Equatable, Sendable {
 
     func children(of id: UUID) -> [MindNode] {
         nodes.filter { $0.parentID == id }.sorted { $0.order < $1.order }
+    }
+
+    /// 一次性建立父子索引，供 BFS / 子树遍历使用，避免对每个节点都做一次
+    /// `nodes.filter` 的 O(n²) 扫描。
+    private var childrenByParent: [UUID: [MindNode]] {
+        var result: [UUID: [MindNode]] = [:]
+        for node in nodes {
+            if let parentID = node.parentID {
+                result[parentID, default: []].append(node)
+            }
+        }
+        for key in Array(result.keys) {
+            result[key]?.sort { $0.order < $1.order }
+        }
+        return result
     }
 
     func isDescendant(_ candidate: UUID, of ancestor: UUID) -> Bool {
@@ -36,19 +104,19 @@ struct MindMap: Identifiable, Codable, Equatable, Sendable {
         return false
     }
 
-    var nodeCount: Int { nodes.count }
-
-    /// 从根节点开始的广度优先遍历顺序；用于搜索、演示和大纲
+    /// 从所有头部节点开始的广度优先遍历顺序；用于搜索、演示和大纲
     var breadthFirstIDs: [UUID] {
-        guard nodes.contains(where: { $0.id == rootID }) else { return [] }
+        let roots = rootIDs
+        guard !roots.isEmpty else { return [] }
+        let childrenMap = childrenByParent
         var result: [UUID] = []
-        var queue: [UUID] = [rootID]
+        var queue: [UUID] = roots
         var visited: Set<UUID> = []
         while !queue.isEmpty {
             let current = queue.removeFirst()
             guard visited.insert(current).inserted else { continue }
             result.append(current)
-            queue.append(contentsOf: children(of: current).map(\.id))
+            queue.append(contentsOf: (childrenMap[current] ?? []).map(\.id))
         }
         // 兜底：把因为数据损坏而脱离根节点的节点也放进来
         for node in nodes where !visited.contains(node.id) {
@@ -59,17 +127,14 @@ struct MindMap: Identifiable, Codable, Equatable, Sendable {
 
     func subtreeIDs(of id: UUID) -> Set<UUID> {
         guard node(id) != nil else { return [] }
+        let childrenMap = childrenByParent
         var result: Set<UUID> = []
         var stack: [UUID] = [id]
         while let current = stack.popLast() {
             guard result.insert(current).inserted else { continue }
-            stack.append(contentsOf: children(of: current).map(\.id))
+            stack.append(contentsOf: (childrenMap[current] ?? []).map(\.id))
         }
         return result
-    }
-
-    var previewText: String {
-        nodes.prefix(40).map(\.text).joined(separator: " ")
     }
 
     // MARK: - Factories

@@ -106,8 +106,8 @@ final class MindscapeCoreTests: XCTestCase {
                 XCTAssertEqual(String(data: data.prefix(4), encoding: .ascii), "%PDF")
             case .markdown:
                 let text = String(data: data, encoding: .utf8) ?? ""
-                XCTAssertTrue(text.contains("# 项目规划"))
-                XCTAssertTrue(text.contains("导出测试"))
+                XCTAssertTrue(text.contains("# 导出测试"), "Markdown 标题应跟随第一个头部节点")
+                XCTAssertTrue(text.contains("- 导出测试"))
             case .opml:
                 let text = String(data: data, encoding: .utf8) ?? ""
                 XCTAssertTrue(text.contains("<opml"))
@@ -828,7 +828,7 @@ extension MindscapeFeatureTests {
     }
 
     /// 双击空白画布：在根主题下新建一个子主题并直接进入编辑
-    func testDoubleClickEmptySpaceCreatesNode() throws {
+    func testDoubleClickEmptySpaceCreatesHeadNode() throws {
         let editor = try makeEditor()
         let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
         canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
@@ -836,6 +836,7 @@ extension MindscapeFeatureTests {
         editor.clearSelection()
 
         let before = Set(editor.map.nodes.map(\.id))
+        let rootsBefore = editor.map.rootIDs
         // 画布左上角，fitToContent 之后一定是空白
         let emptyPoint = canvas.convert(NSPoint(x: 12, y: 12), to: nil)
         guard let click = mouseEvent(.leftMouseDown, at: emptyPoint, in: window, clickCount: 2) else {
@@ -845,7 +846,8 @@ extension MindscapeFeatureTests {
 
         let created = editor.map.nodes.filter { !before.contains($0.id) }
         XCTAssertEqual(created.count, 1, "双击空白没有新建节点")
-        XCTAssertEqual(created.first?.parentID, editor.map.rootID)
+        XCTAssertNil(created.first?.parentID, "双击空白新建的应该是头部节点，不是子节点")
+        XCTAssertEqual(editor.map.rootIDs.count, rootsBefore.count + 1, "头部节点数量没有增加")
         XCTAssertNotNil(canvas.subviews.compactMap { $0 as? NSTextView }.last, "新建后应直接进入编辑")
         canvas.commitEditing()
     }
@@ -1102,5 +1104,396 @@ extension MindscapeFeatureTests {
         let keyWidth = try XCTUnwrap(layout.frames[keyNode.id]).width
         let wideWidth = try XCTUnwrap(layout.frames[wideNode.id]).width
         XCTAssertGreaterThan(wideWidth, keyWidth + 5, "宽图标的节点没有跟着变宽")
+    }
+}
+
+extension MindscapeFeatureTests {
+    /// 启动时画布宽度会变化（侧栏、属性面板先后就位），「适配」要跟着重算，
+    /// 否则打开后整张图偏小，必须按一次 ⌘0 才正常
+    func testFitFollowsCanvasResizeBeforeInteraction() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 720, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+        canvas.layout()
+        let narrowWidth = canvas.bounds.width
+        let narrowZoom = canvas.currentZoom
+
+        // 属性面板就位后画布变宽 20%（低于原来 25% 的阈值）
+        let wideWidth = narrowWidth * 1.2
+        window.setContentSize(NSSize(width: wideWidth, height: 700))
+        canvas.setFrameSize(NSSize(width: wideWidth, height: 700))
+        canvas.layout()
+
+        XCTAssertEqual(
+            canvas.currentZoom / narrowZoom,
+            1.2,
+            accuracy: 0.08,
+            "画布变宽后没有按新宽度重新适配"
+        )
+    }
+}
+
+extension MindscapeFeatureTests {
+    /// 三个等宽一级分支：中间那个正好落在根节点中线正下方，
+    /// 折叠控件以前固定放在 +18，圆心会落进子节点矩形里，点击被当成选中子节点。
+    private func makeThreeBranchOrgMap() -> MindMap {
+        var map = MindMap.blank(title: "招聘流程", themeID: "paper", layout: .orgChart)
+        let root = map.rootID
+        for (index, title) in ["设计", "工程", "运营"].enumerated() {
+            let branch = MindNode(parentID: root, text: title, order: index)
+            map.nodes.append(branch)
+            map.nodes.append(MindNode(parentID: branch.id, text: "\(title)子项", order: 0))
+        }
+        return map
+    }
+
+    /// 组织架构图上下层之间要有足够走线的空间，折叠控件必须整个落在空隙里
+    func testOrgChartConnectorGapFitsCollapseControl() throws {
+        let map = makeThreeBranchOrgMap()
+        let layout = LayoutEngine.layout(map)
+        let rootRect = try XCTUnwrap(layout.frames[map.rootID])
+        let childFrames = map.children(of: map.rootID).compactMap { layout.frames[$0.id] }
+        let childTop = try XCTUnwrap(childFrames.map(\.minY).min())
+
+        XCTAssertGreaterThanOrEqual(
+            childTop - rootRect.maxY,
+            48,
+            "组织架构图上下层间距太小，连接线会贴在一起"
+        )
+
+        let center = try XCTUnwrap(
+            NodeControlGeometry.collapseControlCenter(for: map.rootID, in: map, layout: layout)
+        )
+        XCTAssertGreaterThan(
+            center.y - NodeControlGeometry.radius,
+            rootRect.maxY,
+            "折叠控件没有落在父节点下方的空隙里"
+        )
+        XCTAssertLessThan(
+            center.y + NodeControlGeometry.radius,
+            childTop,
+            "折叠控件压到了子节点上"
+        )
+        for frame in childFrames {
+            XCTAssertFalse(frame.insetBy(dx: -1, dy: -1).contains(center))
+        }
+    }
+
+    /// 招聘流程这类三列组织架构图，点根节点的折叠按钮必须真的折叠
+    func testOrgChartCollapseControlClickToggles() throws {
+        let store = try DocumentStore(inMemory: true)
+        let editor = MapEditor(map: makeThreeBranchOrgMap(), store: store)
+        editor.select(editor.map.rootID)
+
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let layout = LayoutEngine.layout(editor.map)
+        let center = try XCTUnwrap(
+            NodeControlGeometry.collapseControlCenter(for: editor.map.rootID, in: editor.map, layout: layout)
+        )
+        let windowPoint = canvas.convert(canvas.worldToView(center), to: nil)
+        let click = try XCTUnwrap(mouseEvent(.leftMouseDown, at: windowPoint, in: window))
+        canvas.mouseDown(with: click)
+
+        XCTAssertEqual(editor.map.node(editor.map.rootID)?.collapsed, true, "组织架构图折叠按钮点不动")
+    }
+
+    /// 短文字节点（被最小宽度撑开）文字块必须水平居中，而不是贴着左边
+    func testShortNodeTextIsHorizontallyCentered() throws {
+        let editor = try makeEditor()
+        let layout = LayoutEngine.layout(editor.map)
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let frame = try XCTUnwrap(layout.frames[budget.id])
+        let textLayout = NodeMeasurer.textLayout(for: budget, in: frame, level: 2)
+
+        let textCenter = textLayout.textRect.minX + textLayout.measuredSize.width / 2
+        XCTAssertEqual(textCenter, frame.midX, accuracy: 0.5, "短文字没有水平居中")
+        XCTAssertEqual(textLayout.textRect.midY, frame.midY, accuracy: 0.5, "文字块没有垂直居中")
+    }
+
+    /// 有图标的节点：文字本身仍居中，图标放在左侧并保留内边距
+    func testIconNodeTextIsCenteredWithIconPadding() throws {
+        var map = MapTemplate.project.makeMap(themeID: "paper", layout: .mindMap)
+        guard let index = map.nodes.firstIndex(where: { $0.text == "目标" }) else {
+            return XCTFail("fixture missing")
+        }
+        map.nodes[index].icon = "target"
+        map.nodes[index].note = "备注"
+        let layout = LayoutEngine.layout(map)
+        let node = map.nodes[index]
+        let frame = try XCTUnwrap(layout.frames[node.id])
+        let textLayout = NodeMeasurer.textLayout(for: node, in: frame, level: 1)
+        let iconRect = try XCTUnwrap(textLayout.iconRect)
+
+        let textCenter = textLayout.textRect.minX + textLayout.measuredSize.width / 2
+        XCTAssertEqual(textCenter, frame.midX, accuracy: 0.5, "有图标时文字没有居中")
+        XCTAssertEqual(textLayout.textRect.midY, frame.midY, accuracy: 0.5, "有图标时文字没有垂直居中")
+        XCTAssertEqual(iconRect.midY, frame.midY, accuracy: 0.5, "图标没有和文字垂直对齐")
+        XCTAssertGreaterThanOrEqual(iconRect.minX, frame.minX + 8, "图标贴到节点左边框")
+        let groupRight = textLayout.textRect.minX + textLayout.measuredSize.width + NodeMeasurer.noteWidth(for: node)
+        XCTAssertLessThanOrEqual(groupRight, frame.maxX - 8, "备注点贴到节点右边框")
+    }
+}
+
+private func keyEvent(
+    _ characters: String,
+    keyCode: UInt16,
+    in window: NSWindow
+) -> NSEvent? {
+    NSEvent.keyEvent(
+        with: .keyDown,
+        location: .zero,
+        modifierFlags: [],
+        timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber,
+        context: nil,
+        characters: characters,
+        charactersIgnoringModifiers: characters,
+        isARepeat: false,
+        keyCode: keyCode
+    )
+}
+
+extension MindscapeFeatureTests {
+    private func makeTwoHeadMap() -> (MindMap, UUID, MindNode, MindNode) {
+        var map = MapTemplate.project.makeMap(themeID: "paper", layout: .mindMap)
+        let first = map.rootID
+        let second = MindNode(parentID: nil, text: "第二头部", order: 1)
+        let secondChild = MindNode(parentID: second.id, text: "第二子项", order: 0)
+        map.nodes.append(second)
+        map.nodes.append(secondChild)
+        return (map, first, second, secondChild)
+    }
+
+    /// 多个头部节点：每棵树都要有坐标，头部都在第 0 层
+    func testMultipleHeadsAcrossLayouts() throws {
+        let (map, first, second, secondChild) = makeTwoHeadMap()
+        for style in MapLayout.allCases {
+            var copy = map
+            copy.layout = style
+            let layout = LayoutEngine.layout(copy)
+            XCTAssertEqual(layout.rootIDs, [first, second.id], "layout \(style.rawValue)")
+            XCTAssertEqual(layout.frames.count, copy.nodes.count, "layout \(style.rawValue)")
+            XCTAssertEqual(layout.depths[first], 0, "layout \(style.rawValue)")
+            XCTAssertEqual(layout.depths[second.id], 0, "layout \(style.rawValue)")
+            XCTAssertEqual(layout.depths[secondChild.id], 1, "layout \(style.rawValue)")
+            XCTAssertNotNil(layout.frames[first], "layout \(style.rawValue)")
+            XCTAssertNotNil(layout.frames[second.id], "layout \(style.rawValue)")
+        }
+    }
+
+    /// 回车在头部节点上是新增头部，不是新增子节点
+    func testEnterOnHeadAddsAnotherHead() throws {
+        let editor = try makeEditor()
+        let first = editor.map.rootID
+        let newID = try XCTUnwrap(editor.addSibling(after: first))
+        XCTAssertNil(editor.map.node(newID)?.parentID, "头部节点的同级节点应该还是头部")
+        XCTAssertEqual(editor.map.rootIDs.count, 2)
+        XCTAssertEqual(editor.map.rootIDs.first, first, "新头部应该排在原来的头部后面")
+    }
+
+    /// 标题默认跟随第一个头部；手动改名后不再被覆盖；删除第一个头部后跟随新的第一个
+    func testTitleFollowsFirstHead() throws {
+        let editor = try makeEditor()
+        let first = editor.map.rootID
+        XCTAssertEqual(editor.map.title, "项目规划")
+        editor.setText("招聘流程", for: first)
+        XCTAssertEqual(editor.map.title, "招聘流程", "标题没有跟随第一个头部")
+
+        editor.setTitle("我的导图")
+        editor.setText("另一个名字", for: first)
+        XCTAssertEqual(editor.map.title, "我的导图", "手动改过的标题被头部文字覆盖了")
+
+        let (map, firstHead, secondHead, _) = makeTwoHeadMap()
+        let store = try DocumentStore(inMemory: true)
+        let twoHeads = MapEditor(map: map, store: store)
+        XCTAssertEqual(twoHeads.map.title, "项目规划")
+        twoHeads.setText("第一头部", for: firstHead)
+        XCTAssertEqual(twoHeads.map.title, "第一头部")
+        twoHeads.delete(id: firstHead)
+        XCTAssertEqual(twoHeads.map.rootIDs, [secondHead.id])
+        XCTAssertEqual(twoHeads.map.title, "第二头部", "删除第一个头部后标题没有跟随新的第一个头部")
+
+        // 旧空白导图的「未命名导图」占位标题也应视为自动标题
+        let blankStore = try DocumentStore(inMemory: true)
+        let blankEditor = MapEditor(map: MindMap.blank(), store: blankStore)
+        blankEditor.setText("新头部", for: blankEditor.map.rootID)
+        XCTAssertEqual(blankEditor.map.title, "新头部")
+    }
+
+    /// 至少保留一个头部节点，不能把整张图删空
+    func testCannotDeleteLastHead() throws {
+        let editor = try makeEditor()
+        let first = editor.map.rootID
+        let before = editor.map.nodes.count
+        editor.delete(id: first)
+        XCTAssertEqual(editor.map.nodes.count, before, "最后一个头部节点被删掉了")
+        XCTAssertEqual(editor.map.rootIDs, [first])
+    }
+
+    /// 空格进入编辑，不再触发折叠
+    func testSpaceStartsEditingInsteadOfCollapse() throws {
+        let shortcuts = ShortcutStore.shared
+        let oldEdit = shortcuts.combo(for: .editNode)
+        let oldCollapse = shortcuts.combo(for: .toggleCollapse)
+        shortcuts.set(KeyCombo(key: "space"), for: .editNode)
+        shortcuts.set(KeyCombo(key: "f3"), for: .toggleCollapse)
+        defer {
+            shortcuts.set(oldEdit, for: .editNode)
+            shortcuts.set(oldCollapse, for: .toggleCollapse)
+        }
+
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+        let branch = try XCTUnwrap(node(editor, "里程碑"))
+        editor.select(branch.id)
+
+        let event = try XCTUnwrap(keyEvent(" ", keyCode: 49, in: window))
+        canvas.keyDown(with: event)
+
+        XCTAssertEqual(editor.map.node(branch.id)?.collapsed, false, "空格把节点折叠了")
+        XCTAssertNotNil(canvas.subviews.compactMap { $0 as? NSTextView }.last, "空格没有进入编辑")
+        canvas.commitEditing()
+    }
+
+    /// 开始输入时把按键交给输入框，而不是先把 event.characters 写进节点
+    func testTypingLetterStartsEditingThroughTextView() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+        let branch = try XCTUnwrap(node(editor, "里程碑"))
+        editor.select(branch.id)
+
+        let event = try XCTUnwrap(keyEvent("a", keyCode: 0, in: window))
+        canvas.keyDown(with: event)
+
+        let textView = try XCTUnwrap(canvas.subviews.compactMap { $0 as? NSTextView }.last)
+        XCTAssertTrue(textView.isEditable)
+        XCTAssertEqual(textView.string, "a", "按键没有交给输入框处理")
+        canvas.commitEditing()
+    }
+
+    /// 新的默认快捷键：空格编辑、回车同级、Tab 子节点、F3 折叠
+    func testEditingShortcutDefaults() {
+        XCTAssertEqual(ShortcutAction.editNode.defaultCombo, KeyCombo(key: "space"))
+        XCTAssertEqual(ShortcutAction.newSibling.defaultCombo, KeyCombo(key: "return"))
+        XCTAssertEqual(ShortcutAction.newChild.defaultCombo, KeyCombo(key: "tab"))
+        XCTAssertEqual(ShortcutAction.toggleCollapse.defaultCombo, KeyCombo(key: "f3"))
+    }
+}
+
+extension MindscapeFeatureTests {
+    /// 多头部节点的 Markdown / OPML 导出不能只导出第一棵树
+    func testMultipleHeadsExportIncludesEveryTree() throws {
+        let (map, _, second, _) = makeTwoHeadMap()
+        let markdown = ExportService.markdown(map: map)
+        XCTAssertTrue(markdown.contains("- 项目规划"))
+        XCTAssertTrue(markdown.contains("- 第二头部"))
+
+        let opml = ExportService.opml(map: map)
+        XCTAssertTrue(opml.contains("text=\"项目规划\""))
+        XCTAssertTrue(opml.contains("text=\"第二头部\""))
+        XCTAssertNotNil(map.node(second.id))
+    }
+}
+
+extension MindscapeFeatureTests {
+    /// 重排头部节点后，标题跟随新的第一个头部
+    func testTitleFollowsHeadReorder() throws {
+        let (map, first, second, _) = makeTwoHeadMap()
+        let store = try DocumentStore(inMemory: true)
+        let editor = MapEditor(map: map, store: store)
+        editor.setText("第一头部", for: first)
+        XCTAssertEqual(editor.map.title, "第一头部")
+
+        editor.reorder(id: second.id, relativeTo: first, after: false)
+        XCTAssertEqual(editor.map.rootIDs.first, second.id)
+        XCTAssertEqual(editor.map.title, "第二头部")
+    }
+}
+
+extension MindscapeFeatureTests {
+    /// 复制头部节点应该得到新的头部，而不是挂到第一个头部下面
+    func testDuplicateHeadCreatesNewHead() throws {
+        let (map, _, second, _) = makeTwoHeadMap()
+        let store = try DocumentStore(inMemory: true)
+        let editor = MapEditor(map: map, store: store)
+        let before = editor.map.rootIDs.count
+        editor.select(second.id)
+
+        XCTAssertTrue(editor.duplicateSelection())
+        XCTAssertEqual(editor.map.rootIDs.count, before + 1)
+        let copied = try XCTUnwrap(editor.selection.first)
+        XCTAssertNil(editor.map.node(copied)?.parentID)
+        XCTAssertNotEqual(copied, second.id)
+    }
+}
+
+extension MindscapeFeatureTests {
+    /// 空导图不应该把 selection 指向一个不存在的 UUID；仍能新增头部
+    func testEmptyMapIsSafe() throws {
+        let map = MindMap(title: "empty", nodes: [], layout: .mindMap, themeID: "paper")
+        let layout = LayoutEngine.layout(map)
+        XCTAssertTrue(layout.frames.isEmpty)
+        XCTAssertEqual(layout.bounds, .zero)
+        XCTAssertTrue(layout.rootIDs.isEmpty)
+
+        let store = try DocumentStore(inMemory: true)
+        let editor = MapEditor(map: map, store: store)
+        XCTAssertTrue(editor.selection.isEmpty)
+        let newID = try XCTUnwrap(editor.addRoot())
+        XCTAssertEqual(editor.map.rootIDs, [newID])
+        XCTAssertEqual(editor.selection, [newID])
+        XCTAssertEqual(editor.map.title, "新主题")
+    }
+
+    /// 损坏数据里的重复节点 ID 不能让 Dictionary(uniqueKeysWithValues:) 崩溃
+    func testDuplicateNodeIDsDoNotCrashLayout() throws {
+        var map = MindMap.blank(title: "dup", themeID: "paper", layout: .mindMap)
+        let rootID = map.rootID
+        map.nodes.append(MindNode(id: rootID, parentID: nil, text: "重复头部", order: 1))
+        let layout = LayoutEngine.layout(map)
+        XCTAssertEqual(layout.rootIDs, [rootID])
+        XCTAssertNotNil(layout.frames[rootID])
+    }
+
+    /// 环形父子关系不能让递归布局无限展开
+    func testCyclicMapLayoutTerminates() throws {
+        var map = MindMap.blank(title: "cycle", themeID: "paper", layout: .mindMap)
+        let first = map.rootID
+        let second = MindNode(parentID: first, text: "第二", order: 0)
+        map.nodes.append(second)
+        if let index = map.nodes.firstIndex(where: { $0.id == first }) {
+            map.nodes[index].parentID = second.id
+        }
+
+        for style in MapLayout.allCases {
+            var copy = map
+            copy.layout = style
+            let layout = LayoutEngine.layout(copy)
+            XCTAssertEqual(layout.frames.count, 2, "layout \(style.rawValue)")
+        }
+    }
+
+    /// 撤销栈按节点总数限流：大图连续编辑不能无限保留完整快照
+    func testUndoStackKeepsNodeBudget() throws {
+        var map = MindMap.blank(title: "big", themeID: "paper", layout: .mindMap)
+        let root = map.rootID
+        for index in 0..<1_500 {
+            map.nodes.append(MindNode(parentID: root, text: "节点 \(index)", order: index))
+        }
+        let store = try DocumentStore(inMemory: true)
+        let editor = MapEditor(map: map, store: store)
+
+        for index in 0..<60 {
+            editor.setIcon(index % 2 == 0 ? "star.fill" : nil, for: root)
+        }
+        XCTAssertLessThanOrEqual(editor.undoCount, 30, "大图撤销栈没有按节点数收缩")
     }
 }

@@ -99,9 +99,9 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
         case .toggleInspector: return KeyCombo(key: "i", command: true, option: true)
         case .newChild: return KeyCombo(key: "tab")
         case .newSibling: return KeyCombo(key: "return")
-        case .editNode: return KeyCombo(key: "f2")
+        case .editNode: return KeyCombo(key: "space")
         case .deleteNode: return KeyCombo(key: "delete")
-        case .toggleCollapse: return KeyCombo(key: "space")
+        case .toggleCollapse: return KeyCombo(key: "f3")
         case .findNode: return KeyCombo(key: "f", command: true)
         case .duplicateNode: return KeyCombo(key: "d", command: true)
         case .importDocument: return KeyCombo(key: "i", command: true, shift: true)
@@ -308,7 +308,21 @@ final class ShortcutStore: ObservableObject {
         for action in ShortcutAction.allCases where loaded[action] == nil {
             loaded[action] = action.defaultCombo
         }
+        // 0.5.1 之前 Space 是折叠、F2 是编辑；现在改成 Space 编辑、F3 折叠。
+        // 只在用户还停留在旧默认值时迁移，避免覆盖自定义快捷键。
+        var migrated = false
+        if loaded[.editNode] == KeyCombo(key: "f2") {
+            loaded[.editNode] = KeyCombo(key: "space")
+            migrated = true
+        }
+        if loaded[.toggleCollapse] == KeyCombo(key: "space") {
+            loaded[.toggleCollapse] = KeyCombo(key: "f3")
+            migrated = true
+        }
         combos = loaded
+        if migrated {
+            persist()
+        }
     }
 
     func combo(for action: ShortcutAction) -> KeyCombo {

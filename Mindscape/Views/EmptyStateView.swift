@@ -39,10 +39,10 @@ struct EmptyStateView: View {
                     .frame(maxWidth: 700)
 
                     HStack(spacing: 18) {
-                        hint(key: "Tab", text: "子主题")
-                        hint(key: "↩", text: "同级主题")
-                        hint(key: "双击", text: "编辑节点")
-                        hint(key: "⌘0", text: "适配画布")
+                        hint(key: "Space", text: "编辑")
+                        hint(key: "↩", text: "新节点")
+                        hint(key: "Tab", text: "子节点")
+                        hint(key: "双击空白", text: "新头部")
                     }
                     .padding(.bottom, 40)
                 }

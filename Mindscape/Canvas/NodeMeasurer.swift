@@ -56,10 +56,6 @@ enum NodeMeasurer {
         return clamped
     }
 
-    static func iconAspect(for symbol: String) -> CGFloat {
-        iconAspect(for: symbol, pointSize: iconSize(level: 1))
-    }
-
     /// 图标占的宽度：高度固定为 iconSize，宽度跟随符号自身比例
     static func iconWidth(for node: MindNode, level: Int) -> CGFloat {
         guard let icon = node.icon else { return 0 }
@@ -92,9 +88,6 @@ enum NodeMeasurer {
         /// 文字块实际占的尺寸（按换行后的结果），用于把备注圆点贴在文字后面
         var measuredSize: CGSize
         var iconRect: CGRect?
-        /// 图标占位（宽度随符号比例变化，高度固定）
-        var iconBox: CGSize
-        var iconGap: CGFloat
     }
 
     private struct LayoutKey: Hashable {
@@ -107,6 +100,7 @@ enum NodeMeasurer {
     }
 
     private static var layoutCache: [LayoutKey: NodeTextLayout] = [:]
+    private static var layoutCacheCost = 0
 
     /// 画布渲染和就地编辑共用同一份文字布局，保证进入编辑时文字不跳动。
     /// 动画期间每帧都会调用，按内容 + 尺寸缓存，避免重复做文本测量。
@@ -124,10 +118,15 @@ enum NodeMeasurer {
             base = cached
         } else {
             base = measureTextLayout(for: node, in: CGRect(origin: .zero, size: rect.size), level: level)
-            if layoutCache.count > 800 {
-                layoutCache.removeAll(keepingCapacity: true)
+            let cost = key.text.utf16.count * 2 + 256
+            if cost <= 2_000_000 {
+                if layoutCache.count > 800 || layoutCacheCost + cost > 2_000_000 {
+                    layoutCache.removeAll(keepingCapacity: true)
+                    layoutCacheCost = 0
+                }
+                layoutCache[key] = base
+                layoutCacheCost += cost
             }
-            layoutCache[key] = base
         }
 
         var result = base
@@ -147,11 +146,15 @@ enum NodeMeasurer {
             : CGSize(width: iconWidth(for: node, level: level), height: iconSize(level: level))
         let gap = node.icon == nil ? 0 : iconGap
         let note = noteWidth(for: node)
-        let contentWidth = max(rect.width - horizontalPadding * 2 - box.width - gap - note, 10)
+        // 这是文字真正的换行宽度：节点左右各留一份图标位后，剩下的才是文字区。
+        // 就地编辑器复用这个宽度，输入时的折行才和画布一致。
+        let contentWidth = max(rect.width - horizontalPadding * 2 - box.width * 2 - gap * 2 - note, 10)
 
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byWordWrapping
-        paragraph.alignment = level == 0 ? .center : .left
+        // 所有层级都居中：短文字在最小宽度节点里不再贴着左边，
+        // 多行文字也按整块居中，和节点中线对齐。
+        paragraph.alignment = .center
 
         let string = NSAttributedString(
             string: displayText(node),
@@ -162,19 +165,25 @@ enum NodeMeasurer {
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
 
-        let groupWidth = box.width + gap + measured.width + note
-        let startX = level == 0 ? rect.midX - groupWidth / 2 : rect.minX + horizontalPadding
-        let textX = startX + box.width + gap
-        let textWidth = level == 0 ? max(measured.width, 10) : contentWidth
+        let textWidth = max(measured.width, 10)
+        // 文字块本身始终以节点中线居中；图标放到文字左侧。
+        // 节点尺寸会为图标留出对称的左右空间（见 size(for:)），
+        // 所以图标不会因为文字居中而挤到左边框上。
+        let textX = rect.midX - textWidth / 2
         let textRect = CGRect(
             x: textX,
             y: rect.midY - measured.height / 2,
             width: textWidth,
-            height: measured.height + 2
+            height: measured.height
         )
         let iconRect = node.icon == nil
             ? nil
-            : CGRect(x: startX, y: rect.midY - box.height / 2, width: box.width, height: box.height)
+            : CGRect(
+                x: textX - gap - box.width,
+                y: rect.midY - box.height / 2,
+                width: box.width,
+                height: box.height
+            )
 
         return NodeTextLayout(
             font: font,
@@ -182,9 +191,7 @@ enum NodeMeasurer {
             contentWidth: contentWidth,
             textRect: textRect,
             measuredSize: measured.size,
-            iconRect: iconRect,
-            iconBox: box,
-            iconGap: gap
+            iconRect: iconRect
         )
     }
 
@@ -196,26 +203,31 @@ enum NodeMeasurer {
         let minWidth: CGFloat = level == 0 ? 120 : 74
         let minHeight: CGFloat = level == 0 ? 58 : 40
 
-        let iconWidth = node.icon == nil ? 0 : iconWidth(for: node, level: level) + iconGap
+        // 图标 + 间距按两份计入宽度：文字居中后，左侧要放图标，
+        // 右侧留同样的空间，节点才不会看起来一边重一边轻。
+        let iconSpace = node.icon == nil ? 0 : iconWidth(for: node, level: level) + iconGap
         let noteWidth = noteWidth(for: node)
 
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byWordWrapping
-        paragraph.alignment = level == 0 ? .center : .left
+        paragraph.alignment = .center
 
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .paragraphStyle: paragraph
         ]
         let string = displayText(node)
-        let textWidth = max(maxWidth - horizontalPadding - iconWidth - noteWidth, 40)
+        let textWidth = max(maxWidth - horizontalPadding - iconSpace - noteWidth, 40)
         let measured = (string as NSString).boundingRect(
             with: CGSize(width: textWidth, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: attributes
         )
 
-        let width = min(max(ceil(measured.width) + horizontalPadding + iconWidth + noteWidth, minWidth), maxWidth)
+        // 图标节点允许比普通节点再宽出一个图标位，长文字也不会把图标挤到边框上。
+        let effectiveMaxWidth = maxWidth + iconSpace
+        let naturalWidth = ceil(measured.width) + horizontalPadding + iconSpace * 2 + noteWidth
+        let width = min(max(min(naturalWidth, effectiveMaxWidth), minWidth), effectiveMaxWidth)
         let height = max(ceil(measured.height) + verticalPadding, minHeight)
         return CGSize(width: width, height: height)
     }
