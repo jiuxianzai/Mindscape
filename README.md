@@ -286,7 +286,7 @@ xcodebuild test -project Mindscape.xcodeproj -scheme Mindscape -derivedDataPath 
 | 图标 | SF Symbols |
 | 数据 | 系统 `libsqlite3`，WAL 模式 |
 | 工程 | XcodeGen（`project.yml`） |
-| 测试 | XCTest（46 个用例，含画布交互与渲染回归） |
+| 测试 | XCTest（67 个用例，含画布交互与渲染回归） |
 | 最低系统 | macOS 14 |
 | 架构 | Universal（arm64 + x86_64） |
 | 第三方依赖 | 无 |
@@ -309,6 +309,8 @@ Mindscape/
 ├── project.yml                 # XcodeGen 工程描述
 ├── Makefile                    # build / run / package / install
 ├── CHANGELOG.md                # 版本记录
+├── LICENSE                     # MIT
+├── SECURITY.md                 # 安全披露说明
 ├── docs/screenshots/           # README 截图
 ├── Mindscape/
 │   ├── App/                    # 入口、全局状态、菜单命令
