@@ -29,7 +29,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ## 截图
 
-截图使用示例数据。
+截图使用示例数据；部分截图来自 0.5.x 早期版本，快捷键与界面细节以当前版本为准。
 
 <p align="center">
   <img src="docs/screenshots/main.png" width="100%" alt="Mindscape 主界面">
