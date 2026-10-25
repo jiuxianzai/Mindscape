@@ -137,6 +137,15 @@
   .glyph svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
 
   /* ---------- IME block ---------- */
+
+  .demo-fig{margin:38px 0 0}
+  .demo-fig img{display:block; width:100%; height:auto; border-radius:12px; border:1px solid var(--line);
+                box-shadow:0 30px 60px -42px rgba(35,33,30,.5)}
+  .demo-fig figcaption{margin-top:12px; font-size:12.5px; color:var(--faint); text-align:center}
+  .ime-fig{margin:30px 0 0; position:relative}
+  .ime-fig img{display:block; width:100%; height:auto; border-radius:12px; border:1px solid #3D3934;
+               box-shadow:0 30px 60px -40px rgba(0,0,0,.8)}
+  .ime-fig figcaption{margin-top:12px; font-size:12.5px; color:#8C857B; text-align:center}
   .ime{
     margin-top:84px; background:var(--ink); color:#F3EFE9; border-radius:20px; padding:52px 44px;
     position:relative; overflow:hidden;
@@ -147,24 +156,15 @@
   }
   .ime h2{color:#FBFAF7; position:relative}
   .ime .eyebrow{color:#E0916F; position:relative}
-  .ime-grid{display:grid; grid-template-columns:1.05fr .95fr; gap:44px; align-items:center; margin-top:26px; position:relative}
+  .ime-grid{margin-top:26px; position:relative}
+  .ime-grid p, .ime-grid ul{max-width:660px}
   .ime p{color:#C9C2B8; font-size:15.5px; margin:0 0 14px}
   .ime ul{margin:18px 0 0; padding:0; list-style:none}
   .ime li{position:relative; padding-left:22px; margin-bottom:11px; font-size:14.5px; color:#D7D0C6}
   .ime li::before{content:""; position:absolute; left:0; top:10px; width:6px; height:6px; border-radius:50%; background:var(--accent)}
-  .demo{background:#2C2925; border:1px solid #3D3934; border-radius:12px; padding:26px 22px; min-height:172px; display:flex; flex-direction:column; justify-content:center; gap:14px}
-  .demo-label{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#8C857B}
-  .node-demo{
-    align-self:flex-start; display:inline-flex; align-items:center; gap:2px;
-    background:#F4E9DF; color:#2B2620; border:1px solid #E3CDBB; border-radius:7px;
-    padding:8px 12px; font-size:15px; white-space:nowrap; overflow:hidden;
-    animation:grow 5.2s ease-in-out infinite;
-  }
-  .node-demo .caret{display:inline-block; width:1.5px; height:17px; background:var(--accent); animation:blink 1.05s step-end infinite}
   @keyframes grow{0%,12%{max-width:78px}42%,58%{max-width:190px}88%,100%{max-width:78px}}
   @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-  .demo-note{font-size:12px; color:#8C857B}
-  @media (max-width:860px){ .ime{padding:38px 24px} .ime-grid{grid-template-columns:1fr; gap:26px} }
+  @media (max-width:860px){ .ime{padding:38px 24px} }
 
   /* ---------- themes ---------- */
   .theme-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:36px}
@@ -306,26 +306,36 @@
     </div>
   </section>
 
+
+  <section id="motion">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="mo.eyebrow">折叠</p>
+      <h2 data-i18n="mo.title">收起一个分支，留下一个数字</h2>
+      <p class="section-lead" data-i18n="mo.lead">折叠后控件变成常驻的数字圆，直接告诉里面藏了多少个节点，点一下就展开。父节点先动，子节点按深度依次跟上。</p>
+      <figure class="demo-fig">
+        <img src="gifs/collapse.gif" width="960" height="565" loading="lazy" alt="折叠与展开的错峰动画">
+        <figcaption data-i18n="mo.cap">实录：⇧⌘C 折叠全部子分支，⇧⌘E 展开</figcaption>
+      </figure>
+    </div>
+  </section>
+
   <div class="wrap">
     <div class="ime">
       <p class="eyebrow" data-i18n="ime.eyebrow">中文输入法</p>
       <h2 data-i18n="ime.title">打字的时候，节点跟着长，不跳</h2>
       <div class="ime-grid">
-        <div>
-          <p data-i18n="ime.p1">用网页技术做的思维导图，中文组字几乎是通病：拼音还没上屏，节点先按假名宽度折了行，候选一选完又弹回去，光标和候选框分离。</p>
-          <ul>
-            <li data-i18n="ime.l1">组字时节点按候选实时变宽，不会「先折行再弹回」</li>
-            <li data-i18n="ime.l2">字号与画布严格一致，任何缩放比例下都不跳</li>
-            <li data-i18n="ime.l3">候选框始终贴着光标，长文本自动换行、左右内边距对称</li>
-            <li data-i18n="ime.l4">Enter 提交、Shift+Enter 换行、Esc 取消并恢复</li>
-          </ul>
-        </div>
-        <div class="demo">
-          <span class="demo-label" data-i18n="ime.demo">组字中 · 节点随候选变宽</span>
-          <span class="node-demo"><span data-i18n="ime.word">思维导图</span><i class="caret"></i></span>
-          <span class="demo-note" data-i18n="ime.note">示意图：节点宽度随输入增长，不产生折行</span>
-        </div>
+        <p data-i18n="ime.p1">用网页技术做的思维导图，中文组字几乎是通病：拼音还没上屏，节点先按假名宽度折了行，候选一选完又弹回去，光标和候选框分离。</p>
+        <ul>
+          <li data-i18n="ime.l1">组字时节点按候选实时变宽，不会「先折行再弹回」</li>
+          <li data-i18n="ime.l2">字号与画布严格一致，任何缩放比例下都不跳</li>
+          <li data-i18n="ime.l3">候选框始终贴着光标，长文本自动换行、左右内边距对称</li>
+          <li data-i18n="ime.l4">Enter 提交、Shift+Enter 换行、Esc 取消并恢复</li>
+        </ul>
       </div>
+      <figure class="ime-fig">
+        <img src="gifs/ime.gif" width="960" height="565" loading="lazy" alt="中文输入法组字时节点实时变宽">
+        <figcaption data-i18n="ime.cap">实录：输入 siweidaotu，节点随候选变宽，候选窗贴着光标</figcaption>
+      </figure>
     </div>
   </div>
 
@@ -335,6 +345,10 @@
       <h2 data-i18n="th.title">8 套主题，开箱就好看</h2>
       <p class="section-lead" data-i18n="th.lead">下面是这 8 套主题在应用里的真实取色，不是设计师另外调的一套。</p>
       <div class="theme-grid" id="theme-grid"></div>
+      <figure class="demo-fig">
+        <img src="gifs/themes.gif" width="960" height="565" loading="lazy" alt="在属性面板切换主题">
+        <figcaption data-i18n="th.cap">实录：在属性面板里点主题，画布即时换色</figcaption>
+      </figure>
     </div>
   </section>
 
@@ -424,7 +438,11 @@ const I18N = {
     'ime.l2':'字号与画布严格一致，任何缩放比例下都不跳',
     'ime.l3':'候选框始终贴着光标，长文本自动换行、左右内边距对称',
     'ime.l4':'Enter 提交、Shift+Enter 换行、Esc 取消并恢复',
-    'ime.demo':'组字中 · 节点随候选变宽','ime.word':'思维导图','ime.note':'示意图：节点宽度随输入增长，不产生折行',
+    'ime.cap':'实录：输入 siweidaotu，节点随候选变宽，候选窗贴着光标',
+    'mo.eyebrow':'折叠','mo.title':'收起一个分支，留下一个数字',
+    'mo.lead':'折叠后控件变成常驻的数字圆，直接告诉里面藏了多少个节点，点一下就展开。父节点先动，子节点按深度依次跟上。',
+    'mo.cap':'实录：⇧⌘C 折叠全部子分支，⇧⌘E 展开',
+    'th.cap':'实录：在属性面板里点主题，画布即时换色',
     'th.eyebrow':'配色','th.title':'8 套主题，开箱就好看','th.lead':'下面是这 8 套主题在应用里的真实取色，不是设计师另外调的一套。',
     'in.eyebrow':'安装','in.title':'三步，不到一分钟',
     'in.s1t':'下载 dmg','in.s1d':'从 Releases 取最新版，当前构建是 Universal（Apple Silicon 与 Intel 都能跑）。',
@@ -455,7 +473,11 @@ const I18N = {
     'ime.l2':'Text size matches the canvas exactly at every zoom level',
     'ime.l3':'The candidate window stays glued to the caret; long text wraps with symmetric padding',
     'ime.l4':'Enter commits, Shift+Enter adds a line, Esc cancels and restores',
-    'ime.demo':'Composing · node grows with candidates','ime.word':'Mindscape','ime.note':'Illustration: the node grows as you type instead of wrapping',
+    'ime.cap':'Recorded: typing siweidaotu — the node widens with the candidates, which stay pinned to the caret',
+    'mo.eyebrow':'Collapse','mo.title':'Fold a branch, leave a number behind',
+    'mo.lead':'A collapsed branch keeps a persistent count badge showing how many nodes it hides, and one click brings them back. The parent moves first, then children follow by depth.',
+    'mo.cap':'Recorded: ⇧⌘C collapses all sub-branches, ⇧⌘E expands',
+    'th.cap':'Recorded: switching themes from the inspector repaints the canvas instantly',
     'th.eyebrow':'Colour','th.title':'Eight themes that already look finished','th.lead':'These are the exact colours used in the app, not a separate palette made for this page.',
     'in.eyebrow':'Install','in.title':'Three steps, under a minute',
     'in.s1t':'Download the dmg','in.s1d':'Grab the latest build from Releases. It is Universal — Apple Silicon and Intel both work.',

@@ -49,6 +49,10 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
   <img src="docs/screenshots/settings.png" width="49%" alt="Settings">
 </p>
 
+<p align="center">
+  <img src="docs/gifs/ime.gif" width="78%" alt="The node widens as you type with a CJK input method">
+</p>
+
 ---
 
 ## Why Mindscape

@@ -53,6 +53,10 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
   <img src="docs/screenshots/shortcuts.png" width="49%" alt="快捷键设置">
 </p>
 
+<p align="center">
+  <img src="docs/gifs/ime.gif" width="78%" alt="中文输入法组字时节点实时变宽">
+</p>
+
 ---
 
 ## 为什么是 Mindscape
