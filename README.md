@@ -19,6 +19,10 @@
   <img src="https://img.shields.io/badge/status-0.5.3-lightgrey?style=flat-square" alt="Status 0.5.3">
 </p>
 
+<p align="center">
+  <strong>中文</strong> · <a href="README.en.md">English</a> · <a href="https://jiuxianzai.github.io/Mindscape/">官网</a>
+</p>
+
 > A local-first mind map app for macOS. All data lives in a local SQLite file — no account, no cloud, no telemetry.
 
 Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据全部保存在本机。它没有登录、没有云同步、不会发起网络请求，也不依赖任何第三方库。
@@ -54,7 +58,8 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 ## 为什么是 Mindscape
 
 - **本地优先**：所有导图在一个 SQLite 文件里，断网可用，不登录，不上传。
-- **原生性能**：画布是自绘 `NSView`，不是 Web/Electron；大图缩放、拖拽仍然跟手。
+- **原生性能**：画布是自绘 `NSView`，不是 Web/Electron；大图缩放、拖拽仍然跟手，整个 app 只有 3.9 MB。
+- **中文输入法友好**：用拼音组字时节点随着候选实时变宽，不会「先折行再弹回」，候选框始终贴着光标——这是 Web 画布类思维导图最常翻车的地方。
 - **动效克制**：折叠/展开按层级错峰落位，残影淡出、控件跟随淡入，不做“整屏闪跳”。
 - **开箱好看**：8 套主题、8 种布局、现代留白与陶土色视觉，不需要自己调样式。
 - **真的能整理**：多级目录、大纲视图、全图搜索、专注模式、收藏、回收站。
@@ -175,6 +180,32 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 - 设置
 - 在 Finder 中打开数据目录
 - 退出
+
+---
+
+## 从 XMind / FreeMind 迁移
+
+目前还不能直接读 `.xmind` 文件，但 **OPML 是现成的桥**——XMind、MindNode、FreeMind 都能导出它。
+
+**从 XMind 来**
+
+1. 在 XMind 里打开导图，选 **文件 → 导出 → OPML**。
+2. 回到 Mindscape，按 ⇧⌘I（或菜单 **文件 → 导入 OPML…**）选中刚导出的文件。
+
+**从 FreeMind / Freeplane 来**
+
+1. **文件 → 导出 → OPML**（Freeplane 里是 **文件 → 导出 → OPML**）。
+2. 同样用 ⇧⌘I 导入。
+
+**从 Markdown / Obsidian 来**
+
+任何有层级的 Markdown 大纲都能直接 ⇧⌘I 导入，标题层级和列表缩进会转成节点层级。
+
+几点说明：
+
+- 导入**总是生成新文档**，不会覆盖或修改你已有的导图，可以放心试。
+- OPML 只带结构和文字，备注、图标、关系线、概要不会跟过来——迁移大批量之前先拿一份小的验证一遍。
+- 直接导入 `.xmind` 在路线图里（FreeMind / XMind 导入）。
 
 ---
 
@@ -346,7 +377,7 @@ Mindscape/
 
 ## 已知限制
 
-- 导入只支持 Markdown、OPML 和 Mindscape 自己的 JSON，还不支持 FreeMind / XMind
+- 导入只支持 Markdown、OPML 和 Mindscape 自己的 JSON，还不支持 FreeMind / XMind（XMind 用户可先导出 OPML，见「从 XMind / FreeMind 迁移」）
 - 大纲视图目前只读（可定位，不能在大纲里改字）
 - 没有关系线、概要、边界框、图片 / 附件节点
 - 自由布局需要手动摆放，只做对齐吸附，没有自动整理

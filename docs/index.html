@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mindscape — 本地优先的 macOS 思维导图</title>
+<meta name="description" content="一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件，不登录、不联网、不订阅。零第三方依赖，中文输入法打字不跳。">
+<link rel="icon" href="screenshots/icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Mindscape — 本地优先的 macOS 思维导图">
+<meta property="og:description" content="3.9 MB，原生 SwiftUI + 自绘画布，零第三方依赖。数据就是一个 sqlite 文件：不登录、不联网、不订阅。">
+<meta property="og:image" content="https://jiuxianzai.github.io/Mindscape/screenshots/main.png">
+<meta property="og:url" content="https://jiuxianzai.github.io/Mindscape/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://jiuxianzai.github.io/Mindscape/screenshots/main.png">
+<style>
+  :root{
+    --paper:#FAF8F4; --paper-2:#F4F1EB; --card:#FFFFFF;
+    --ink:#23211E; --ink-2:#3B3733; --muted:#6B645C; --faint:#8C857B;
+    --line:#E5DED2; --line-soft:#EFE9DF;
+    --accent:#C26A4A; --accent-soft:#F3E4DC;
+    --radius:14px;
+    --wrap:1080px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font:16px/1.75 -apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:linear-gradient(var(--line-soft) 1px,transparent 1px),linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(ellipse 90% 60% at 50% 0%,#000 0%,transparent 75%);
+    mask-image:radial-gradient(ellipse 90% 60% at 50% 0%,#000 0%,transparent 75%);
+    opacity:.9;
+  }
+  a{color:inherit}
+  .wrap{position:relative; z-index:1; max-width:var(--wrap); margin:0 auto; padding:0 24px}
+
+  /* ---------- nav ---------- */
+  header.nav{
+    position:sticky; top:0; z-index:20;
+    backdrop-filter:saturate(180%) blur(14px); -webkit-backdrop-filter:saturate(180%) blur(14px);
+    background:rgba(250,248,244,.82); border-bottom:1px solid transparent;
+    transition:border-color .2s ease;
+  }
+  header.nav.scrolled{border-bottom-color:var(--line)}
+  .nav-inner{display:flex; align-items:center; gap:18px; height:60px}
+  .brand{display:flex; align-items:center; gap:9px; font-weight:620; letter-spacing:-.01em; text-decoration:none}
+  .brand img{width:24px; height:24px; border-radius:6px}
+  .nav-links{display:flex; gap:22px; margin-left:auto; font-size:14px; color:var(--muted)}
+  .nav-links a{text-decoration:none; transition:color .15s}
+  .nav-links a:hover{color:var(--ink)}
+  .lang{
+    display:flex; border:1px solid var(--line); border-radius:999px; overflow:hidden;
+    font-size:12.5px; background:var(--card);
+  }
+  .lang button{
+    appearance:none; border:0; background:none; padding:5px 11px; cursor:pointer;
+    color:var(--muted); font:inherit; transition:background .15s,color .15s;
+  }
+  .lang button[aria-pressed="true"]{background:var(--ink); color:#fff}
+  @media (max-width:720px){ .nav-links{display:none} .lang{margin-left:auto} }
+
+  /* ---------- hero ---------- */
+  .hero{padding:88px 0 40px; text-align:center}
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-2);
+    background:var(--card); border:1px solid var(--line); border-radius:999px; padding:5px 13px 5px 9px;
+    margin-bottom:26px;
+  }
+  .badge b{font-weight:600}
+  .badge .pulse{width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
+  h1.wordmark{
+    margin:0; font-size:clamp(46px,8.4vw,86px); line-height:1.03; letter-spacing:-.045em; font-weight:640;
+  }
+  .lead{
+    margin:22px auto 0; max-width:660px; font-size:clamp(17px,2.1vw,20px); line-height:1.65; color:var(--ink-2);
+    text-wrap:balance;
+  }
+  .lead .hl{background:linear-gradient(transparent 62%, var(--accent-soft) 62%); padding:0 2px}
+  .cta-row{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:34px}
+  .btn{
+    display:inline-flex; align-items:center; gap:9px; padding:12px 22px; border-radius:999px;
+    font-size:15px; font-weight:550; text-decoration:none; border:1px solid transparent;
+    transition:transform .12s ease, box-shadow .18s ease, background .18s;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--ink); color:#FBFAF7; box-shadow:0 10px 24px -12px rgba(35,33,30,.55)}
+  .btn-primary:hover{background:#14120F; box-shadow:0 14px 30px -12px rgba(35,33,30,.6)}
+  .btn-ghost{background:var(--card); border-color:var(--line); color:var(--ink)}
+  .btn-ghost:hover{border-color:#D6CBB9; background:#fff}
+  .btn svg{width:16px; height:16px}
+  .meta-line{margin-top:16px; font-size:13px; color:var(--faint); letter-spacing:.01em}
+  .meta-line span+span::before{content:"·"; margin:0 8px; color:var(--line); font-weight:700}
+
+  /* ---------- window shot ---------- */
+  .shot{position:relative; z-index:1; margin:52px auto 0; max-width:var(--wrap)}
+  .window{
+    background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden;
+    box-shadow:0 40px 80px -40px rgba(35,33,30,.45), 0 2px 8px rgba(35,33,30,.05);
+  }
+  .window img{display:block; width:100%; height:auto}
+
+  /* ---------- stats ---------- */
+  .stats{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line);
+    border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; margin:64px 0 0;
+  }
+  .stat{background:var(--card); padding:22px 18px; text-align:center}
+  .stat b{display:block; font-size:24px; font-weight:620; letter-spacing:-.02em}
+  .stat span{display:block; font-size:12.5px; color:var(--muted); margin-top:3px}
+  @media (max-width:720px){ .stats{grid-template-columns:repeat(2,1fr)} }
+
+  /* ---------- sections ---------- */
+  section{padding:84px 0 0}
+  .eyebrow{font-size:12.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--accent); font-weight:600; margin:0 0 12px}
+  h2{font-size:clamp(26px,3.6vw,36px); line-height:1.25; letter-spacing:-.025em; margin:0 0 14px; font-weight:620; text-wrap:balance}
+  .section-lead{max-width:600px; margin:0; color:var(--muted); font-size:16px}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(258px,1fr)); gap:14px; margin-top:36px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:24px 22px;
+    transition:transform .18s ease, box-shadow .18s ease, border-color .18s;
+  }
+  .card:hover{transform:translateY(-2px); border-color:#DCD2C2; box-shadow:0 18px 36px -28px rgba(35,33,30,.5)}
+  .card h3{margin:0 0 7px; font-size:16.5px; font-weight:600; letter-spacing:-.01em}
+  .card p{margin:0; font-size:14.5px; line-height:1.65; color:var(--muted)}
+  .glyph{
+    width:34px; height:34px; border-radius:9px; display:grid; place-items:center; margin-bottom:14px;
+    background:var(--accent-soft); color:var(--accent);
+  }
+  .glyph svg{width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round}
+
+  /* ---------- IME block ---------- */
+  .ime{
+    margin-top:84px; background:var(--ink); color:#F3EFE9; border-radius:20px; padding:52px 44px;
+    position:relative; overflow:hidden;
+  }
+  .ime::after{
+    content:""; position:absolute; right:-80px; top:-80px; width:340px; height:340px; border-radius:50%;
+    background:radial-gradient(circle,rgba(194,106,74,.28),transparent 68%);
+  }
+  .ime h2{color:#FBFAF7; position:relative}
+  .ime .eyebrow{color:#E0916F; position:relative}
+  .ime-grid{display:grid; grid-template-columns:1.05fr .95fr; gap:44px; align-items:center; margin-top:26px; position:relative}
+  .ime p{color:#C9C2B8; font-size:15.5px; margin:0 0 14px}
+  .ime ul{margin:18px 0 0; padding:0; list-style:none}
+  .ime li{position:relative; padding-left:22px; margin-bottom:11px; font-size:14.5px; color:#D7D0C6}
+  .ime li::before{content:""; position:absolute; left:0; top:10px; width:6px; height:6px; border-radius:50%; background:var(--accent)}
+  .demo{background:#2C2925; border:1px solid #3D3934; border-radius:12px; padding:26px 22px; min-height:172px; display:flex; flex-direction:column; justify-content:center; gap:14px}
+  .demo-label{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:#8C857B}
+  .node-demo{
+    align-self:flex-start; display:inline-flex; align-items:center; gap:2px;
+    background:#F4E9DF; color:#2B2620; border:1px solid #E3CDBB; border-radius:7px;
+    padding:8px 12px; font-size:15px; white-space:nowrap; overflow:hidden;
+    animation:grow 5.2s ease-in-out infinite;
+  }
+  .node-demo .caret{display:inline-block; width:1.5px; height:17px; background:var(--accent); animation:blink 1.05s step-end infinite}
+  @keyframes grow{0%,12%{max-width:78px}42%,58%{max-width:190px}88%,100%{max-width:78px}}
+  @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  .demo-note{font-size:12px; color:#8C857B}
+  @media (max-width:860px){ .ime{padding:38px 24px} .ime-grid{grid-template-columns:1fr; gap:26px} }
+
+  /* ---------- themes ---------- */
+  .theme-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:36px}
+  @media (max-width:860px){ .theme-grid{grid-template-columns:repeat(2,1fr)} }
+  .swatch{border-radius:12px; border:1px solid var(--line); padding:18px 16px 14px; min-height:104px;
+          display:flex; flex-direction:column; align-items:flex-start; justify-content:space-between; transition:transform .18s}
+  .swatch:hover{transform:translateY(-2px)}
+  .swatch .pill{display:inline-block; padding:5px 11px; border-radius:6px; font-size:12.5px; font-weight:550}
+  .swatch .nm{font-size:12px; opacity:.72; letter-spacing:.01em}
+  .swatch.dark{border-color:#2A2E38}
+
+  /* ---------- install ---------- */
+  .steps{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:34px}
+  @media (max-width:860px){ .steps{grid-template-columns:1fr} }
+  .step{background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:22px}
+  .step .n{font-size:12px; font-weight:650; color:var(--accent); letter-spacing:.06em}
+  .step h3{margin:8px 0 6px; font-size:15.5px; font-weight:600}
+  .step p{margin:0; font-size:14px; color:var(--muted)}
+  .caution{
+    margin-top:16px; display:flex; gap:14px; padding:18px 20px; border-radius:var(--radius);
+    background:#FBF3EE; border:1px solid #EDD8C9;
+  }
+  .caution .ico{flex:none; color:var(--accent); margin-top:2px}
+  .caution > div{min-width:0}
+  .caution p{margin:0; font-size:14px; color:#6B4A3A}
+  pre{
+    margin:12px 0 0; padding:12px 14px; background:#23211E; color:#EDE7DE; border-radius:9px;
+    font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; overflow-x:auto; max-width:100%;
+  }
+  @media (max-width:560px){
+    pre{white-space:pre-wrap; word-break:break-word}
+  }
+  .caution pre{margin:10px 0 0}
+
+  /* ---------- migrate ---------- */
+  .migrate{margin-top:16px; font-size:14.5px; color:var(--muted)}
+  .migrate a{color:var(--accent); text-decoration:none; border-bottom:1px solid var(--accent-soft)}
+  .migrate a:hover{border-bottom-color:var(--accent)}
+
+  /* ---------- footer ---------- */
+  footer{margin-top:96px; border-top:1px solid var(--line); padding:36px 0 56px}
+  .foot{display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap; font-size:13.5px; color:var(--faint)}
+  .foot-links{display:flex; gap:20px}
+  .foot a{text-decoration:none; color:var(--muted)}
+  .foot a:hover{color:var(--ink)}
+  html[data-lang="zh"] .en{display:none}
+  html[data-lang="en"] .zh{display:none}
+</style>
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top"><img src="screenshots/icon.png" alt="">Mindscape</a>
+    <nav class="nav-links">
+      <a href="#features" data-i18n="nav.features">功能</a>
+      <a href="#themes" data-i18n="nav.themes">布局与主题</a>
+      <a href="#install" data-i18n="nav.install">安装</a>
+      <a href="https://github.com/jiuxianzai/Mindscape" data-i18n="nav.github">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+      <button id="btn-zh" aria-pressed="true" onclick="setLang('zh')">中文</button>
+      <button id="btn-en" aria-pressed="false" onclick="setLang('en')">EN</button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <div class="wrap hero">
+    <div class="badge"><span class="pulse"></span><b data-version>v0.5.3</b><span data-i18n="hero.badge">早期版本 · 持续更新</span></div>
+    <h1 class="wordmark">Mindscape</h1>
+    <p class="lead" data-i18n="hero.lead">一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不联网、不订阅。</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://github.com/jiuxianzai/Mindscape/releases/latest" data-download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/></svg>
+        <span data-i18n="hero.cta">下载 dmg</span> <span style="opacity:.6" data-filesize>3.9 MB</span>
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/jiuxianzai/Mindscape">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.57 2.34 1.12 2.91.86.09-.66.35-1.12.63-1.38-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.35 4.79-4.58 5.05.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.06 10.06 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
+        <span data-i18n="hero.src">查看源码</span>
+      </a>
+    </div>
+    <p class="meta-line"><span>macOS 14+</span><span>Universal</span><span>MIT</span><span>67 <span data-i18n="meta.tests">个测试</span></span><span data-i18n="meta.zero">零第三方依赖</span></p>
+  </div>
+
+  <div class="wrap shot">
+    <div class="window">
+      <img src="screenshots/main.png" alt="Mindscape 主界面" width="1600" height="987">
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat"><b>3.9 MB</b><span data-i18n="stat.size">完整安装包</span></div>
+      <div class="stat"><b>0</b><span data-i18n="stat.deps">第三方依赖</span></div>
+      <div class="stat"><b>11,656</b><span data-i18n="stat.loc">行 Swift</span></div>
+      <div class="stat"><b>67</b><span data-i18n="stat.tests">个 XCTest</span></div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="why.eyebrow">为什么是 Mindscape</p>
+      <h2 data-i18n="why.title">不是又一个网页套壳的思维导图</h2>
+      <p class="section-lead" data-i18n="why.lead">画布是自绘的 NSView，不是 WebView。所以大图缩放跟手、启动即时、安装包只有 3.9 MB。</p>
+
+      <div class="cards">
+        <div class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18"/></svg></div>
+          <h3 data-i18n="f1.t">原生性能</h3>
+          <p data-i18n="f1.d">自绘 Core Graphics 画布，缩放时直接变换坐标系，而不是缩放上千个视图。大图拖拽、折叠都不掉帧。</p>
+        </div>
+        <div class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.66 3.58 3 8 3s8-1.34 8-3V6"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg></div>
+          <h3 data-i18n="f2.t">数据是一个文件</h3>
+          <p data-i18n="f2.d">所有导图存在一个 SQLite 文件里，WAL 模式自动保存。断网可用，没有账号，没有遥测，代码里根本没有网络层。</p>
+        </div>
+        <div class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="8.5" y="14" width="7" height="7" rx="1.5"/><path d="M6.5 10v2h11v-2"/></svg></div>
+          <h3 data-i18n="f3.t">8 种布局 · 8 套主题</h3>
+          <p data-i18n="f3.d">思维导图、逻辑图、组织架构、树形、时间轴、括号图、自由布局。主题只影响画布，窗口跟随系统深浅色。</p>
+        </div>
+        <div class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></div>
+          <h3 data-i18n="f4.t">大纲 · 搜索 · 专注</h3>
+          <p data-i18n="f4.d">⇧⌘O 打开与画布双向同步的大纲，⌘F 输入即定位，⇧⌘F 只留当前分支。长图不至于迷路。</p>
+        </div>
+        <div class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/></svg></div>
+          <h3 data-i18n="f5.t">演示模式</h3>
+          <p data-i18n="f5.d">⇧⌘P 按一级分支自动分页的独立演示窗口，每页保留上下文，适合会议讲解与评审。</p>
+        </div>
+        <div class="card">
+          <div class="glyph"><svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/></svg></div>
+          <h3 data-i18n="f6.t">能带走</h3>
+          <p data-i18n="f6.d">PNG（1x/2x/3x）、矢量 PDF、Markdown、OPML、JSON 五种导出，也能导入 Markdown / OPML / JSON。文件永远是你的。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <div class="ime">
+      <p class="eyebrow" data-i18n="ime.eyebrow">中文输入法</p>
+      <h2 data-i18n="ime.title">打字的时候，节点跟着长，不跳</h2>
+      <div class="ime-grid">
+        <div>
+          <p data-i18n="ime.p1">用网页技术做的思维导图，中文组字几乎是通病：拼音还没上屏，节点先按假名宽度折了行，候选一选完又弹回去，光标和候选框分离。</p>
+          <ul>
+            <li data-i18n="ime.l1">组字时节点按候选实时变宽，不会「先折行再弹回」</li>
+            <li data-i18n="ime.l2">字号与画布严格一致，任何缩放比例下都不跳</li>
+            <li data-i18n="ime.l3">候选框始终贴着光标，长文本自动换行、左右内边距对称</li>
+            <li data-i18n="ime.l4">Enter 提交、Shift+Enter 换行、Esc 取消并恢复</li>
+          </ul>
+        </div>
+        <div class="demo">
+          <span class="demo-label" data-i18n="ime.demo">组字中 · 节点随候选变宽</span>
+          <span class="node-demo"><span data-i18n="ime.word">思维导图</span><i class="caret"></i></span>
+          <span class="demo-note" data-i18n="ime.note">示意图：节点宽度随输入增长，不产生折行</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="themes">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="th.eyebrow">配色</p>
+      <h2 data-i18n="th.title">8 套主题，开箱就好看</h2>
+      <p class="section-lead" data-i18n="th.lead">下面是这 8 套主题在应用里的真实取色，不是设计师另外调的一套。</p>
+      <div class="theme-grid" id="theme-grid"></div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="in.eyebrow">安装</p>
+      <h2 data-i18n="in.title">三步，不到一分钟</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="n">01</div>
+          <h3 data-i18n="in.s1t">下载 dmg</h3>
+          <p data-i18n="in.s1d">从 Releases 取最新版，当前构建是 Universal（Apple Silicon 与 Intel 都能跑）。</p>
+        </div>
+        <div class="step">
+          <div class="n">02</div>
+          <h3 data-i18n="in.s2t">拖进 Applications</h3>
+          <p data-i18n="in.s2d">打开 dmg，把 Mindscape 拖到 Applications 文件夹，然后推出磁盘映像。</p>
+        </div>
+        <div class="step">
+          <div class="n">03</div>
+          <h3 data-i18n="in.s3t">第一次打开</h3>
+          <p data-i18n="in.s3d">右键 →「打开」，或按下面的命令去掉隔离属性。之后就正常双击启动。</p>
+        </div>
+      </div>
+
+      <div class="caution">
+        <span class="ico">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        </span>
+        <div>
+          <p data-i18n="in.warn">当前版本是 ad-hoc 签名、没有公证，Gatekeeper 可能拦住首次启动。用这条命令去掉隔离属性即可（只需一次）：</p>
+          <pre><code>xattr -dr com.apple.quarantine /Applications/Mindscape.app</code></pre>
+        </div>
+      </div>
+
+      <p class="migrate" data-i18n="in.migrate">从 XMind / FreeMind 来？在源应用里导出 <b>OPML</b>，回到 Mindscape 按 ⇧⌘I 导入即可，结构和文字都会保留。<a href="https://github.com/jiuxianzai/Mindscape#%E4%BB%8E-xmind--freemind-%E8%BF%81%E7%A7%BB">详细步骤 →</a></p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <div>
+      <span data-i18n="ft.made">用 SwiftUI 和 Core Graphics 手写。</span>
+      <span>© 2026 jiuxianzai · MIT</span>
+    </div>
+    <div class="foot-links">
+      <a href="https://github.com/jiuxianzai/Mindscape">GitHub</a>
+      <a href="https://github.com/jiuxianzai/Mindscape/releases" data-i18n="ft.rel">版本发布</a>
+      <a href="https://github.com/jiuxianzai/Mindscape/blob/main/CHANGELOG.md" data-i18n="ft.log">更新日志</a>
+      <a href="README.en.md">English</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+const THEMES = [
+  {id:'paper',    zh:'纸白',  en:'Paper',     bg:'#FAF8F4', fg:'#23211E', pill:'#23211E', pillFg:'#FBFAF7', dark:false},
+  {id:'midnight', zh:'深空',  en:'Midnight',  bg:'#0E0F13', fg:'#D9DBE4', pill:'#7C9CFF', pillFg:'#0E0F13', dark:true},
+  {id:'morandi',  zh:'莫兰迪', en:'Morandi',   bg:'#F1EFEA', fg:'#3F443D', pill:'#6C7A6E', pillFg:'#F7F8F5', dark:false},
+  {id:'corporate',zh:'商务蓝', en:'Corporate', bg:'#F6F8FC', fg:'#233A56', pill:'#2F6FEB', pillFg:'#FFFFFF', dark:false},
+  {id:'blueprint',zh:'蓝图',  en:'Blueprint', bg:'#0F2A44', fg:'#CFE3F5', pill:'#6FB3E0', pillFg:'#0F2A44', dark:true},
+  {id:'neon',     zh:'霓虹',  en:'Neon',      bg:'#0A0A0E', fg:'#D7D7E2', pill:'#C8FF4D', pillFg:'#0A0A0E', dark:true},
+  {id:'sand',     zh:'暖砂',  en:'Sand',      bg:'#F7F0E7', fg:'#4A382B', pill:'#8A5A3B', pillFg:'#FFF9F2', dark:false},
+  {id:'ink',      zh:'墨线',  en:'Ink',       bg:'#F4F4F4', fg:'#2A2A2A', pill:'#111111', pillFg:'#FFFFFF', dark:false}
+];
+
+const I18N = {
+  zh: {
+    'nav.features':'功能','nav.themes':'布局与主题','nav.install':'安装','nav.github':'GitHub',
+    'hero.badge':'早期版本 · 持续更新',
+    'hero.lead':'一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不联网、不订阅。',
+    'hero.cta':'下载 dmg','hero.src':'查看源码',
+    'meta.tests':'个测试','meta.zero':'零第三方依赖',
+    'stat.size':'完整安装包','stat.deps':'第三方依赖','stat.loc':'行 Swift','stat.tests':'个 XCTest',
+    'why.eyebrow':'为什么是 Mindscape','why.title':'不是又一个网页套壳的思维导图',
+    'why.lead':'画布是自绘的 NSView，不是 WebView。所以大图缩放跟手、启动即时、安装包只有 3.9 MB。',
+    'f1.t':'原生性能','f1.d':'自绘 Core Graphics 画布，缩放时直接变换坐标系，而不是缩放上千个视图。大图拖拽、折叠都不掉帧。',
+    'f2.t':'数据是一个文件','f2.d':'所有导图存在一个 SQLite 文件里，WAL 模式自动保存。断网可用，没有账号，没有遥测，代码里根本没有网络层。',
+    'f3.t':'8 种布局 · 8 套主题','f3.d':'思维导图、逻辑图、组织架构、树形、时间轴、括号图、自由布局。主题只影响画布，窗口跟随系统深浅色。',
+    'f4.t':'大纲 · 搜索 · 专注','f4.d':'⇧⌘O 打开与画布双向同步的大纲，⌘F 输入即定位，⇧⌘F 只留当前分支。长图不至于迷路。',
+    'f5.t':'演示模式','f5.d':'⇧⌘P 按一级分支自动分页的独立演示窗口，每页保留上下文，适合会议讲解与评审。',
+    'f6.t':'能带走','f6.d':'PNG（1x/2x/3x）、矢量 PDF、Markdown、OPML、JSON 五种导出，也能导入 Markdown / OPML / JSON。文件永远是你的。',
+    'ime.eyebrow':'中文输入法','ime.title':'打字的时候，节点跟着长，不跳',
+    'ime.p1':'用网页技术做的思维导图，中文组字几乎是通病：拼音还没上屏，节点先按假名宽度折了行，候选一选完又弹回去，光标和候选框分离。',
+    'ime.l1':'组字时节点按候选实时变宽，不会「先折行再弹回」',
+    'ime.l2':'字号与画布严格一致，任何缩放比例下都不跳',
+    'ime.l3':'候选框始终贴着光标，长文本自动换行、左右内边距对称',
+    'ime.l4':'Enter 提交、Shift+Enter 换行、Esc 取消并恢复',
+    'ime.demo':'组字中 · 节点随候选变宽','ime.word':'思维导图','ime.note':'示意图：节点宽度随输入增长，不产生折行',
+    'th.eyebrow':'配色','th.title':'8 套主题，开箱就好看','th.lead':'下面是这 8 套主题在应用里的真实取色，不是设计师另外调的一套。',
+    'in.eyebrow':'安装','in.title':'三步，不到一分钟',
+    'in.s1t':'下载 dmg','in.s1d':'从 Releases 取最新版，当前构建是 Universal（Apple Silicon 与 Intel 都能跑）。',
+    'in.s2t':'拖进 Applications','in.s2d':'打开 dmg，把 Mindscape 拖到 Applications 文件夹，然后推出磁盘映像。',
+    'in.s3t':'第一次打开','in.s3d':'右键 →「打开」，或按下面的命令去掉隔离属性。之后就正常双击启动。',
+    'in.warn':'当前版本是 ad-hoc 签名、没有公证，Gatekeeper 可能拦住首次启动。用这条命令去掉隔离属性即可（只需一次）：',
+    'in.migrate':'从 XMind / FreeMind 来？在源应用里导出 <b>OPML</b>，回到 Mindscape 按 ⇧⌘I 导入即可，结构和文字都会保留。<a href="https://github.com/jiuxianzai/Mindscape#%E4%BB%8E-xmind--freemind-%E8%BF%81%E7%A7%BB">详细步骤 →</a>',
+    'ft.made':'用 SwiftUI 和 Core Graphics 手写。','ft.rel':'版本发布','ft.log':'更新日志'
+  },
+  en: {
+    'nav.features':'Features','nav.themes':'Layouts & themes','nav.install':'Install','nav.github':'GitHub',
+    'hero.badge':'Early release · actively built',
+    'hero.lead':'A 3.9 MB native mind map for macOS. Everything lives in one SQLite file — no account, no cloud, no subscription.',
+    'hero.cta':'Download dmg','hero.src':'View source',
+    'meta.tests':'tests','meta.zero':'zero dependencies',
+    'stat.size':'app bundle','stat.deps':'dependencies','stat.loc':'lines of Swift','stat.tests':'XCTest cases',
+    'why.eyebrow':'Why Mindscape','why.title':'Not another web app in a window',
+    'why.lead':'The canvas is a hand-drawn NSView, not a WebView. Large maps stay responsive, launch is instant, and the whole app is 3.9 MB.',
+    'f1.t':'Native performance','f1.d':'A Core Graphics canvas that transforms the coordinate system instead of scaling thousands of views. Panning and collapsing large maps stay smooth.',
+    'f2.t':'Your data is one file','f2.d':'Every map lives in a single SQLite file with WAL autosave. Works offline, no account, no telemetry — there is no networking layer in the code.',
+    'f3.t':'8 layouts · 8 themes','f3.d':'Mind map, logic chart, org chart, tree, timeline, brace map, free-form. Themes only affect the canvas; the window follows the system appearance.',
+    'f4.t':'Outline · search · focus','f4.d':'⇧⌘O opens an outline synced with the canvas, ⌘F locates as you type, ⇧⌘F keeps only the current branch. Long maps stop being a maze.',
+    'f5.t':'Presentation mode','f5.d':'⇧⌘P opens a separate window paginated by first-level branches, keeping context on every page — good for reviews and walkthroughs.',
+    'f6.t':'Easy to leave','f6.d':'Export to PNG (1x/2x/3x), vector PDF, Markdown, OPML, and JSON; import Markdown, OPML, and JSON. The files are always yours.',
+    'ime.eyebrow':'CJK input methods','ime.title':'Nodes grow as you type, without the jump',
+    'ime.p1':'Mind maps built on web technology tend to break on CJK composition: the node wraps to the width of the uncommitted pinyin, then snaps back once you pick a candidate, leaving the caret and candidate window out of sync.',
+    'ime.l1':'The node widens with each candidate instead of wrapping and snapping back',
+    'ime.l2':'Text size matches the canvas exactly at every zoom level',
+    'ime.l3':'The candidate window stays glued to the caret; long text wraps with symmetric padding',
+    'ime.l4':'Enter commits, Shift+Enter adds a line, Esc cancels and restores',
+    'ime.demo':'Composing · node grows with candidates','ime.word':'Mindscape','ime.note':'Illustration: the node grows as you type instead of wrapping',
+    'th.eyebrow':'Colour','th.title':'Eight themes that already look finished','th.lead':'These are the exact colours used in the app, not a separate palette made for this page.',
+    'in.eyebrow':'Install','in.title':'Three steps, under a minute',
+    'in.s1t':'Download the dmg','in.s1d':'Grab the latest build from Releases. It is Universal — Apple Silicon and Intel both work.',
+    'in.s2t':'Drag it into Applications','in.s2d':'Open the dmg, drag Mindscape into Applications, then eject the disk image.',
+    'in.s3t':'First launch','in.s3d':'Right-click → Open, or run the command below to clear the quarantine flag. After that, double-click works normally.',
+    'in.warn':'This build is ad-hoc signed and not notarized, so Gatekeeper may block the first launch. Clear the quarantine flag once:',
+    'in.migrate':'Coming from XMind or FreeMind? Export <b>OPML</b> from the source app, then press ⇧⌘I in Mindscape — structure and text come across. <a href="https://github.com/jiuxianzai/Mindscape/blob/main/README.en.md#coming-from-xmind-mindnode-or-freemind">Details →</a>',
+    'ft.made':'Written by hand with SwiftUI and Core Graphics.','ft.rel':'Releases','ft.log':'Changelog'
+  }
+};
+
+function renderThemes(lang){
+  const grid = document.getElementById('theme-grid');
+  grid.innerHTML = THEMES.map(t => `
+    <div class="swatch ${t.dark ? 'dark' : ''}" style="background:${t.bg};color:${t.fg}">
+      <span class="pill" style="background:${t.pill};color:${t.pillFg}">${lang === 'zh' ? t.zh : t.en}</span>
+      <span class="nm">${t.id}</span>
+    </div>`).join('');
+}
+
+function setLang(lang){
+  document.documentElement.setAttribute('data-lang', lang);
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  const dict = I18N[lang];
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const v = dict[el.getAttribute('data-i18n')];
+    if (v !== undefined) el.innerHTML = v;
+  });
+  document.getElementById('btn-zh').setAttribute('aria-pressed', lang === 'zh');
+  document.getElementById('btn-en').setAttribute('aria-pressed', lang === 'en');
+  localStorage.setItem('mindscape-lang', lang);
+  renderThemes(lang);
+}
+
+// 首屏语言：URL 参数 > 本地偏好 > 浏览器语言
+(function initLang(){
+  const forced = new URLSearchParams(location.search).get('lang');
+  const saved = localStorage.getItem('mindscape-lang');
+  const guess = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  setLang(forced === 'en' || forced === 'zh' ? forced : (saved || guess));
+})();
+
+// 下载按钮跟着最新 release 走
+(async function latestRelease(){
+  try {
+    const res = await fetch('https://api.github.com/repos/jiuxianzai/Mindscape/releases/latest');
+    if (!res.ok) return;
+    const rel = await res.json();
+    const dmg = (rel.assets || []).find(a => a.name.endsWith('.dmg'));
+    if (!dmg) return;
+    document.querySelectorAll('[data-download]').forEach(a => { a.href = dmg.browser_download_url; });
+    document.querySelectorAll('[data-filesize]').forEach(e => { e.textContent = (dmg.size / 1048576).toFixed(1) + ' MB'; });
+    document.querySelectorAll('[data-version]').forEach(e => { e.textContent = rel.tag_name; });
+  } catch (_) { /* 保持静态回退链接 */ }
+})();
+
+// 导航滚动阴影
+addEventListener('scroll', () => {
+  document.getElementById('nav').classList.toggle('scrolled', scrollY > 8);
+}, {passive:true});
+</script>
+</body>
+</html>
