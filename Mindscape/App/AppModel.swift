@@ -75,9 +75,39 @@ final class AppModel {
             }
         })
 
+        // AI 投递的图可能是在 app 关着的时候写进来的；激活时补一次
+        observers.append(NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.refreshQuietly()
+                AIInbox.shared.scanPending()
+                AIInbox.shared.publishContext()
+            }
+        })
+
         if let first = documents.first {
             selectDocument(first.id)
         }
+
+        startAIInbox()
+    }
+
+    // MARK: - AI 投递
+
+    private func startAIInbox() {
+        AIInbox.shared.start(
+            store: store,
+            editorProvider: { [weak self] in self?.editor },
+            onImported: { [weak self] id in
+                guard let self else { return }
+                self.reload()
+                self.selectDocument(id)
+            }
+        )
     }
 
     // MARK: - Lists
@@ -233,7 +263,11 @@ final class AppModel {
         newEditor.onSaved = { [weak self] in
             self?.refreshQuietly()
         }
+        newEditor.onSelectionChanged = {
+            AIInbox.shared.publishContext()
+        }
         editor = newEditor
+        AIInbox.shared.publishContext()
     }
 
     // MARK: - Create

@@ -20,6 +20,10 @@ final class MapEditor {
     private(set) var centerNodeID: UUID?
 
     var onSaved: (() -> Void)?
+    /// 选中变化（AI 集成用来写 outbox/state.json）
+    var onSelectionChanged: (() -> Void)?
+    /// 正在内联编辑的节点，由画布同步；AI 写入前的忙判定要用
+    var editingNodeID: UUID?
 
     private let store: DocumentStore
     private var undoStack: [MindMap] = []
@@ -52,6 +56,7 @@ final class MapEditor {
             selection = [id]
         }
         revision += 1
+        onSelectionChanged?()
     }
 
     /// 请求画布把节点居中；由画布在下次布局时消费。
@@ -69,6 +74,7 @@ final class MapEditor {
         guard !selection.isEmpty else { return }
         selection = []
         revision += 1
+        onSelectionChanged?()
     }
 
     /// 框选、全选等批量选择入口
@@ -77,6 +83,7 @@ final class MapEditor {
         guard valid != selection else { return }
         selection = valid
         revision += 1
+        onSelectionChanged?()
     }
 
     func selectAll() {
@@ -85,6 +92,25 @@ final class MapEditor {
 
     var selectedNodes: [MindNode] {
         map.nodes.filter { selection.contains($0.id) }
+    }
+
+    /// 有还没落盘的改动：600ms 防抖窗口内，或保存失败等下次重试。
+    /// `saveTask` 在 scheduleSave 里建、在 saveNow 里清，天然就是这个信号。
+    var hasPendingSave: Bool { saveTask != nil }
+
+    /// AI 在外部改完并已落库后，把新模型装回编辑器。
+    /// 保留撤销（⌘Z 能撤掉 AI 的改动），不触发 scheduleSave（数据已经在库里了）。
+    func applyExternal(_ newMap: MindMap) {
+        guard newMap.id == map.id else { return }
+        undoStack.append(map)
+        trim(&undoStack)
+        redoStack.removeAll()
+        map = newMap
+        let valid = Set(map.nodes.map(\.id))
+        selection.formIntersection(valid)
+        if let focusNodeID, !valid.contains(focusNodeID) { self.focusNodeID = nil }
+        if let branchZoomNodeID, !valid.contains(branchZoomNodeID) { self.branchZoomNodeID = nil }
+        revision += 1
     }
 
     // MARK: - Structure
@@ -520,7 +546,10 @@ final class MapEditor {
             let x = entries.map(\.1.minX).min() ?? 0
             for (id, frame) in entries { positions[id] = CGPoint(x: x, y: frame.minY) }
         case .alignCenterX:
-            let center = (entries.map(\.1.minX).min() ?? 0) + ((entries.map(\.1.maxX).max() ?? 0) - (entries.map(\.1.minX).min() ?? 0)) / 2
+            // 拆成两步：整段写在一条表达式里，Swift 6 编译器会报 "type-check in reasonable time"
+            let minX = entries.map(\.1.minX).min() ?? 0
+            let maxX = entries.map(\.1.maxX).max() ?? 0
+            let center = minX + (maxX - minX) / 2
             for (id, frame) in entries { positions[id] = CGPoint(x: center - frame.width / 2, y: frame.minY) }
         case .alignRight:
             let x = entries.map(\.1.maxX).max() ?? 0
@@ -529,7 +558,9 @@ final class MapEditor {
             let y = entries.map(\.1.minY).min() ?? 0
             for (id, frame) in entries { positions[id] = CGPoint(x: frame.minX, y: y) }
         case .alignMiddleY:
-            let center = (entries.map(\.1.minY).min() ?? 0) + ((entries.map(\.1.maxY).max() ?? 0) - (entries.map(\.1.minY).min() ?? 0)) / 2
+            let minY = entries.map(\.1.minY).min() ?? 0
+            let maxY = entries.map(\.1.maxY).max() ?? 0
+            let center = minY + (maxY - minY) / 2
             for (id, frame) in entries { positions[id] = CGPoint(x: frame.minX, y: center - frame.height / 2) }
         case .alignBottom:
             let y = entries.map(\.1.maxY).max() ?? 0

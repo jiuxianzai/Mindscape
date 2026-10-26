@@ -235,6 +235,7 @@ struct GeneralSettingsContent: View {
     @Environment(AppModel.self) private var app
     @AppStorage("defaultThemeID") private var themeID = MapTheme.defaultThemeID
     @AppStorage("defaultLayout") private var layoutRaw = MapLayout.mindMap.rawValue
+    @AppStorage("aiInboxEnabled") private var aiInboxEnabled = true
 
     @State private var errorMessage: String?
 
@@ -276,6 +277,20 @@ struct GeneralSettingsContent: View {
                                 .controlSize(.small)
                             }
                         }
+                    }
+                }
+            }
+
+            SettingsSection("AI 集成") {
+                SettingsCard {
+                    settingsRow("允许 AI 写入", subtitle: "监听数据目录下的 inbox，接受 agent 投递的导图") {
+                        Toggle("", isOn: $aiInboxEnabled)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                            .onChange(of: aiInboxEnabled) { _, newValue in
+                                AIInbox.shared.setEnabled(newValue)
+                            }
                     }
                 }
             }

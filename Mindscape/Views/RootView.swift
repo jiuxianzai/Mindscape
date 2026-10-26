@@ -29,5 +29,15 @@ struct RootView: View {
         } message: {
             Text(app.startupError ?? "")
         }
+        .overlay(alignment: .top) {
+            if let message = AIInbox.shared.lastRejection {
+                AIRejectionBanner(message: message) {
+                    AIInbox.shared.dismissBanner()
+                }
+                .padding(.top, 10)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: AIInbox.shared.lastRejection)
     }
 }

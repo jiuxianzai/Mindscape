@@ -1946,6 +1946,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
         editTextView = textView
         editingID = id
+        editor.editingNodeID = id
         editingOriginalText = node.text
         appliedEditingFont = font
         textView.onMarkedTextChange = { [weak self] in
@@ -2075,6 +2076,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         let text = textView.string.trimmingCharacters(in: .whitespacesAndNewlines)
 
         editingID = nil
+        editor?.editingNodeID = nil
         editTextView = nil
         editingOriginalText = ""
         appliedEditingFont = nil
@@ -2104,6 +2106,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         let original = editingOriginalText
 
         editingID = nil
+        editor?.editingNodeID = nil
         editTextView = nil
         editingOriginalText = ""
         appliedEditingFont = nil
