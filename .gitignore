@@ -17,3 +17,7 @@ xcuserdata/
 *.mobileprovision
 *.cer
 *.key
+
+# Python（tools/ 与 tests/）
+__pycache__/
+*.pyc

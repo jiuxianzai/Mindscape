@@ -187,6 +187,23 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ---
 
+### AI 集成（实验性）
+
+把「AI 画图」接进来的最小通道：agent 往数据目录的 `inbox/` 投一个 JSON，app 负责转成导图并落库。
+
+- 支持 MCP（stdio）与命令行两种调用方式，同一份实现：`tools/mindscape.py`
+- 新建整张图、修改已有图（加子节点、改文字/颜色/备注、换布局主题）、读取当前在看什么
+- **不会覆盖你正在编辑的图**：有未保存改动或光标在输入框里时，写入会被拒绝并回 `busy`
+- app 没开着时请求排队，下次启动自动导入；每次 AI 写入前都会留一份快照，可在「历史版本」回滚
+- 协议与改动点见 [AI-INTEGRATION.md](AI-INTEGRATION.md)，agent 侧用法见 [skills/mindscape-draw/SKILL.md](skills/mindscape-draw/SKILL.md)
+
+```bash
+python3 tools/mindscape.py create -f plan.json     # 或注册成 MCP server
+python3 tools/mindscape.py mcp
+```
+
+需要在「设置 → 通用 → AI 集成」里打开开关。
+
 ## 从 XMind / FreeMind 迁移
 
 目前还不能直接读 `.xmind` 文件，但 **OPML 是现成的桥**——XMind、MindNode、FreeMind 都能导出它。
@@ -358,7 +375,11 @@ Mindscape/
 │   ├── Support/                # 颜色、相对时间、快捷键、导入导出、本地化
 │   ├── en.lproj/               # 英文本地化
 │   └── Assets.xcassets/        # AppIcon / BrandMark
-└── MindscapeTests/             # XCTest：模型、布局、画布交互、渲染回归
+├── MindscapeTests/             # XCTest：模型、布局、画布交互、渲染回归
+├── tools/mindscape.py          # AI 通道：CLI + MCP server（Python 3，零依赖）
+├── skills/mindscape-draw/      # 给 agent 用的技能说明
+├── tests/                      # AI 通道的协议测试与夹具
+└── scripts/                    # typecheck / 无 Xcode 构建 / AI 转换器测试
 ```
 
 ---

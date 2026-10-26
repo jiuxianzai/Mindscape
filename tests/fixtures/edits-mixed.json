@@ -1,0 +1,6 @@
+[
+  { "kind": "addChildren", "target": { "path": ["Q4", "风险"] }, "nodes": [{ "text": "预算" }, { "text": "人手" }] },
+  { "kind": "setText", "target": { "path": ["Q4"] }, "text": "Q4 规划" },
+  { "kind": "setColor", "target": { "path": ["Q4", "风险"] }, "color": "#8C857B" },
+  { "kind": "setNote", "target": { "path": ["Q4", "风险"] }, "note": "两个风险" }
+]

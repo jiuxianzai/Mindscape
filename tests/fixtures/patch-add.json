@@ -1,0 +1,10 @@
+{
+  "op": "patch",
+  "doc": "11111111-2222-3333-4444-555555555555",
+  "baseUpdatedAt": 1730000000.0,
+  "edits": [
+    { "kind": "addChildren", "target": { "path": ["Q4 规划", "风险"] },
+      "nodes": [{ "text": "人手不足", "color": "#8C857B" }] },
+    { "kind": "setText", "target": { "id": "aaa" }, "text": "增长（修订）" }
+  ]
+}

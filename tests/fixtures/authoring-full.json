@@ -1,0 +1,38 @@
+{
+  "op": "create",
+  "title": "Q4 规划",
+  "layout": "timeline",
+  "theme": "ink",
+  "tree": {
+    "text": "Q4 规划",
+    "note": "北极星：DAU 提升 30%",
+    "icon": "target",
+    "children": [
+      {
+        "text": "增长",
+        "children": [
+          {
+            "text": "渠道"
+          },
+          {
+            "text": "留存"
+          }
+        ]
+      },
+      {
+        "text": "风险",
+        "color": "#C26A4A",
+        "children": [
+          {
+            "text": "预算超支"
+          }
+        ]
+      },
+      {
+        "text": "排期",
+        "icon": "calendar",
+        "note": "10 月启动"
+      }
+    ]
+  }
+}

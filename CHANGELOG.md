@@ -2,6 +2,26 @@
 
 本项目从 0.5.0 开始记录变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循语义化版本。
 
+## [Unreleased]
+
+### 新增
+
+- **AI 集成（实验性）**：数据目录下新增 `inbox/`、`outbox/`，agent 投递一个 JSON 就能新建或修改导图；
+  app 侧负责校验、转换、落库与回执，内部数据结构不对外暴露。
+- `tools/mindscape.py`：同一份实现的 CLI 与 MCP stdio server（Python 3 标准库，零依赖）。
+- `skills/mindscape-draw/`：给 agent 的技能说明与写作规范。
+- 设置 → 通用 → 「AI 集成」开关，默认开启；关闭后 app 行为与之前完全一致。
+
+### 修复
+
+- 有未保存改动或正在内联编辑的文档会被拒绝外部写入并返回 `busy`，不再可能被整图覆盖。
+- 自由布局的「水平居中 / 垂直居中」表达式拆开书写，避免 Swift 6 编译器报
+  "unable to type-check this expression in reasonable time"。
+
+### 测试
+
+- `tests/`：27 个协议/校验用例；`tests/ai_inbox_format/`：转换器与 patch 断言（`scripts/test-aibridge.sh`，不需要 Xcode 工程）。
+
 ## [0.5.3] - 2026-10-23
 
 ### 改进

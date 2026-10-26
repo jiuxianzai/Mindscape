@@ -1,0 +1,1 @@
+[{ "kind": "move", "target": { "path": ["根", "A"] }, "newParent": { "path": ["根", "B"] } }]
