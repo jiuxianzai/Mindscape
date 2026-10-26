@@ -383,6 +383,7 @@ M1 可完全脱离 app 验证；M2 起每次改动都能 typecheck + 手工跑�
 | `tests/fixtures/*.json` | 金样本：最小 / 完整 / patch / 非法 | 两侧共用 |
 | `Mindscape/Support/AIInboxFormat.swift` | authoring → `MindMap` 转换、patch、校验 | `scripts/test-aibridge.sh`（无 UI，无需 Xcode 工程） |
 | `tests/ai_inbox_format/main.swift` | 转换器断言：树形、寻址、原子性、上限 | 同上 |
+| `tests/editor_state/EditorStateTests.swift` | 忙信号（`hasPendingSave` / `editingNodeID`）与 `applyExternal` 的撤销语义 | `scripts/test-editor-state.sh` |
 | `Mindscape/Support/AIInbox.swift` | 目录监听、忙判定、ack、outbox | 类型检查 + §11 手工清单 |
 | `Mindscape/Views/AIRejectionBanner.swift` | 拒绝提示条 | 同上 |
 | `Mindscape/Editor/MapEditor.swift` | `hasPendingSave` / `editingNodeID` / `applyExternal` | 同上 |
@@ -396,6 +397,7 @@ M1 可完全脱离 app 验证；M2 起每次改动都能 typecheck + 手工跑�
 ```bash
 python3 -m unittest discover -s tests -v     # 工具侧，现在就能跑
 scripts/test-aibridge.sh                     # 转换器，需要 Swift 5.9+
+scripts/test-editor-state.sh                 # 忙判定与撤销语义，需要 Swift 5.9+
 scripts/typecheck.sh                         # 全量类型检查，需要 Swift 5.9+
 ```
 

@@ -20,7 +20,8 @@
 
 ### 测试
 
-- `tests/`：27 个协议/校验用例；`tests/ai_inbox_format/`：转换器与 patch 断言（`scripts/test-aibridge.sh`，不需要 Xcode 工程）。
+- `tests/`：27 个协议/校验用例；`tests/ai_inbox_format/`：转换器与 patch 断言（`scripts/test-aibridge.sh`）；
+  `tests/editor_state/`：忙判定与 `applyExternal` 撤销语义（`scripts/test-editor-state.sh`）。两者都不需要 Xcode 工程。
 
 ## [0.5.3] - 2026-10-23
 

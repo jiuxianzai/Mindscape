@@ -41,6 +41,7 @@ dev:
 check:
 	python3 -m unittest discover -s tests -v
 	bash scripts/test-aibridge.sh
+	bash scripts/test-editor-state.sh
 	bash scripts/typecheck.sh
 
 clean:
