@@ -44,6 +44,8 @@ struct MapCanvasRepresentable: NSViewRepresentable {
 
 struct WorkspaceView: View {
     @Bindable var editor: MapEditor
+    @ObservedObject private var shortcuts = ShortcutStore.shared
+    @AppStorage("mindscape.didMultiSelect") private var didMultiSelect = false
     @State private var showHistory = false
     @State private var showInspector = true
     @State private var showExport = false
@@ -53,6 +55,17 @@ struct WorkspaceView: View {
     @State private var searchIndex = 0
     @State private var canvasBridge = CanvasBridge()
     @State private var showThemePicker = false
+
+    private var selectionHint: String? {
+        let symbol = shortcuts.selectionModifier.symbol
+        if editor.selection.count > 1 {
+            return "已选 \(editor.selection.count) 个 · Delete 删除 · 拖动任一节点整组移动"
+        }
+        if editor.selection.count == 1, !didMultiSelect {
+            return "\(symbol) 点击加选 · \(symbol) 拖拽空白框选 · Delete 删除"
+        }
+        return nil
+    }
 
     private var matches: [UUID] {
         guard showSearch else { return [] }
@@ -143,6 +156,24 @@ struct WorkspaceView: View {
             CanvasZoomBar(bridge: canvasBridge)
                 .padding(.bottom, 16)
         }
+        .overlay(alignment: .bottomLeading) {
+            if let selectionHint {
+                Text(selectionHint)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.regularMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
+                    )
+                    .padding(.leading, 16)
+                    .padding(.bottom, 58)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.16), value: selectionHint)
         .overlay(alignment: .topLeading) {
             if let id = editor.focusNodeID, let node = editor.map.node(id) {
                 focusChip(node)
@@ -153,6 +184,9 @@ struct WorkspaceView: View {
         .onChange(of: searchText) { _, _ in
             searchIndex = 0
             revealCurrentMatch()
+        }
+        .onChange(of: editor.selection.count) { _, count in
+            if count > 1 { didMultiSelect = true }
         }
     }
 

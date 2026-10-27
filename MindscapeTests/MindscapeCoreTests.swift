@@ -687,12 +687,13 @@ private func mouseEvent(
     _ type: NSEvent.EventType,
     at windowPoint: NSPoint,
     in window: NSWindow,
-    clickCount: Int = 1
+    clickCount: Int = 1,
+    modifiers: NSEvent.ModifierFlags = []
 ) -> NSEvent? {
     NSEvent.mouseEvent(
         with: type,
         location: windowPoint,
-        modifierFlags: [],
+        modifierFlags: modifiers,
         timestamp: ProcessInfo.processInfo.systemUptime,
         windowNumber: window.windowNumber,
         context: nil,
@@ -1680,6 +1681,168 @@ extension MindscapeFeatureTests {
 
         XCTAssertEqual(editor.map.node(budget.id)?.parentID, target.id)
         XCTAssertEqual(editor.map.node(risk.id)?.parentID, target.id, "只移动了按下的那个节点")
+    }
+
+    /// Shift 点击可以加选 / 取消选择
+    func testShiftClickTogglesSelection() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        editor.select(budget.id)
+
+        let layout = LayoutEngine.layout(editor.map)
+        let riskPoint = canvas.convert(
+            canvas.worldToView(try XCTUnwrap(layout.frames[risk.id]).center),
+            to: nil
+        )
+
+        canvas.mouseDown(with: try XCTUnwrap(
+            mouseEvent(.leftMouseDown, at: riskPoint, in: window, modifiers: [.shift])
+        ))
+        canvas.mouseUp(with: try XCTUnwrap(
+            mouseEvent(.leftMouseUp, at: riskPoint, in: window, modifiers: [.shift])
+        ))
+        XCTAssertEqual(editor.selection, [budget.id, risk.id])
+
+        canvas.mouseDown(with: try XCTUnwrap(
+            mouseEvent(.leftMouseDown, at: riskPoint, in: window, modifiers: [.shift])
+        ))
+        canvas.mouseUp(with: try XCTUnwrap(
+            mouseEvent(.leftMouseUp, at: riskPoint, in: window, modifiers: [.shift])
+        ))
+        XCTAssertEqual(editor.selection, [budget.id], "Shift 再次点击没有取消选择")
+    }
+
+    /// 多选修饰键改成 ⌘ 后，⌘ 点击加选、Shift 点击恢复为普通单选
+    func testSelectionModifierCanBeChangedToCommand() throws {
+        let shortcuts = ShortcutStore.shared
+        let old = shortcuts.selectionModifier
+        shortcuts.setSelectionModifier(.command)
+        defer { shortcuts.setSelectionModifier(old) }
+
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        editor.select(budget.id)
+
+        let layout = LayoutEngine.layout(editor.map)
+        let riskPoint = canvas.convert(
+            canvas.worldToView(try XCTUnwrap(layout.frames[risk.id]).center),
+            to: nil
+        )
+
+        canvas.mouseDown(with: try XCTUnwrap(
+            mouseEvent(.leftMouseDown, at: riskPoint, in: window, modifiers: [.command])
+        ))
+        canvas.mouseUp(with: try XCTUnwrap(
+            mouseEvent(.leftMouseUp, at: riskPoint, in: window, modifiers: [.command])
+        ))
+        XCTAssertEqual(editor.selection, [budget.id, risk.id], "⌘ 点击没有加选")
+
+        canvas.mouseDown(with: try XCTUnwrap(
+            mouseEvent(.leftMouseDown, at: riskPoint, in: window, modifiers: [.shift])
+        ))
+        canvas.mouseUp(with: try XCTUnwrap(
+            mouseEvent(.leftMouseUp, at: riskPoint, in: window, modifiers: [.shift])
+        ))
+        XCTAssertEqual(editor.selection, [risk.id], "改成 ⌘ 后 Shift 仍被当成多选修饰键")
+    }
+
+    /// 自由布局整组拖动：两个节点位移完全一致，相对位置不变
+    func testDraggingFreeSelectionKeepsRelativeOffsets() throws {
+        let editor = try makeEditor(layout: .free)
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        editor.setSelection([budget.id, risk.id])
+        let layout = LayoutEngine.layout(editor.map)
+        let budgetFrame = try XCTUnwrap(layout.frames[budget.id])
+        let riskFrame = try XCTUnwrap(layout.frames[risk.id])
+
+        let start = canvas.convert(canvas.worldToView(budgetFrame.center), to: nil)
+        let endWorld = CGPoint(x: budgetFrame.midX + 60, y: budgetFrame.midY + 45)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        // ⌘ 关闭吸附，位移才能精确断言
+        canvas.mouseDragged(with: try XCTUnwrap(
+            mouseEvent(.leftMouseDragged, at: end, in: window, modifiers: [.command])
+        ))
+        canvas.mouseUp(with: try XCTUnwrap(
+            mouseEvent(.leftMouseUp, at: end, in: window, modifiers: [.command])
+        ))
+
+        let budgetPosition = try XCTUnwrap(editor.map.node(budget.id)?.position)
+        let riskPosition = try XCTUnwrap(editor.map.node(risk.id)?.position)
+        XCTAssertEqual(budgetPosition.x - budgetFrame.minX, 60, accuracy: 0.5)
+        XCTAssertEqual(budgetPosition.y - budgetFrame.minY, 45, accuracy: 0.5)
+        XCTAssertEqual(riskPosition.x - riskFrame.minX, 60, accuracy: 0.5)
+        XCTAssertEqual(riskPosition.y - riskFrame.minY, 45, accuracy: 0.5)
+        XCTAssertEqual(
+            budgetPosition.x - riskPosition.x,
+            budgetFrame.minX - riskFrame.minX,
+            accuracy: 0.5,
+            "整组拖动后相对位置变了"
+        )
+    }
+
+    /// 单选拖动必须保持原有行为，不能因为批量逻辑影响单节点
+    func testDraggingSingleNodeStillReparentsOnlyIt() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        let target = try XCTUnwrap(node(editor, "目标"))
+        editor.select(budget.id)
+        let riskParent = risk.parentID
+
+        let layout = LayoutEngine.layout(editor.map)
+        let start = canvas.convert(canvas.worldToView(try XCTUnwrap(layout.frames[budget.id]).center), to: nil)
+        let end = canvas.convert(canvas.worldToView(try XCTUnwrap(layout.frames[target.id]).center), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
+
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, target.id)
+        XCTAssertEqual(editor.map.node(risk.id)?.parentID, riskParent, "未选中的节点被一起移动了")
+    }
+
+    /// 自定义「删除节点」快捷键后，系统 Delete 键仍应删除选区
+    func testDeleteKeyStillWorksWhenShortcutIsCustomized() throws {
+        let shortcuts = ShortcutStore.shared
+        let old = shortcuts.combo(for: .deleteNode)
+        shortcuts.set(KeyCombo(key: "f12"), for: .deleteNode)
+        defer { shortcuts.set(old, for: .deleteNode) }
+
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let milestone = try XCTUnwrap(node(editor, "里程碑"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        editor.setSelection([milestone.id, risk.id])
+
+        let event = try XCTUnwrap(keyEvent("\u{7F}", keyCode: 51, in: window))
+        canvas.keyDown(with: event)
+
+        XCTAssertNil(editor.map.node(milestone.id))
+        XCTAssertNil(editor.map.node(risk.id))
     }
 }
 

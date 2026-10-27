@@ -696,6 +696,16 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         return []
     }
 
+    /// 设置里可选的多选修饰键（默认 Shift）。⌘ 点击始终保留为加选，兼容旧习惯。
+    private var selectionModifierFlag: NSEvent.ModifierFlags {
+        ShortcutStore.shared.selectionModifier.flag
+    }
+
+    private func isAdditiveSelection(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        return flags.contains(selectionModifierFlag) || flags.contains(.command)
+    }
+
     private func drawGrid(in context: CGContext) {
         guard theme.showsGrid, camera.zoom > 0.4 else { return }
         let step = 26 / camera.zoom
@@ -975,7 +985,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
         if let id = hitTest(worldPoint: worldPoint) {
             hoveredConnectorParentID = nil
-            let additive = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
+            let additive = isAdditiveSelection(event)
             let wasSelected = editor?.selection.contains(id) ?? false
             let hadMultiple = (editor?.selection.count ?? 0) > 1
             var canDrag = true
@@ -1008,7 +1018,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             }
             needsDisplay = true
         } else {
-            if event.modifierFlags.contains(.shift) {
+            if event.modifierFlags.contains(selectionModifierFlag) {
                 let base = editor?.selection ?? []
                 drag = .marquee(startPoint: point, base: base)
                 marqueeRect = CGRect(origin: point, size: .zero)
