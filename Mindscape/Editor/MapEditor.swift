@@ -960,8 +960,34 @@ final class MapEditor {
         (try? store.snapshots(for: map.id)) ?? []
     }
 
-    func createSnapshot(name: String = String(localized: "手动快照")) {
-        try? store.addSnapshot(map, name: name, kind: "manual")
+    @discardableResult
+    func createSnapshot(name: String = String(localized: "手动快照")) -> Bool {
+        do {
+            try store.addSnapshot(map, name: name, kind: "manual")
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func renameSnapshot(id: UUID, name: String) -> Bool {
+        do {
+            try store.renameSnapshot(id: id, name: name)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func deleteSnapshot(id: UUID) -> Bool {
+        do {
+            try store.deleteSnapshot(id: id)
+            return true
+        } catch {
+            return false
+        }
     }
 
     func restore(snapshot: SnapshotRecord) {

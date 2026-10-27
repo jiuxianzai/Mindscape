@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-160-brightgreen?style=flat-square" alt="160 tests">
+  <img src="https://img.shields.io/badge/tests-161-brightgreen?style=flat-square" alt="161 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.6.0-lightgrey?style=flat-square" alt="Status 0.6.0">
 </p>
@@ -112,7 +112,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 
 - Nested folders with drag-to-file, "Move to…", favorites, search, trash
 - Undo/redo up to 150 steps
-- SQLite autosave (600 ms debounce), manual snapshots plus automatic snapshots every 10 minutes
+- SQLite autosave (600 ms debounce), manual snapshots plus automatic snapshots every 10 minutes; snapshots can be renamed or deleted with confirmation
 - Version history with rollback (a snapshot is taken before each rollback)
 - Configurable data directory; each directory keeps its own `mindscape.sqlite`
 

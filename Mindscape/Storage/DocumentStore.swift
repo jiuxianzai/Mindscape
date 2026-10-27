@@ -359,6 +359,14 @@ final class DocumentStore {
         }
     }
 
+    func renameSnapshot(id: UUID, name: String) throws {
+        try db.run("UPDATE snapshots SET name = ? WHERE id = ?", [.text(name), .text(id.uuidString)])
+    }
+
+    func deleteSnapshot(id: UUID) throws {
+        try db.run("DELETE FROM snapshots WHERE id = ?", [.text(id.uuidString)])
+    }
+
     func loadSnapshot(_ id: UUID) throws -> MindMap? {
         guard let row = try db.query("SELECT content FROM snapshots WHERE id = ?", [.text(id.uuidString)]).first,
               let json = row.string("content"),

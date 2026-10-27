@@ -344,6 +344,23 @@ final class MindscapeFeatureTests: XCTestCase {
         XCTAssertTrue(editor.map.nodes.allSatisfy { !$0.collapsed })
     }
 
+    func testSnapshotCreateRenameDelete() throws {
+        let editor = try makeEditor()
+        editor.saveNow()
+        XCTAssertTrue(editor.createSnapshot(name: "提交前"))
+        let snapshots = editor.snapshots()
+        XCTAssertEqual(snapshots.count, 1)
+        let snapshot = try XCTUnwrap(snapshots.first)
+        XCTAssertEqual(snapshot.name, "提交前")
+        XCTAssertFalse(snapshot.isAuto)
+
+        XCTAssertTrue(editor.renameSnapshot(id: snapshot.id, name: "发布前"))
+        XCTAssertEqual(editor.snapshots().first?.name, "发布前")
+
+        XCTAssertTrue(editor.deleteSnapshot(id: snapshot.id))
+        XCTAssertTrue(editor.snapshots().isEmpty)
+    }
+
     func testSearchMatchesTextNoteAndIcon() throws {
         let editor = try makeEditor()
         guard let budget = node(editor, "预算"), let target = node(editor, "目标") else {

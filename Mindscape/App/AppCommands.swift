@@ -80,7 +80,11 @@ struct AppCommands: Commands {
             .appShortcut(shortcuts.combo(for: .showHistory))
 
             Button("创建快照") {
-                app.editor?.createSnapshot()
+                let success = app.editor?.createSnapshot() ?? false
+                NotificationCenter.default.post(
+                    name: .mindscapeSnapshotCreated,
+                    object: success
+                )
             }
 
             Divider()

@@ -5,6 +5,9 @@ struct InspectorView: View {
     var onShowHistory: () -> Void = {}
 
     @State private var showLayoutPicker = false
+    @State private var snapshotFeedback: String?
+    @State private var snapshotFeedbackIcon = "checkmark.circle.fill"
+    @State private var snapshotFeedbackTask: Task<Void, Never>?
 
     private var selectedNode: MindNode? {
         guard editor.selection.count == 1, let id = editor.selection.first else { return nil }
@@ -38,6 +41,22 @@ struct InspectorView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor).opacity(0.32))
         .frame(minWidth: 250)
+        .overlay(alignment: .bottom) {
+            if let snapshotFeedback {
+                Label(snapshotFeedback, systemImage: snapshotFeedbackIcon)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.regularMaterial, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
+                    .padding(.bottom, 14)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: snapshotFeedback)
+        .onDisappear {
+            snapshotFeedbackTask?.cancel()
+        }
     }
 
     private var header: some View {
@@ -302,8 +321,25 @@ struct InspectorView: View {
                     }
                 }
                 actionButton("创建快照", icon: "camera") {
-                    editor.createSnapshot()
+                    let success = editor.createSnapshot()
+                    showSnapshotFeedback(
+                        success ? "快照已创建" : "创建快照失败",
+                        success: success
+                    )
                 }
+            }
+        }
+    }
+
+    private func showSnapshotFeedback(_ message: String, success: Bool) {
+        snapshotFeedbackTask?.cancel()
+        snapshotFeedbackIcon = success ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
+        snapshotFeedback = message
+        snapshotFeedbackTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.8))
+            guard !Task.isCancelled else { return }
+            withAnimation {
+                snapshotFeedback = nil
             }
         }
     }

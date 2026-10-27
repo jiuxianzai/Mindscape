@@ -61,6 +61,9 @@ struct WorkspaceView: View {
     @State private var showThemePicker = false
     @State private var showTips = false
     @State private var tipsAutoShowTask: Task<Void, Never>?
+    @State private var snapshotToast: String?
+    @State private var snapshotToastIcon = "checkmark.circle.fill"
+    @State private var snapshotToastTask: Task<Void, Never>?
 
     private var matches: [UUID] {
         guard showSearch else { return [] }
@@ -131,8 +134,29 @@ struct WorkspaceView: View {
             showTips = false
             scheduleTipsAutoShow()
         }
+        .overlay(alignment: .bottom) {
+            if let snapshotToast {
+                Label(snapshotToast, systemImage: snapshotToastIcon)
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(.regularMaterial, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Color.primary.opacity(0.08)))
+                    .padding(.bottom, 62)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: snapshotToast)
+        .onReceive(NotificationCenter.default.publisher(for: .mindscapeSnapshotCreated)) { note in
+            let success = note.object as? Bool ?? false
+            showSnapshotToast(
+                success ? "快照已创建" : "创建快照失败",
+                success: success
+            )
+        }
         .onDisappear {
             tipsAutoShowTask?.cancel()
+            snapshotToastTask?.cancel()
         }
     }
 
@@ -190,6 +214,19 @@ struct WorkspaceView: View {
         .onChange(of: showTips) { _, isShowing in
             // 真正展示后再记账；如果锚点没准备好而没弹出来，下次还有机会。
             if isShowing { tipsGate.markShown() }
+        }
+    }
+
+    private func showSnapshotToast(_ message: String, success: Bool) {
+        snapshotToastTask?.cancel()
+        snapshotToastIcon = success ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
+        snapshotToast = message
+        snapshotToastTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.8))
+            guard !Task.isCancelled else { return }
+            withAnimation {
+                snapshotToast = nil
+            }
         }
     }
 

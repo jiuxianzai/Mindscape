@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-160-brightgreen?style=flat-square" alt="160 tests">
+  <img src="https://img.shields.io/badge/tests-161-brightgreen?style=flat-square" alt="161 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.6.0-lightgrey?style=flat-square" alt="Status 0.6.0">
 </p>
@@ -158,7 +158,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 - SQLite 自动保存（600ms 防抖）
 - 撤销 / 重做 150 步
-- 手动快照 + 每 10 分钟自动快照
+- 手动快照 + 每 10 分钟自动快照；创建成功有提示，可重命名、删除（二次确认）
 - 历史版本回滚，回滚前自动留档
 - 数据目录可更换，设置里保留「最近目录」，可一键切回
 - 每个目录的导图存在该目录自己的 `mindscape.sqlite` 中
