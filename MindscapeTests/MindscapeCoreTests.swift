@@ -2287,6 +2287,7 @@ extension MindscapeFeatureTests {
         canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
         let reorderPreview = canvas.dropPreviewFrames
         XCTAssertEqual(Set(reorderPreview.keys), editor.map.subtreeIDs(of: first.id), "虚线预览应该覆盖整棵子树")
+        XCTAssertEqual(canvas.dropPreviewParentID, parentID, "虚线预览应该连到原来的父节点")
         canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
         XCTAssertTrue(canvas.dropPreviewFrames.isEmpty, "松手后应清除落点虚线预览")
         let actualLayout = LayoutEngine.layout(editor.map)
@@ -2333,6 +2334,7 @@ extension MindscapeFeatureTests {
         canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
         let targetPreview = canvas.dropPreviewFrames
         XCTAssertEqual(Set(targetPreview.keys), subtree, "虚线预览应该覆盖整棵子树")
+        XCTAssertEqual(canvas.dropPreviewParentID, rootID, "虚线预览主节点应该连到根节点")
         for (_, frame) in targetPreview {
             XCTAssertLessThan(frame.midX, rootFrame.midX, "落点虚线预览不在左侧")
         }
@@ -2377,6 +2379,7 @@ extension MindscapeFeatureTests {
         let rootPreview = canvas.dropPreviewFrames
         let rootSubtree = editor.map.subtreeIDs(of: source.id)
         XCTAssertEqual(Set(rootPreview.keys), rootSubtree, "虚线预览应该覆盖整棵子树")
+        XCTAssertEqual(canvas.dropPreviewParentID, rootID, "虚线预览主节点应该连到根节点")
         for (_, frame) in rootPreview {
             XCTAssertLessThan(frame.midX, rootFrame.midX, "落点虚线预览不在根节点左侧")
         }

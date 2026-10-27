@@ -2,6 +2,13 @@ import AppKit
 import Foundation
 import Observation
 
+/// 思维导图拖动时的落点预览：整棵子树的虚线框 + 它未来挂到的父节点。
+struct MindMapDropPreview {
+    var frames: [UUID: CGRect]
+    var sourceID: UUID
+    var parentID: UUID?
+}
+
 @MainActor
 @Observable
 final class MapEditor {
@@ -1074,14 +1081,14 @@ final class MapEditor {
         return rightHeight <= leftHeight ? .right : .left
     }
 
-    /// 非破坏性模拟一次思维导图落点，返回整棵被拖子树在结果布局里的位置。
-    /// 只用于拖动时的虚线预览，不写入模型，也不进入撤销栈。
-    func previewMindMapDropFrames(
+    /// 非破坏性模拟一次思维导图落点，返回整棵被拖子树在结果布局里的位置，
+    /// 以及它未来挂到的父节点。只用于拖动时的虚线预览，不写入模型。
+    func previewMindMapDrop(
         sourceID: UUID,
         targetID: UUID,
         after: Bool,
         side: MindMapSide?
-    ) -> [UUID: CGRect]? {
+    ) -> MindMapDropPreview? {
         guard let source = map.node(sourceID),
               source.parentID != nil,
               map.node(targetID) != nil else { return nil }
@@ -1139,7 +1146,12 @@ final class MapEditor {
                 frames[id] = frame
             }
         }
-        return frames.isEmpty ? nil : frames
+        guard !frames.isEmpty else { return nil }
+        return MindMapDropPreview(
+            frames: frames,
+            sourceID: sourceID,
+            parentID: preview.node(sourceID)?.parentID
+        )
     }
 
     private func mindMapSideSnapshot() -> [UUID: MindMapSide] {

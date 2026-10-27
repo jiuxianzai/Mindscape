@@ -58,6 +58,8 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     private var dropTargetID: UUID?
     /// 拖动思维导图节点时，整棵被拖子树模拟出的落点虚线框（世界坐标）
     private(set) var dropPreviewFrames: [UUID: CGRect] = [:]
+    private var dropPreviewSourceID: UUID?
+    private(set) var dropPreviewParentID: UUID?
     private var dropPreviewKey: DropPreviewKey?
     private var editTextView: NSTextView?
     private var editingID: UUID?
@@ -701,10 +703,33 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     }
 
     /// 拖动时用虚线轮廓预览整棵子树最终会落到哪里。
-    /// 只画虚线，不填充、不画文字，避免和真实节点混淆。
+    /// 只画虚线，不填充、不画文字；主节点和子节点之间也用虚线连接。
     private func drawMindMapDropPreview() {
         guard !dropPreviewFrames.isEmpty else { return }
 
+        let previewIDs = Set(dropPreviewFrames.keys)
+
+        // 先画连接线，压在虚线框下面
+        if let parentID = dropPreviewParentID,
+           !previewIDs.contains(parentID),
+           let rootID = dropPreviewSourceID,
+           let parentFrame = layoutResult?.frames[parentID],
+           let rootFrame = dropPreviewFrames[rootID] {
+            drawPreviewConnector(
+                from: worldRectToView(parentFrame),
+                to: worldRectToView(rootFrame)
+            )
+        }
+        for (id, frame) in dropPreviewFrames {
+            guard let parentID = editor?.map.node(id)?.parentID,
+                  let parentFrame = dropPreviewFrames[parentID] else { continue }
+            drawPreviewConnector(
+                from: worldRectToView(parentFrame),
+                to: worldRectToView(frame)
+            )
+        }
+
+        // 再画每个节点的虚线轮廓
         for (id, frame) in dropPreviewFrames {
             let rect = worldRectToView(frame)
             guard rect.intersects(bounds.insetBy(dx: -20, dy: -20)) else { continue }
@@ -721,6 +746,31 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             path.setLineDash([6, 4], count: 2, phase: 0)
             path.stroke()
         }
+    }
+
+    /// 预览用的虚线连接线，走向和正式连接线一致，但只画虚线。
+    private func drawPreviewConnector(from parent: CGRect, to child: CGRect) {
+        let goesRight = child.midX >= parent.midX
+        let start = CGPoint(
+            x: goesRight ? parent.maxX : parent.minX,
+            y: parent.midY
+        )
+        let end = CGPoint(
+            x: goesRight ? child.minX : child.maxX,
+            y: child.midY
+        )
+        let midX = (start.x + end.x) / 2
+        let path = NSBezierPath()
+        path.move(to: start)
+        path.curve(
+            to: end,
+            controlPoint1: CGPoint(x: midX, y: start.y),
+            controlPoint2: CGPoint(x: midX, y: end.y)
+        )
+        theme.accent.withAlphaComponent(0.55).setStroke()
+        path.lineWidth = 1.3
+        path.setLineDash([6, 4], count: 2, phase: dashPhase)
+        path.stroke()
     }
 
     private func drawMarquee() {
@@ -1354,16 +1404,26 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         guard key != dropPreviewKey else { return }
         dropPreviewKey = key
 
-        dropPreviewFrames = editor.previewMindMapDropFrames(
+        if let preview = editor.previewMindMapDrop(
             sourceID: sourceID,
             targetID: target,
             after: after,
             side: side
-        ) ?? [:]
+        ) {
+            dropPreviewFrames = preview.frames
+            dropPreviewSourceID = preview.sourceID
+            dropPreviewParentID = preview.parentID
+        } else {
+            dropPreviewSourceID = nil
+            dropPreviewParentID = nil
+            dropPreviewFrames = [:]
+        }
     }
 
     private func clearMindMapDropPreview() {
         dropPreviewKey = nil
+        dropPreviewSourceID = nil
+        dropPreviewParentID = nil
         dropPreviewFrames = [:]
     }
 
