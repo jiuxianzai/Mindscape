@@ -3,7 +3,6 @@ import SwiftUI
 
 struct EmptyStateView: View {
     @Environment(AppModel.self) private var app
-    @ObservedObject private var shortcuts = ShortcutStore.shared
 
     var body: some View {
         ZStack {
@@ -44,8 +43,6 @@ struct EmptyStateView: View {
                         hint(key: "↩", text: "新节点")
                         hint(key: "Tab", text: "子节点")
                         hint(key: "双击空白", text: "新头部")
-                        hint(key: "\(shortcuts.selectionModifier.symbol) 拖拽", text: "框选")
-                        hint(key: "⌫", text: "删除")
                     }
                     .padding(.bottom, 40)
                 }

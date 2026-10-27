@@ -10,11 +10,14 @@ struct MapCanvasRepresentable: NSViewRepresentable {
     var searchMatches: Set<UUID> = []
     var activeSearchID: UUID?
     var focusDimAlpha: CGFloat = 0.35
+    /// 用户在画布上开始点击 / 输入时回调，用于收起新手提示
+    var onUserInteraction: (() -> Void)?
 
     func makeNSView(context: Context) -> MindCanvasView {
         let view = MindCanvasView(frame: .zero)
         view.isReadOnly = readOnly
         view.focusDimAlpha = focusDimAlpha
+        view.onUserInteraction = onUserInteraction
         view.attach(editor: editor, theme: MapTheme.byID(themeID))
         view.setSearchResults(searchMatches, active: activeSearchID)
         wire(view)
@@ -25,6 +28,7 @@ struct MapCanvasRepresentable: NSViewRepresentable {
         _ = revision
         nsView.isReadOnly = readOnly
         nsView.focusDimAlpha = focusDimAlpha
+        nsView.onUserInteraction = onUserInteraction
         nsView.attach(editor: editor, theme: MapTheme.byID(themeID))
         nsView.setSearchResults(searchMatches, active: activeSearchID)
         if bridge.canvas !== nsView {
@@ -43,9 +47,8 @@ struct MapCanvasRepresentable: NSViewRepresentable {
 }
 
 struct WorkspaceView: View {
+    @Environment(AppModel.self) private var app
     @Bindable var editor: MapEditor
-    @ObservedObject private var shortcuts = ShortcutStore.shared
-    @AppStorage("mindscape.didMultiSelect") private var didMultiSelect = false
     @State private var showHistory = false
     @State private var showInspector = true
     @State private var showExport = false
@@ -55,17 +58,7 @@ struct WorkspaceView: View {
     @State private var searchIndex = 0
     @State private var canvasBridge = CanvasBridge()
     @State private var showThemePicker = false
-
-    private var selectionHint: String? {
-        let symbol = shortcuts.selectionModifier.symbol
-        if editor.selection.count > 1 {
-            return "已选 \(editor.selection.count) 个 · Delete 删除 · 拖动任一节点整组移动"
-        }
-        if editor.selection.count == 1, !didMultiSelect {
-            return "\(symbol) 点击加选 · \(symbol) 拖拽空白框选 · Delete 删除"
-        }
-        return nil
-    }
+    @State private var showTips = false
 
     private var matches: [UUID] {
         guard showSearch else { return [] }
@@ -136,7 +129,10 @@ struct WorkspaceView: View {
             themeID: editor.theme.id,
             bridge: canvasBridge,
             searchMatches: Set(matches),
-            activeSearchID: activeMatchID
+            activeSearchID: activeMatchID,
+            onUserInteraction: {
+                if showTips { showTips = false }
+            }
         )
         .background(Color(nsColor: editor.theme.background))
         .overlay(alignment: .top) {
@@ -156,24 +152,6 @@ struct WorkspaceView: View {
             CanvasZoomBar(bridge: canvasBridge)
                 .padding(.bottom, 16)
         }
-        .overlay(alignment: .bottomLeading) {
-            if let selectionHint {
-                Text(selectionHint)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.regularMaterial, in: Capsule())
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(Color.primary.opacity(0.07), lineWidth: 0.5)
-                    )
-                    .padding(.leading, 16)
-                    .padding(.bottom, 58)
-                    .transition(.opacity)
-            }
-        }
-        .animation(.easeOut(duration: 0.16), value: selectionHint)
         .overlay(alignment: .topLeading) {
             if let id = editor.focusNodeID, let node = editor.map.node(id) {
                 focusChip(node)
@@ -185,8 +163,13 @@ struct WorkspaceView: View {
             searchIndex = 0
             revealCurrentMatch()
         }
-        .onChange(of: editor.selection.count) { _, count in
-            if count > 1 { didMultiSelect = true }
+        .onAppear {
+            // 新建画布后自动展开一次；打开旧导图不会打扰。
+            guard app.consumeTipsRequest(for: editor.map.id) else { return }
+            // 等工具栏按钮完成布局再弹，避免 popover 找不到锚点。
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                showTips = true
+            }
         }
     }
 
@@ -366,6 +349,19 @@ struct WorkspaceView: View {
                 Label("导出", systemImage: "square.and.arrow.up")
             }
             .help("导出 / 分享")
+
+            Button {
+                showTips.toggle()
+            } label: {
+                Label("操作提示", systemImage: showTips ? "lightbulb.fill" : "lightbulb")
+            }
+            .help("画布操作提示")
+            .accessibilityLabel("画布操作提示")
+            .popover(isPresented: $showTips, arrowEdge: .bottom) {
+                CanvasTipsPopover(store: ShortcutStore.shared) {
+                    showTips = false
+                }
+            }
         }
     }
 }

@@ -11,6 +11,8 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     weak var editor: MapEditor?
     /// 相机缩放变化时回调，供底部缩放栏同步显示
     var onZoomChanged: ((CGFloat) -> Void)?
+    /// 用户开始在画布上点击 / 输入时回调，用于自动收起新手提示
+    var onUserInteraction: (() -> Void)?
     var currentZoom: CGFloat { camera.zoom }
 
     /// 演示模式使用：不允许编辑、拖拽和框选，但保留缩放 / 平移
@@ -953,6 +955,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         userHasInteracted = true
+        onUserInteraction?()
         if editingID != nil { commitEditing() }
 
         let point = convert(event.locationInWindow, from: nil)
@@ -1723,6 +1726,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             super.keyDown(with: event)
             return
         }
+        onUserInteraction?()
 
         if let action = ShortcutStore.shared.action(for: event, scope: .canvas) {
             perform(action, in: editor)

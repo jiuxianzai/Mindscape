@@ -1844,6 +1844,28 @@ extension MindscapeFeatureTests {
         XCTAssertNil(editor.map.node(milestone.id))
         XCTAssertNil(editor.map.node(risk.id))
     }
+
+    /// 新手提示依赖画布交互回调：点击或按键后应立即触发一次
+    func testCanvasNotifiesWhenUserStartsInteracting() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        var interactions = 0
+        canvas.onUserInteraction = { interactions += 1 }
+
+        let emptyPoint = canvas.convert(NSPoint(x: 6, y: 6), to: nil)
+        canvas.mouseDown(with: try XCTUnwrap(
+            mouseEvent(.leftMouseDown, at: emptyPoint, in: window)
+        ))
+        XCTAssertEqual(interactions, 1, "点击画布没有通知收起提示")
+
+        let event = try XCTUnwrap(keyEvent(" ", keyCode: 49, in: window))
+        canvas.keyDown(with: event)
+        XCTAssertEqual(interactions, 2, "按键开始编辑时没有通知收起提示")
+        canvas.commitEditing()
+    }
 }
 
 private extension CGRect {
