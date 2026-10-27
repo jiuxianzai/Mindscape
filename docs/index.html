@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mindscape — 本地优先的 macOS 思维导图</title>
-<meta name="description" content="一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件，不登录、不订阅，只在检查更新时联网。零第三方依赖，中文输入法打字不跳。">
+<meta name="description" content="一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件，不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。零第三方依赖，中文输入法打字不跳。">
 <link rel="icon" href="screenshots/icon.png">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Mindscape — 本地优先的 macOS 思维导图">
-<meta property="og:description" content="3.9 MB，原生 SwiftUI + 自绘画布，零第三方依赖。数据就是一个 sqlite 文件：不登录、不订阅，只在检查更新时联网。">
+<meta property="og:description" content="3.9 MB，原生 SwiftUI + 自绘画布，零第三方依赖。数据就是一个 sqlite 文件：不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。">
 <meta property="og:image" content="https://jiuxianzai.github.io/Mindscape/screenshots/main.png">
 <meta property="og:url" content="https://jiuxianzai.github.io/Mindscape/">
 <meta name="twitter:card" content="summary_large_image">
@@ -236,7 +236,7 @@
   <div class="wrap hero">
     <div class="badge"><span class="pulse"></span><b data-version>v0.5.3</b><span data-i18n="hero.badge">早期版本 · 持续更新</span></div>
     <h1 class="wordmark">Mindscape</h1>
-    <p class="lead" data-i18n="hero.lead">一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不订阅，只有检查更新时联网。</p>
+    <p class="lead" data-i18n="hero.lead">一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。</p>
     <div class="cta-row">
       <a class="btn btn-primary" href="https://github.com/jiuxianzai/Mindscape/releases/latest" data-download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/></svg>
@@ -247,7 +247,7 @@
         <span data-i18n="hero.src">查看源码</span>
       </a>
     </div>
-    <p class="meta-line"><span>macOS 14+</span><span>Universal</span><span>MIT</span><span>89 <span data-i18n="meta.tests">个测试</span></span><span data-i18n="meta.zero">零第三方依赖</span></p>
+    <p class="meta-line"><span>macOS 14+</span><span>Universal</span><span>MIT</span><span>94 <span data-i18n="meta.tests">个测试</span></span><span data-i18n="meta.zero">零第三方依赖</span></p>
   </div>
 
   <div class="wrap shot">
@@ -261,7 +261,7 @@
       <div class="stat"><b>3.9 MB</b><span data-i18n="stat.size">完整安装包</span></div>
       <div class="stat"><b>0</b><span data-i18n="stat.deps">第三方依赖</span></div>
       <div class="stat"><b>11,656</b><span data-i18n="stat.loc">行 Swift</span></div>
-      <div class="stat"><b>89</b><span data-i18n="stat.tests">个 XCTest</span></div>
+      <div class="stat"><b>94</b><span data-i18n="stat.tests">个 XCTest</span></div>
     </div>
   </div>
 
@@ -280,7 +280,7 @@
         <div class="card">
           <div class="glyph"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.66 3.58 3 8 3s8-1.34 8-3V6"/><path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg></div>
           <h3 data-i18n="f2.t">数据是一个文件</h3>
-          <p data-i18n="f2.d">所有导图存在一个 SQLite 文件里，WAL 模式自动保存。断网可用，没有账号，没有遥测；只有检查更新时会访问 GitHub。</p>
+          <p data-i18n="f2.d">所有导图存在一个 SQLite 文件里，WAL 模式自动保存。断网可用，没有账号，没有遥测；默认不联网，只在检查更新时访问 GitHub。</p>
         </div>
         <div class="card">
           <div class="glyph"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="8.5" y="14" width="7" height="7" rx="1.5"/><path d="M6.5 10v2h11v-2"/></svg></div>
@@ -420,14 +420,14 @@ const I18N = {
   zh: {
     'nav.features':'功能','nav.themes':'布局与主题','nav.install':'安装','nav.github':'GitHub',
     'hero.badge':'早期版本 · 持续更新',
-    'hero.lead':'一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不订阅，只有检查更新时联网。',
+    'hero.lead':'一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。',
     'hero.cta':'下载 dmg','hero.src':'查看源码',
     'meta.tests':'个测试','meta.zero':'零第三方依赖',
     'stat.size':'完整安装包','stat.deps':'第三方依赖','stat.loc':'行 Swift','stat.tests':'个 XCTest',
     'why.eyebrow':'为什么是 Mindscape','why.title':'不是又一个网页套壳的思维导图',
     'why.lead':'画布是自绘的 NSView，不是 WebView。所以大图缩放跟手、启动即时、安装包只有 3.9 MB。',
     'f1.t':'原生性能','f1.d':'自绘 Core Graphics 画布，缩放时直接变换坐标系，而不是缩放上千个视图。大图拖拽、折叠都不掉帧。',
-    'f2.t':'数据是一个文件','f2.d':'所有导图存在一个 SQLite 文件里，WAL 模式自动保存。断网可用，没有账号，没有遥测；只有检查更新时会访问 GitHub。',
+    'f2.t':'数据是一个文件','f2.d':'所有导图存在一个 SQLite 文件里，WAL 模式自动保存。断网可用，没有账号，没有遥测；默认不联网，只在检查更新时访问 GitHub。',
     'f3.t':'8 种布局 · 8 套主题','f3.d':'思维导图、逻辑图、组织架构、树形、时间轴、括号图、自由布局。主题只影响画布，窗口跟随系统深浅色。',
     'f4.t':'大纲 · 搜索 · 专注','f4.d':'⇧⌘O 打开与画布双向同步的大纲，⌘F 输入即定位，⇧⌘F 只留当前分支。长图不至于迷路。',
     'f5.t':'演示模式','f5.d':'⇧⌘P 按一级分支自动分页的独立演示窗口，每页保留上下文，适合会议讲解与评审。',
@@ -455,14 +455,14 @@ const I18N = {
   en: {
     'nav.features':'Features','nav.themes':'Layouts & themes','nav.install':'Install','nav.github':'GitHub',
     'hero.badge':'Early release · actively built',
-    'hero.lead':'A 3.9 MB native mind map for macOS. Everything lives in one SQLite file — no account, no cloud, no subscription. It only goes online to check for updates.',
+    'hero.lead':'A 3.9 MB native mind map for macOS. Everything lives in one SQLite file — no account, no cloud, no subscription. Offline by default; it only goes online to check for updates.',
     'hero.cta':'Download dmg','hero.src':'View source',
     'meta.tests':'tests','meta.zero':'zero dependencies',
     'stat.size':'app bundle','stat.deps':'dependencies','stat.loc':'lines of Swift','stat.tests':'XCTest cases',
     'why.eyebrow':'Why Mindscape','why.title':'Not another web app in a window',
     'why.lead':'The canvas is a hand-drawn NSView, not a WebView. Large maps stay responsive, launch is instant, and the whole app is 3.9 MB.',
     'f1.t':'Native performance','f1.d':'A Core Graphics canvas that transforms the coordinate system instead of scaling thousands of views. Panning and collapsing large maps stay smooth.',
-    'f2.t':'Your data is one file','f2.d':'Every map lives in a single SQLite file with WAL autosave. Works offline, no account, no telemetry — GitHub is contacted only for update checks.',
+    'f2.t':'Your data is one file','f2.d':'Every map lives in a single SQLite file with WAL autosave. Offline by default, no account, no telemetry — GitHub is contacted only for update checks.',
     'f3.t':'8 layouts · 8 themes','f3.d':'Mind map, logic chart, org chart, tree, timeline, brace map, free-form. Themes only affect the canvas; the window follows the system appearance.',
     'f4.t':'Outline · search · focus','f4.d':'⇧⌘O opens an outline synced with the canvas, ⌘F locates as you type, ⇧⌘F keeps only the current branch. Long maps stop being a maze.',
     'f5.t':'Presentation mode','f5.d':'⇧⌘P opens a separate window paginated by first-level branches, keeping context on every page — good for reviews and walkthroughs.',

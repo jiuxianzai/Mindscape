@@ -104,7 +104,7 @@ final class UpdateChecker {
         self.service = service ?? GitHubUpdateService(
             configuration: GitHubUpdateConfiguration(appVersion: version.description)
         )
-        self.autoCheckEnabled = defaults.object(forKey: Key.autoCheck) as? Bool ?? true
+        self.autoCheckEnabled = defaults.object(forKey: Key.autoCheck) as? Bool ?? false
         self.lastCheckAt = defaults.object(forKey: Key.lastCheckAt) as? Date
         self.release = Self.cachedRelease(from: defaults)
     }

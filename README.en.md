@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-89-brightgreen?style=flat-square" alt="89 tests">
+  <img src="https://img.shields.io/badge/tests-94-brightgreen?style=flat-square" alt="94 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.3-lightgrey?style=flat-square" alt="Status 0.5.3">
 </p>
@@ -23,7 +23,7 @@
   <a href="README.md">中文</a> · <strong>English</strong> · <a href="https://jiuxianzai.github.io/Mindscape/">Website</a>
 </p>
 
-> Every mind map you make lives in one local SQLite file. No account, no cloud, no telemetry — the only network call is an update check.
+> Every mind map you make lives in one local SQLite file. No account, no cloud, no telemetry — offline by default, and the only network call is an update check.
 
 Mindscape is a native macOS mind-mapping app built for people who want to think on a canvas and keep the result on their own disk. It opens straight into a canvas, saves continuously, and never asks you to sign in.
 
@@ -202,7 +202,7 @@ Default data directory:
 - Change the location under **Settings → General → Data directory**
 - "Recent directories" remembers previous locations with map counts and a switch button
 - Switching directories never deletes the old data
-- No network requests except the update check; no telemetry, no account
+- Offline by default; the only network request is the update check (toggle it under Settings → General); no telemetry, no account
 
 Tables: `documents` (metadata + full map JSON + folder), `folders`, `snapshots` (version JSON), `settings`.
 

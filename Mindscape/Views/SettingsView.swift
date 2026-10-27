@@ -340,6 +340,27 @@ struct GeneralSettingsContent: View {
                     .foregroundStyle(.secondary)
             }
 
+            SettingsSection("更新") {
+                SettingsCard {
+                    VStack(spacing: 0) {
+                        settingsRow("自动检查更新", subtitle: "开启后每 24 小时访问一次 GitHub Releases") {
+                            Toggle("", isOn: Binding(
+                                get: { app.updates.autoCheckEnabled },
+                                set: { app.updates.autoCheckEnabled = $0 }
+                            ))
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                        }
+                    }
+                }
+
+                Text("默认关闭：关闭时 Mindscape 不会自动联网。手动检查更新（菜单栏「检查更新…」或 设置 → 关于）仍会访问 GitHub。")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if app.recentDataDirectories.count > 1 {
                 SettingsSection("最近目录") {
                     SettingsCard {
@@ -653,7 +674,7 @@ struct AboutSettingsContent: View {
                     Text("版本 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.0")")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
-                    Text("数据只存在本机，不需要账号；只在检查更新时访问 GitHub。")
+                    Text("数据只存在本机，不需要账号；默认不联网，检查更新时才会访问 GitHub。")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                 }
@@ -674,16 +695,6 @@ struct AboutSettingsContent: View {
             SettingsSection("更新") {
                 SettingsCard {
                     VStack(spacing: 0) {
-                        settingsRow("自动检查更新", subtitle: "启动后每 24 小时访问一次 GitHub Releases") {
-                            Toggle("", isOn: Binding(
-                                get: { app.updates.autoCheckEnabled },
-                                set: { app.updates.autoCheckEnabled = $0 }
-                            ))
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                            .controlSize(.mini)
-                        }
-                        Divider().padding(.leading, 12)
                         settingsRow("检查更新", subtitle: app.updates.statusDescription) {
                             Button(checkButtonTitle) {
                                 checkForUpdates()
@@ -693,6 +704,11 @@ struct AboutSettingsContent: View {
                         }
                     }
                 }
+
+                Text(autoCheckDescription)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack {
@@ -704,6 +720,12 @@ struct AboutSettingsContent: View {
             }
             .padding(.top, 4)
         }
+    }
+
+    private var autoCheckDescription: String {
+        app.updates.autoCheckEnabled
+            ? String(localized: "自动检查已开启：启动后每 24 小时检查一次。")
+            : String(localized: "自动检查已关闭，Mindscape 不会自动联网。可在「通用 → 更新」中开启。")
     }
 
     private var checkButtonTitle: String {

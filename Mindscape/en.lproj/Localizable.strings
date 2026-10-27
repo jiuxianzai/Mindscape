@@ -103,7 +103,6 @@
 "收藏" = "Starred";
 "放大" = "Zoom In";
 "放大 5%" = "Zoom In 5%";
-"数据只存在本机，不联网、不需要账号。" = "Data stays on this Mac. No network, no account.";
 "数据库" = "Database";
 "数据目录" = "Data Folder";
 "文件" = "File";
@@ -384,11 +383,14 @@
 "已是最新版本" = "You're up to date";
 "当前版本 %@ 已经是最新。" = "Version %@ is the latest.";
 "自动检查更新" = "Automatically check for updates";
-"启动后每 24 小时访问一次 GitHub Releases" = "Checks GitHub Releases once every 24 hours after launch";
+"开启后每 24 小时访问一次 GitHub Releases" = "Checks GitHub Releases once every 24 hours when on";
+"默认关闭：关闭时 Mindscape 不会自动联网。手动检查更新（菜单栏「检查更新…」或 设置 → 关于）仍会访问 GitHub。" = "Off by default: Mindscape never goes online automatically. Manual checks (menu bar “Check for Updates…” or Settings → About) still contact GitHub.";
+"自动检查已开启：启动后每 24 小时检查一次。" = "Automatic checks are on: once every 24 hours after launch.";
+"自动检查已关闭，Mindscape 不会自动联网。可在「通用 → 更新」中开启。" = "Automatic checks are off; Mindscape won't go online on its own. Turn them on under General → Updates.";
 "检查失败" = "Check failed";
 "更新已下载" = "Update downloaded";
 "仅更新检查" = "Update checks only";
-"数据只存在本机，不需要账号；只在检查更新时访问 GitHub。" = "Data stays on this Mac and no account is needed. GitHub is contacted only to check for updates.";
+"数据只存在本机，不需要账号；默认不联网，检查更新时才会访问 GitHub。" = "Data stays on this Mac and no account is needed. Offline by default; GitHub is contacted only for update checks.";
 "Mindscape %@ 可用" = "Mindscape %@ is available";
 "查看更新说明，下载后拖进 Applications 即可覆盖" = "See what's new, then drag it into Applications to replace the old version";
 "下载更新" = "Download Update";

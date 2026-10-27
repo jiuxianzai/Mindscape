@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-89-brightgreen?style=flat-square" alt="89 tests">
+  <img src="https://img.shields.io/badge/tests-94-brightgreen?style=flat-square" alt="94 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.3-lightgrey?style=flat-square" alt="Status 0.5.3">
 </p>
@@ -25,7 +25,7 @@
 
 > A local-first mind map app for macOS. All data lives in a local SQLite file — no account, no cloud, no telemetry.
 
-Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据全部保存在本机。它没有登录、没有云同步、不依赖任何第三方库；除了检查更新，不会发起网络请求。
+Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据全部保存在本机。它没有登录、没有云同步、不依赖任何第三方库；默认不联网，只有手动检查更新或在设置里开启自动检查时才会访问 GitHub。
 
 当前版本：**0.5.3**（早期版本，功能和数据结构仍可能调整）
 
@@ -272,7 +272,7 @@ xcodebuild test -project Mindscape.xcodeproj -scheme Mindscape -derivedDataPath 
 - 可以在「设置 → 通用 → 数据目录」更换位置
 - 「最近目录」会列出用过的目录、导图数量和切换按钮
 - 切换目录不会删除原目录的数据
-- 除检查更新外没有网络请求；没有遥测、没有账号
+- 默认不联网；只有检查更新时访问 GitHub（可在 设置 → 通用 开启或关闭自动检查），没有遥测、没有账号
 
 数据库表：
 
@@ -336,7 +336,7 @@ xcodebuild test -project Mindscape.xcodeproj -scheme Mindscape -derivedDataPath 
 - **编辑状态集中**：`MapEditor`（`@Observable`）负责编辑、撤销、自动保存；画布、属性面板、大纲、工具栏都读写它。
 - **屏幕即真相**：动画期间命中测试用当前可见帧（`displayFrames`），而不是过渡终点，避免“看得见点不到”。
 - **一个目录一个库**：文档主体存 JSON，列表/搜索所需的标题、布局、主题、节点数、目录冗余成列。
-- **本地优先**：只有检查更新会访问 GitHub，没有账号系统，没有遥测。
+- **本地优先**：默认不联网，只有检查更新会访问 GitHub；没有账号系统，没有遥测。
 
 ---
 

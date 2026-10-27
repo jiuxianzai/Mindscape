@@ -38,18 +38,20 @@ final class UpdateCheckerTests: XCTestCase {
 
     private func makeChecker(
         service: UpdateService,
+        defaults: UserDefaults? = nil,
         installedVersion: String = "0.5.3",
         now: @escaping () -> Date = Date.init,
         downloads: URL? = nil,
-        configuration: URLSessionConfiguration = .ephemeral
+        configuration: URLSessionConfiguration = .ephemeral,
+        openURL: @escaping (URL) -> Void = { _ in }
     ) -> UpdateChecker {
         UpdateChecker(
             service: service,
-            defaults: makeDefaults(),
+            defaults: defaults ?? makeDefaults(),
             installedVersion: SemanticVersion(tag: installedVersion)!,
             downloadsDirectory: downloads,
             now: now,
-            openURL: { _ in },
+            openURL: openURL,
             downloadConfiguration: configuration
         )
     }
@@ -91,6 +93,21 @@ final class UpdateCheckerTests: XCTestCase {
         XCTAssertEqual(checker.release?.version.description, "0.5.4")
         XCTAssertNotNil(checker.lastCheckAt)
         XCTAssertEqual(checker.installedVersionDescription, "0.5.3")
+    }
+
+    func testAutoCheckIsOffByDefault() {
+        let checker = makeChecker(service: StubUpdateService([]))
+        XCTAssertFalse(checker.autoCheckEnabled)
+    }
+
+    func testAutoCheckPreferencePersists() {
+        let defaults = makeDefaults()
+        let first = makeChecker(service: StubUpdateService([]), defaults: defaults)
+        XCTAssertFalse(first.autoCheckEnabled)
+
+        first.autoCheckEnabled = true
+        let second = makeChecker(service: StubUpdateService([]), defaults: defaults)
+        XCTAssertTrue(second.autoCheckEnabled)
     }
 
     func testSameVersionIsUpToDate() async {
@@ -139,6 +156,55 @@ final class UpdateCheckerTests: XCTestCase {
         await checker.check(manual: false)
         XCTAssertEqual(checker.phase, .idle)
         XCTAssertEqual(service.callCount, 2)
+    }
+
+    func testSkippedVersionPersistsAcrossLaunch() async {
+        let defaults = makeDefaults()
+        let clock = TestClock()
+
+        let first = makeChecker(
+            service: StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))]),
+            defaults: defaults,
+            now: { clock.now }
+        )
+        await first.check(manual: true)
+        XCTAssertEqual(first.phase, .available)
+        first.skipCurrentVersion()
+
+        clock.advance(hours: 25)
+        let secondService = StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))])
+        let second = makeChecker(service: secondService, defaults: defaults, now: { clock.now })
+        await second.check(manual: false)
+
+        XCTAssertEqual(second.phase, .idle, "跳过记录应跨启动生效")
+        XCTAssertEqual(secondService.callCount, 1)
+    }
+
+    func testManualCheckStillShowsSkippedVersion() async {
+        let service = StubUpdateService([
+            .success(.release(makeRelease("0.5.4"), etag: nil)),
+            .success(.release(makeRelease("0.5.4"), etag: nil))
+        ])
+        let checker = makeChecker(service: service)
+
+        await checker.check(manual: true)
+        checker.skipCurrentVersion()
+        XCTAssertEqual(checker.phase, .idle)
+
+        await checker.check(manual: true)
+        XCTAssertEqual(checker.phase, .available, "手动检查应忽略跳过记录")
+    }
+
+    func testOpenReleasePageUsesReleaseURL() async {
+        var opened: URL?
+        let checker = makeChecker(
+            service: StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))]),
+            openURL: { opened = $0 }
+        )
+        await checker.check(manual: true)
+        checker.openReleasePage()
+
+        XCTAssertEqual(opened, checker.release?.pageURL)
     }
 
     func testDismissBannerKeepsUpdateAvailable() async {
@@ -204,10 +270,12 @@ final class UpdateCheckerTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
+        var opened: URL?
         let checker = makeChecker(
             service: StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))]),
             downloads: directory,
-            configuration: Stub.configuration()
+            configuration: Stub.configuration(),
+            openURL: { opened = $0 }
         )
 
         await checker.check(manual: true)
@@ -220,6 +288,9 @@ final class UpdateCheckerTests: XCTestCase {
             try String(contentsOf: directory.appendingPathComponent("Mindscape-0.5.4.dmg"), encoding: .utf8),
             "hello"
         )
+
+        checker.openDownloaded()
+        XCTAssertEqual(opened, checker.downloadedFile, "下载完成后应能打开安装包")
     }
 
     func testDownloadWithoutChecksumStillBecomesReady() async throws {

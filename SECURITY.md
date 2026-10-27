@@ -1,6 +1,6 @@
 # Security Policy
 
-Mindscape 是纯本地应用：不登录、不上传数据；除检查更新外不联网。导图数据保存在本机 SQLite 文件中。
+Mindscape 是纯本地应用：不登录、不上传数据；默认不联网，只有检查更新时访问 GitHub。导图数据保存在本机 SQLite 文件中。
 
 ## 报告安全问题
 
