@@ -6,7 +6,8 @@ struct MindMap: Identifiable, Codable, Equatable, Sendable {
     var nodes: [MindNode] = []
     var layout: MapLayout = .mindMap
     /// 思维导图一级分支的排列方式；nil 表示旧数据，按「记住布局」处理。
-    var mindMapLayoutMode: MindMapLayoutMode?
+    /// 新导图直接写入默认值，避免依赖解码时的兜底。
+    var mindMapLayoutMode: MindMapLayoutMode? = .remember
     var themeID: String = MapTheme.defaultThemeID
     /// 浅色/深色外观下分别使用的主题；nil 表示旧数据尚未记录。
     var lightThemeID: String?

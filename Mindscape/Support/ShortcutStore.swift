@@ -96,7 +96,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
         case .redo: return KeyCombo(key: "z", command: true, shift: true)
         case .showHistory: return KeyCombo(key: "h", command: true, shift: true)
         case .fitCanvas: return KeyCombo(key: "0", command: true)
-        case .centerCanvas: return KeyCombo(key: "0", command: true, shift: true)
+        case .centerCanvas: return KeyCombo(key: "space", control: true)
         case .zoomIn: return KeyCombo(key: "=", command: true)
         case .zoomOut: return KeyCombo(key: "-", command: true)
         case .toggleInspector: return KeyCombo(key: "i", command: true, option: true)
@@ -323,6 +323,12 @@ final class ShortcutStore: ObservableObject {
         }
         if loaded[.toggleCollapse] == KeyCombo(key: "space") {
             loaded[.toggleCollapse] = KeyCombo(key: "f3")
+            migrated = true
+        }
+        // 居中画布在开发分支里短暂默认过 ⇧⌘0，正式默认改为 ⌃Space；
+        // 只迁移仍停留在旧默认值的用户，避免覆盖自定义快捷键。
+        if loaded[.centerCanvas] == KeyCombo(key: "0", command: true, shift: true) {
+            loaded[.centerCanvas] = KeyCombo(key: "space", control: true)
             migrated = true
         }
         combos = loaded

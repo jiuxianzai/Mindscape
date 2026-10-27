@@ -2142,7 +2142,7 @@ extension MindscapeFeatureTests {
     func testCenterCanvasShortcutAndRequest() throws {
         XCTAssertEqual(
             ShortcutAction.centerCanvas.defaultCombo,
-            KeyCombo(key: "0", command: true, shift: true)
+            KeyCombo(key: "space", control: true)
         )
         XCTAssertEqual(ShortcutAction.centerCanvas.scope, .menu)
         XCTAssertEqual(ShortcutAction.centerCanvas.category, "视图")
@@ -2175,6 +2175,7 @@ extension MindscapeFeatureTests {
     func testMindMapDefaultsToRememberAndSnapshotsCurrentSides() throws {
         let store = try DocumentStore(inMemory: true)
         let map = MapTemplate.project.makeMap(themeID: "paper", layout: .mindMap)
+        XCTAssertEqual(map.mindMapLayoutMode, .remember, "新导图没有显式使用记住布局")
         let before = LayoutEngine.layout(map)
         let rootID = map.rootID
         let rootFrame = try XCTUnwrap(before.frames[rootID])
@@ -2410,6 +2411,83 @@ extension MindscapeFeatureTests {
         case .right: XCTAssertGreaterThan(frame.midX, rootFrame.midX)
         case nil: XCTFail("新增分支没有左右侧")
         }
+    }
+}
+
+
+// MARK: - Clipboard
+
+extension MindscapeFeatureTests {
+    func testCopyWritesPlainTextOutline() throws {
+        let editor = try makeEditor()
+        let milestone = try XCTUnwrap(node(editor, "里程碑"))
+        editor.select(milestone.id)
+
+        XCTAssertTrue(editor.copySelection())
+        let plain = try XCTUnwrap(
+            NSPasteboard.general.string(forType: .string),
+            "复制节点后没有写入纯文本"
+        )
+        XCTAssertTrue(plain.contains("- 里程碑"))
+        XCTAssertTrue(plain.contains("  - 第一阶段"))
+        XCTAssertTrue(plain.contains("  - 上线"))
+    }
+
+    func testPastePlainTextOutlineIntoRoot() throws {
+        let editor = try makeEditor()
+        let rootID = editor.map.rootID
+        let before = editor.map.children(of: rootID).count
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString("- 根一\n  - 子一\n  - 子二\n- 根二", forType: .string)
+
+        XCTAssertTrue(editor.paste(into: rootID))
+        let children = editor.map.children(of: rootID)
+        XCTAssertEqual(children.count, before + 2)
+        XCTAssertEqual(Array(children.suffix(2)).map(\.text), ["根一", "根二"])
+        let first = try XCTUnwrap(children.first(where: { $0.text == "根一" }))
+        XCTAssertEqual(editor.map.children(of: first.id).map(\.text), ["子一", "子二"])
+        XCTAssertNotNil(editor.map.node(first.id)?.branchSide, "记住布局下粘贴的一级分支没有记录左右侧")
+    }
+
+    func testCopyPasteAcrossDocumentsKeepsRememberedSide() throws {
+        let source = try makeEditor()
+        let rootID = source.map.rootID
+        let layout = LayoutEngine.layout(source.map)
+        let rootFrame = try XCTUnwrap(layout.frames[rootID])
+        let branch = try XCTUnwrap(source.map.children(of: rootID).first(where: { branch in
+            guard let frame = layout.frames[branch.id] else { return false }
+            return frame.midX < rootFrame.midX && !source.map.children(of: branch.id).isEmpty
+        }))
+        source.select(branch.id)
+        XCTAssertTrue(source.copySelection())
+
+        let targetStore = try DocumentStore(inMemory: true)
+        let target = MapEditor(map: MindMap.blank(), store: targetStore)
+        let targetRoot = target.map.rootID
+        XCTAssertTrue(target.paste(into: targetRoot))
+
+        let pasted = try XCTUnwrap(target.map.children(of: targetRoot).first)
+        XCTAssertEqual(pasted.text, branch.text)
+        XCTAssertEqual(pasted.branchSide, branch.branchSide, "跨导图粘贴后一级分支的左右侧丢失了")
+        XCTAssertEqual(target.map.children(of: pasted.id).count, source.map.children(of: branch.id).count)
+    }
+
+    func testCutSelectionThenPasteRestoresSubtree() throws {
+        let editor = try makeEditor()
+        let rootID = editor.map.rootID
+        let milestone = try XCTUnwrap(node(editor, "里程碑"))
+        let childCount = editor.map.children(of: milestone.id).count
+
+        editor.select(milestone.id)
+        XCTAssertTrue(editor.cutSelection())
+        XCTAssertNil(editor.map.node(milestone.id))
+
+        editor.select(rootID)
+        XCTAssertTrue(editor.paste())
+        let pasted = try XCTUnwrap(editor.map.children(of: rootID).first(where: { $0.text == "里程碑" }))
+        XCTAssertEqual(editor.map.children(of: pasted.id).count, childCount)
     }
 }
 

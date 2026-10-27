@@ -16,12 +16,16 @@ enum NodeClipboard {
     private static var cached: NodeClipboardPayload?
     private static var cachedChangeCount: Int = -1
 
-    static func write(_ payload: NodeClipboardPayload) {
+    /// 同时写入自定义节点数据和纯文本大纲，方便粘贴到其它 App。
+    static func write(_ payload: NodeClipboardPayload, plainText: String? = nil) {
         cached = payload
         guard let data = try? JSONEncoder().encode(payload) else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setData(data, forType: pasteboardType)
+        if let plainText, !plainText.isEmpty {
+            pasteboard.setString(plainText, forType: .string)
+        }
         cachedChangeCount = pasteboard.changeCount
     }
 
@@ -42,8 +46,16 @@ enum NodeClipboard {
         return nil
     }
 
+    /// 剪贴板里没有节点数据时，退回系统纯文本（支持从大纲 / 聊天记录粘贴）。
+    static func readText() -> String? {
+        let pasteboard = NSPasteboard.general
+        guard let text = pasteboard.string(forType: .string),
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return text
+    }
+
     static var hasContent: Bool {
-        read() != nil
+        read() != nil || readText() != nil
     }
 
     static func clear() {

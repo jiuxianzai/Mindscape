@@ -250,6 +250,7 @@
 "大纲" = "Outline";
 "创建副本" = "Duplicate";
 "复制子树" = "Copy Branch";
+"剪切子树" = "Cut Branch";
 "复制所选" = "Copy Selected";
 "粘贴为子主题" = "Paste as Subtopic";
 "粘贴到根主题" = "Paste under Root";
@@ -258,6 +259,7 @@
 "删除所选" = "Delete Selected";
 "全选" = "Select All";
 "复制 %lld 个分支" = "Copy %lld Branches";
+"剪切 %lld 个分支" = "Cut %lld Branches";
 "创建 %lld 个副本" = "Duplicate %lld Branches";
 "已选择 %lld 个节点" = "%lld Nodes Selected";
 "批量修改会作为一次操作撤销。Shift 拖拽空白处可框选。" = "Batch changes are undone as a single action. Shift-drag on empty canvas to marquee-select.";

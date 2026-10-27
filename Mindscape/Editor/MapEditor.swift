@@ -201,7 +201,7 @@ final class MapEditor {
     @discardableResult
     func copySelection() -> Bool {
         guard let payload = clipboardPayload(for: selection) else { return false }
-        NodeClipboard.write(payload)
+        NodeClipboard.write(payload, plainText: Self.plainTextOutline(for: payload))
         return true
     }
 
@@ -212,12 +212,22 @@ final class MapEditor {
         return true
     }
 
-    /// 把剪贴板里的分支粘贴到目标节点下面；默认粘贴到当前选中节点
+    /// 把剪贴板里的分支粘贴到目标节点下面；默认粘贴到当前选中节点。
+    /// 如果剪贴板里没有节点数据，就把纯文本按缩进 / 列表层级转成节点。
     @discardableResult
     func paste(into targetID: UUID? = nil) -> Bool {
-        guard let payload = NodeClipboard.read() else { return false }
         let target = targetID ?? selectedNodes.first?.id ?? map.rootID
         guard map.node(target) != nil else { return false }
+        if let payload = NodeClipboard.read() {
+            return pastePayload(payload, into: target)
+        }
+        if let text = NodeClipboard.readText() {
+            return pasteText(text, into: target)
+        }
+        return false
+    }
+
+    private func pastePayload(_ payload: NodeClipboardPayload, into target: UUID) -> Bool {
         var newRoots: [UUID] = []
         mutate { map in
             if let index = map.nodes.firstIndex(where: { $0.id == target }) {
@@ -229,6 +239,120 @@ final class MapEditor {
         selection = Set(newRoots)
         requestCenter(newRoots.first)
         return true
+    }
+
+    private struct OutlineLine {
+        let indent: Int
+        let text: String
+    }
+
+    /// 纯文本按缩进转成树：每行一个节点，缩进更深的行挂到上一行下面。
+    private func pasteText(_ text: String, into target: UUID) -> Bool {
+        let lines = Self.outlineLines(from: text)
+        guard !lines.isEmpty else { return false }
+        let minimumIndent = lines.map(\.indent).min() ?? 0
+        var stack: [(indent: Int, id: UUID)] = []
+        var newNodes: [MindNode] = []
+        var newRoots: [UUID] = []
+        var nextOrders: [UUID: Int] = [:]
+
+        for line in lines {
+            let indent = max(line.indent - minimumIndent, 0)
+            while let last = stack.last, last.indent >= indent {
+                stack.removeLast()
+            }
+            let parentID = stack.last?.id ?? target
+            let order: Int
+            if let next = nextOrders[parentID] {
+                order = next
+            } else {
+                order = (map.children(of: parentID).map(\.order).max() ?? -1) + 1
+            }
+            nextOrders[parentID] = order + 1
+
+            let node = MindNode(parentID: parentID, text: line.text, order: order)
+            newNodes.append(node)
+            if parentID == target {
+                newRoots.append(node.id)
+            }
+            stack.append((indent, node.id))
+        }
+
+        guard !newNodes.isEmpty else { return false }
+        mutate { map in
+            if let index = map.nodes.firstIndex(where: { $0.id == target }) {
+                map.nodes[index].collapsed = false
+            }
+            map.nodes.append(contentsOf: newNodes)
+            Self.assignMissingMindMapSides(in: &map)
+        }
+        selection = Set(newRoots)
+        requestCenter(newRoots.first)
+        return true
+    }
+
+    private static func outlineLines(from text: String) -> [OutlineLine] {
+        var result: [OutlineLine] = []
+        for rawLine in text.components(separatedBy: .newlines) {
+            let line = rawLine.replacingOccurrences(of: "\r", with: "")
+            let expanded = line.replacingOccurrences(of: "\t", with: "    ")
+            let trimmed = expanded.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+            let content = strippingListPrefix(trimmed)
+            guard !content.isEmpty else { continue }
+            let indent = expanded.prefix { $0 == " " }.count
+            result.append(OutlineLine(indent: indent, text: content))
+        }
+        return result
+    }
+
+    /// 去掉 Markdown 列表 / 编号 / 标题前缀，保留节点文字本身。
+    private static func strippingListPrefix(_ line: String) -> String {
+        var content = line
+        if content.hasPrefix("- ") || content.hasPrefix("* ")
+            || content.hasPrefix("+ ") || content.hasPrefix("• ") {
+            content.removeFirst(2)
+        } else if let range = content.range(of: #"^\d+[.)]\s+"#, options: .regularExpression) {
+            content.removeSubrange(range)
+        } else if content.hasPrefix("#") {
+            let hashes = content.prefix { $0 == "#" }
+            let rest = content.dropFirst(hashes.count)
+            if rest.first == " " {
+                content = String(rest.dropFirst())
+            }
+        }
+        return content.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// 把复制的子树序列化成缩进 Markdown 列表，写入系统剪贴板，
+    /// 这样节点也能直接粘贴到聊天、笔记等其它 App。
+    private static func plainTextOutline(for payload: NodeClipboardPayload) -> String {
+        var byID: [UUID: MindNode] = [:]
+        for node in payload.nodes { byID[node.id] = node }
+        var children: [UUID: [MindNode]] = [:]
+        for node in payload.nodes {
+            guard let parentID = node.parentID, byID[parentID] != nil else { continue }
+            children[parentID, default: []].append(node)
+        }
+        for key in children.keys {
+            children[key]?.sort { $0.order < $1.order }
+        }
+
+        var lines: [String] = []
+        var stack: [(UUID, Int)] = payload.rootIDs.reversed().map { ($0, 0) }
+        while let (id, depth) = stack.popLast() {
+            guard let node = byID[id] else { continue }
+            let text = node.text
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "\r", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let content = text.isEmpty ? String(localized: "未命名") : text
+            lines.append(String(repeating: "  ", count: depth) + "- " + content)
+            for child in (children[id] ?? []).reversed() {
+                stack.append((child.id, depth + 1))
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     /// 创建副本：复制选中分支，挂到原节点同一父级下面

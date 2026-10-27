@@ -1586,6 +1586,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         }
 
         menu.addItem(.separator())
+        menu.addItem(menuItem(loc("剪切子树"), #selector(menuCut), enabled: canDeleteNode(id)))
         menu.addItem(menuItem(loc("复制子树"), #selector(menuCopy)))
         menu.addItem(menuItem(loc("创建副本"), #selector(menuDuplicate)))
         menu.addItem(menuItem(loc("粘贴为子主题"), #selector(menuPaste), enabled: NodeClipboard.hasContent))
@@ -1619,6 +1620,11 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     private func batchContextMenu() -> NSMenu {
         let menu = NSMenu()
         let count = editor?.selection.count ?? 0
+        menu.addItem(menuItem(
+            String(format: loc("剪切 %lld 个分支"), count),
+            #selector(menuCut),
+            enabled: editor?.selection.contains(where: { canDeleteNode($0) }) ?? false
+        ))
         menu.addItem(menuItem(String(format: loc("复制 %lld 个分支"), count), #selector(menuCopy)))
         menu.addItem(menuItem(String(format: loc("创建 %lld 个副本"), count), #selector(menuDuplicate)))
         menu.addItem(menuItem(loc("粘贴为子主题"), #selector(menuPaste), enabled: NodeClipboard.hasContent))
@@ -1727,6 +1733,10 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     @objc private func menuClearIcons() {
         guard let ids = editor?.selection else { return }
         editor?.setIcon(nil, for: ids)
+    }
+
+    @objc private func menuCut() {
+        performStructuralEdit { editor?.cutSelection() }
     }
 
     @objc private func menuCopy() {
