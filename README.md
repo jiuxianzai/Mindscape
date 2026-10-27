@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
   <img src="https://img.shields.io/badge/tests-161-brightgreen?style=flat-square" alt="161 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.6.1-lightgrey?style=flat-square" alt="Status 0.6.1">
+  <img src="https://img.shields.io/badge/status-0.6.2-lightgrey?style=flat-square" alt="Status 0.6.2">
 </p>
 
 <p align="center">
@@ -27,13 +27,11 @@
 
 Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据全部保存在本机。它没有登录、没有云同步、不依赖任何第三方库；默认不联网，只有手动检查更新或在设置里开启自动检查时才会访问 GitHub。
 
-当前版本：**0.6.1**（功能和数据结构仍可能调整）
+当前版本：**0.6.2**（功能和数据结构仍可能调整）
 
-### 0.6.1 修复
+### 0.6.2 修复
 
-- 自由布局支持按住 ⌥ 拖到目标节点迁移父子关系，保留位置、不自动重排
-- 首启操作提示延后到更新与 Agent 弹窗全部关闭后展示，灯泡首次点击恢复正常
-- 快照创建增加成功/失败提示，支持重命名与删除（删除前二次确认）
+- 空格进入节点编辑后点击画布，不再误删整个节点
 
 ---
 
@@ -235,7 +233,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ### 下载
 
-**下载**：[`Mindscape-0.6.1.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.1/Mindscape-0.6.1.dmg)，打开后把 Mindscape 拖进 Applications。
+**下载**：[`Mindscape-0.6.2.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.2/Mindscape-0.6.2.dmg)，打开后把 Mindscape 拖进 Applications。
 
 当前构建为 **ad-hoc 签名**，没有 notarization。首次打开如果被 Gatekeeper 拦下：
 
@@ -263,7 +261,7 @@ open Mindscape.xcodeproj
 打包与本地安装：
 
 ```bash
-make package    # 生成 dist/Mindscape-0.6.1.dmg、.zip 和 .dmg.sha256
+make package    # 生成 dist/Mindscape-0.6.2.dmg、.zip 和 .dmg.sha256
 make publish    # 用 gh 创建 GitHub Release（需已 gh auth login）
 make install    # 安装到 /Applications 并启动
 ```
