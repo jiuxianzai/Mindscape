@@ -25,10 +25,9 @@ enum AgentOnboarding {
         alert.alertStyle = .informational
         alert.icon = NSImage(named: "BrandMark")
         alert.messageText = String(localized: "安装 AI Agent Skill？")
-        alert.informativeText = String(localized: "开启后会给本机已检测到的 Agent 安装一份说明书：Claude Code、Codex、DSH、OpenCode。默认关闭，不会联网；之后可在「设置 → AI Agent」中随时安装或更新。安装后需在「设置 → AI Agent」开启开关，Agent 才能连接。\n\n安装后对 Agent 说：「请阅读 ~/.agents/skills/mindscape/SKILL.md，然后通过 Mindscape 建一张导图。」\n\n详细教程：https://jiuxianzai.github.io/Mindscape/#ai-agent")
+        alert.informativeText = String(localized: "给已检测到的 Agent 安装本地说明书（Claude Code / Codex / DSH / OpenCode）。默认关闭，不联网；之后可在「设置 → AI Agent」安装或更新。装好后需开启开关，Agent 才能连接。\n\n安装后对 Agent 说：「请阅读 ~/.agents/skills/mindscape/SKILL.md 建一张导图。」\n\n教程：jiuxianzai.github.io/Mindscape/#ai-agent")
         alert.addButton(withTitle: String(localized: "暂不"))
         alert.addButton(withTitle: String(localized: "一键安装"))
-        widen(alert)
 
         alert.beginSheetModal(for: window) { response in
             defaults.set(true, forKey: didAskKey)
@@ -89,7 +88,6 @@ enum AgentOnboarding {
         alert.addButton(withTitle: String(localized: "复制这句话"))
         alert.addButton(withTitle: String(localized: "查看教程"))
         alert.addButton(withTitle: String(localized: "完成"))
-        widen(alert)
 
         alert.beginSheetModal(for: window) { response in
             switch response {
@@ -102,12 +100,6 @@ enum AgentOnboarding {
                 break
             }
         }
-    }
-
-    /// NSAlert 默认宽度约 420，长教程文案会在右侧留下很大的换行空白。
-    /// 用一个透明 accessory 把 sheet 撑到 700，正文会自然占满。
-    private static func widen(_ alert: NSAlert) {
-        alert.accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: 700, height: 1))
     }
 
     private static var mainWindow: NSWindow? {

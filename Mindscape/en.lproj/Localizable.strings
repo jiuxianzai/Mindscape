@@ -436,7 +436,7 @@
 "浅色" = "Light";
 "深色" = "Dark";
 "安装 AI Agent Skill？" = "Install AI Agent Skills?";
-"开启后会给本机已检测到的 Agent 安装一份说明书：Claude Code、Codex、DSH、OpenCode。默认关闭，不会联网；之后可在「设置 → AI Agent」中随时安装或更新。安装后需在「设置 → AI Agent」开启开关，Agent 才能连接。\n\n安装后对 Agent 说：「请阅读 ~/.agents/skills/mindscape/SKILL.md，然后通过 Mindscape 建一张导图。」\n\n详细教程：https://jiuxianzai.github.io/Mindscape/#ai-agent" = "Installs a skill manual for detected agents: Claude Code, Codex, DSH, and OpenCode. Off by default; nothing is sent online. You can install or update later under Settings → AI Agent. After installing, enable the switch in Settings → AI Agent before an agent can connect.\n\nAfter installing, tell the agent: “Read ~/.agents/skills/mindscape/SKILL.md and create a mind map with Mindscape.”\n\nGuide: https://jiuxianzai.github.io/Mindscape/#ai-agent";
+"给已检测到的 Agent 安装本地说明书（Claude Code / Codex / DSH / OpenCode）。默认关闭，不联网；之后可在「设置 → AI Agent」安装或更新。装好后需开启开关，Agent 才能连接。\n\n安装后对 Agent 说：「请阅读 ~/.agents/skills/mindscape/SKILL.md 建一张导图。」\n\n教程：jiuxianzai.github.io/Mindscape/#ai-agent" = "Installs a local skill for detected agents (Claude Code / Codex / DSH / OpenCode). Off by default; no network. Install or update later in Settings → AI Agent. Enable the switch before an agent can connect.\n\nAfter installing, say: “Read ~/.agents/skills/mindscape/SKILL.md and create a mind map.”\n\nGuide: jiuxianzai.github.io/Mindscape/#ai-agent";
 "一键安装" = "Install All";
 "AI Agent Skill 安装失败" = "Couldn't Install AI Agent Skills";
 "已安装到 %lld 个 Agent。使用前请在「设置 → AI Agent」开启开关；之后可在同一页更新或重新安装。" = "Installed for %lld agents. Enable the switch in Settings → AI Agent before use; update or reinstall on the same page.";
