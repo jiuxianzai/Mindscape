@@ -14,9 +14,9 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-161-brightgreen?style=flat-square" alt="161 tests">
+  <img src="https://img.shields.io/badge/tests-167-brightgreen?style=flat-square" alt="167 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.6.2-lightgrey?style=flat-square" alt="Status 0.6.2">
+  <img src="https://img.shields.io/badge/status-0.6.3-lightgrey?style=flat-square" alt="Status 0.6.3">
 </p>
 
 <p align="center">
@@ -27,11 +27,13 @@
 
 Mindscape is a native macOS mind-mapping app built for people who want to think on a canvas and keep the result on their own disk. It opens straight into a canvas, saves continuously, and never asks you to sign in.
 
-**Current version: 0.6.2** — features and the data format may still change.
+**Current version: 0.6.3** — features and the data format may still change.
 
-### What's fixed in 0.6.2
+### What's fixed in 0.6.3
 
-- Pressing Space to edit a node and then clicking the canvas no longer deletes the node
+- Empty edits no longer delete the node or its subtree: the center node falls back to “Central Topic”, other nodes to “New Topic”
+- Auto-checks run on every launch; dismissing the banner keeps the same version quiet after relaunch
+- “Open Installer Only” is now the default in the install alert, so Return no longer quits the app; failures show an inline message
 
 ---
 
@@ -143,7 +145,7 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 
 ### Download
 
-Download [`Mindscape-0.6.2.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.2/Mindscape-0.6.2.dmg), open it, and drag Mindscape into Applications.
+Download [`Mindscape-0.6.3.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.3/Mindscape-0.6.3.dmg), open it, and drag Mindscape into Applications.
 
 This build is **ad-hoc signed and not notarized**. If Gatekeeper blocks the first launch, run:
 
@@ -168,7 +170,7 @@ xcodegen generate && open Mindscape.xcodeproj
 Packaging and local install:
 
 ```bash
-make package    # writes dist/Mindscape-0.6.2.dmg, .zip, and .dmg.sha256
+make package    # writes dist/Mindscape-0.6.3.dmg, .zip, and .dmg.sha256
 make publish    # creates the GitHub Release via gh (requires gh auth login)
 make install    # installs to /Applications and launches
 ```
@@ -275,7 +277,7 @@ Tables: `documents` (metadata + full map JSON + folder), `folders`, `snapshots` 
 | Icons | SF Symbols (102 symbols) |
 | Storage | System `libsqlite3`, WAL mode |
 | Project | XcodeGen (`project.yml`) |
-| Tests | XCTest, 67 cases including canvas interaction and render regressions |
+| Tests | XCTest, 167 cases including canvas interaction and render regressions |
 | Minimum OS | macOS 14 |
 | Architecture | Universal (arm64 + x86_64) |
 | Third-party dependencies | None |
