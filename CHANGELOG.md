@@ -6,6 +6,8 @@
 
 ## [0.6.0-beta.1] - 2026-10-27
 
+> 新增本地 OpenAPI 与 AI Agent Skill，一键接入四大 Agent；新增 Agent 设置页、首启安装引导、外观切换和按文件记忆的浅/深主题。
+
 ### 亮点
 
 - 本地 OpenAPI 网关与 AI Agent Skill：一键接入 Claude Code、Codex、DSH、OpenCode。
