@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
   <img src="https://img.shields.io/badge/tests-102-brightgreen?style=flat-square" alt="102 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.5.3-lightgrey?style=flat-square" alt="Status 0.5.3">
+  <img src="https://img.shields.io/badge/status-0.5.4-lightgrey?style=flat-square" alt="Status 0.5.4">
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 
 Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据全部保存在本机。它没有登录、没有云同步、不依赖任何第三方库；默认不联网，只有手动检查更新或在设置里开启自动检查时才会访问 GitHub。
 
-当前版本：**0.5.3**（早期版本，功能和数据结构仍可能调整）
+当前版本：**0.5.4**（早期版本，功能和数据结构仍可能调整）
 
 ---
 
@@ -68,6 +68,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 - **开箱好看**：8 套主题、8 种布局、现代留白与陶土色视觉，不需要自己调样式。
 - **真的能整理**：多级目录、大纲视图、全图搜索、专注模式、收藏、回收站。
 - **能带走**：PNG、PDF、Markdown、OPML、JSON 五种导出，也能导入 Markdown / OPML / JSON。
+- **更新不打扰**：默认不自动联网；首次启动只询问一次是否自动检查，下载后校验 SHA-256。
 
 ---
 
@@ -182,8 +183,16 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 - 最近导图
 - 清空回收站（带确认）
 - 设置
+- 检查更新
 - 在 Finder 中打开数据目录
 - 退出
+
+### 应用内更新
+
+- 设置 → 关于 或菜单栏「检查更新…」手动检查 GitHub Releases
+- 首次启动询问一次是否自动检查，默认关闭；之后可在 设置 → 通用 → 更新 修改
+- 更新窗口展示版本说明与包大小，下载 DMG 后校验 SHA-256，再打开安装包
+- API 限流时自动降级到 Releases Atom / 302，网络与校验都在后台执行，不阻塞界面
 
 ---
 
@@ -217,7 +226,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ### 下载
 
-从 [Releases](https://github.com/jiuxianzai/Mindscape/releases) 下载 `Mindscape-0.5.3.dmg`，打开后把 Mindscape 拖进 Applications。
+从 [Releases](https://github.com/jiuxianzai/Mindscape/releases) 下载 `Mindscape-0.5.4.dmg`，打开后把 Mindscape 拖进 Applications。
 
 应用内也可以检查更新：**设置 → 关于 → 检查更新**，或菜单栏的「检查更新…」。首次启动会询问一次是否开启自动检查（默认关闭）；下载完成后会校验 SHA-256 并打开 DMG，仍然需要手动拖进 Applications 覆盖旧版本。
 
@@ -247,7 +256,7 @@ open Mindscape.xcodeproj
 打包与本地安装：
 
 ```bash
-make package    # 生成 dist/Mindscape-0.5.3.dmg、.zip 和 .dmg.sha256
+make package    # 生成 dist/Mindscape-0.5.4.dmg、.zip 和 .dmg.sha256
 make publish    # 用 gh 创建 GitHub Release（需已 gh auth login）
 make install    # 安装到 /Applications 并启动
 ```

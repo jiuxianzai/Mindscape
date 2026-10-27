@@ -2,7 +2,7 @@
 
 本项目从 0.5.0 开始记录变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循语义化版本。
 
-## [Unreleased]
+## [0.5.4] - 2026-10-27
 
 ### 新增
 

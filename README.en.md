@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
   <img src="https://img.shields.io/badge/tests-102-brightgreen?style=flat-square" alt="102 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.5.3-lightgrey?style=flat-square" alt="Status 0.5.3">
+  <img src="https://img.shields.io/badge/status-0.5.4-lightgrey?style=flat-square" alt="Status 0.5.4">
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 
 Mindscape is a native macOS mind-mapping app built for people who want to think on a canvas and keep the result on their own disk. It opens straight into a canvas, saves continuously, and never asks you to sign in.
 
-**Current version: 0.5.3** — early software. Features and the data format may still change.
+**Current version: 0.5.4** — early software. Features and the data format may still change.
 
 ---
 
@@ -64,6 +64,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 - **Good-looking out of the box.** 8 themes and 8 layouts. You don't have to style anything.
 - **Actually organized.** Nested folders, an outline panel, full-map search, focus mode, favorites, and a trash can.
 - **Easy to leave.** Export to PNG, PDF, Markdown, OPML, and JSON; import Markdown, OPML, and JSON.
+- **Quiet updates.** No automatic network access by default; the app asks once on first launch, and verifies downloads with SHA-256.
 
 ---
 
@@ -119,7 +120,14 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 
 ### Menu bar
 
-Always-available menu bar item: open the app, quick new map, new from template, recent maps, empty trash, settings, reveal data folder in Finder, quit.
+Always-available menu bar item: open the app, quick new map, new from template, recent maps, empty trash, settings, check for updates, reveal data folder in Finder, quit.
+
+### Updates
+
+- Check manually under Settings → About or from the menu bar's “Check for Updates…”
+- The first launch asks once whether to check automatically (off by default); change it later under Settings → General → Updates
+- The update window shows release notes and download size; the DMG is verified with SHA-256 before it opens
+- If the GitHub API is rate-limited, the app falls back to the Releases Atom feed and then a 302 redirect; network and verification run off the main thread
 
 ---
 
@@ -127,7 +135,9 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 
 ### Download
 
-Grab `Mindscape-0.5.3.dmg` from [Releases](https://github.com/jiuxianzai/Mindscape/releases), open it, and drag Mindscape into Applications.
+Grab `Mindscape-0.5.4.dmg` from [Releases](https://github.com/jiuxianzai/Mindscape/releases), open it, and drag Mindscape into Applications.
+
+You can also check for updates in-app: **Settings → About → Check for Updates**, or the menu bar. The first launch asks once whether to check automatically (off by default); downloads are verified with SHA-256 before the DMG opens.
 
 This build is **ad-hoc signed and not notarized**. If Gatekeeper blocks the first launch, run:
 
@@ -152,7 +162,8 @@ xcodegen generate && open Mindscape.xcodeproj
 Packaging and local install:
 
 ```bash
-make package    # writes dist/Mindscape-0.5.3.dmg and .zip
+make package    # writes dist/Mindscape-0.5.4.dmg, .zip, and .dmg.sha256
+make publish    # creates the GitHub Release via gh (requires gh auth login)
 make install    # installs to /Applications and launches
 ```
 

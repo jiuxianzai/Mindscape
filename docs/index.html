@@ -234,7 +234,7 @@
 
 <main id="top">
   <div class="wrap hero">
-    <div class="badge"><span class="pulse"></span><b data-version>v0.5.3</b><span data-i18n="hero.badge">早期版本 · 持续更新</span></div>
+    <div class="badge"><span class="pulse"></span><b data-version>v0.5.4</b><span data-i18n="hero.badge">早期版本 · 持续更新</span></div>
     <h1 class="wordmark">Mindscape</h1>
     <p class="lead" data-i18n="hero.lead">一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。</p>
     <div class="cta-row">
@@ -385,6 +385,8 @@
       </div>
 
       <p class="migrate" data-i18n="in.migrate">从 XMind / FreeMind 来？在源应用里导出 <b>OPML</b>，回到 Mindscape 按 ⇧⌘I 导入即可，结构和文字都会保留。<a href="https://github.com/jiuxianzai/Mindscape#%E4%BB%8E-xmind--freemind-%E8%BF%81%E7%A7%BB">详细步骤 →</a></p>
+
+      <p class="migrate" data-i18n="in.update">装好后可在 <b>设置 → 关于</b> 检查更新；首次启动询问一次是否自动检查，默认关闭。</p>
     </div>
   </section>
 </main>
@@ -450,6 +452,7 @@ const I18N = {
     'in.s3t':'第一次打开','in.s3d':'右键 →「打开」，或按下面的命令去掉隔离属性。之后就正常双击启动。',
     'in.warn':'当前版本是 ad-hoc 签名、没有公证，Gatekeeper 可能拦住首次启动。用这条命令去掉隔离属性即可（只需一次）：',
     'in.migrate':'从 XMind / FreeMind 来？在源应用里导出 <b>OPML</b>，回到 Mindscape 按 ⇧⌘I 导入即可，结构和文字都会保留。<a href="https://github.com/jiuxianzai/Mindscape#%E4%BB%8E-xmind--freemind-%E8%BF%81%E7%A7%BB">详细步骤 →</a>',
+    'in.update':'装好后可在 <b>设置 → 关于</b> 检查更新；首次启动询问一次是否自动检查，默认关闭。',
     'ft.made':'用 SwiftUI 和 Core Graphics 手写。','ft.rel':'版本发布','ft.log':'更新日志'
   },
   en: {
@@ -485,6 +488,7 @@ const I18N = {
     'in.s3t':'First launch','in.s3d':'Right-click → Open, or run the command below to clear the quarantine flag. After that, double-click works normally.',
     'in.warn':'This build is ad-hoc signed and not notarized, so Gatekeeper may block the first launch. Clear the quarantine flag once:',
     'in.migrate':'Coming from XMind or FreeMind? Export <b>OPML</b> from the source app, then press ⇧⌘I in Mindscape — structure and text come across. <a href="https://github.com/jiuxianzai/Mindscape/blob/main/README.en.md#coming-from-xmind-mindnode-or-freemind">Details →</a>',
+    'in.update':'After installing, check for updates under <b>Settings → About</b>. The first launch asks once whether to check automatically — off by default.',
     'ft.made':'Written by hand with SwiftUI and Core Graphics.','ft.rel':'Releases','ft.log':'Changelog'
   }
 };
