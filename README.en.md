@@ -83,7 +83,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 - Free-form layout: hold ⌥ while dropping onto a node to reparent it, keeping its position and avoiding auto-layout; a normal drag only moves it
 - Multiple root nodes; double-click empty space to start a new tree
 - Drag to re-parent; hold ⌥ while dragging to reorder among siblings
-- Mind map drag sorting: drag siblings up/down to reorder; drop a first-level branch on a branch on the other side (or on the left/right half of the root) to switch sides, with the whole subtree following
+- Mind map drag sorting: drag siblings up/down to reorder; drop a first-level branch on a branch on the other side (or on the left/right half of the root) to switch sides, with the whole subtree following; a live “Left / Right” hint shows where it will land
 - Mind map branch arrangement: switch between “Remember Layout” (default, keeps manual sides) and “Balanced Layout” (auto-balances both sides) from the inspector or Layout menu
 - Canvas keys: `Space` to edit, `Enter` for a sibling, `Tab` for a child, ⌃Space to center the map
 - Multi-line in-place editing at any zoom level, with IME composition handled correctly

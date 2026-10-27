@@ -75,6 +75,8 @@
 "展开分支" = "Expand Branch";
 "属性" = "Properties";
 "布局" = "Layout";
+"左侧" = "Left";
+"右侧" = "Right";
 "分支排列" = "Branch Layout";
 "记住布局" = "Remember Layout";
 "平衡布局" = "Balanced Layout";
