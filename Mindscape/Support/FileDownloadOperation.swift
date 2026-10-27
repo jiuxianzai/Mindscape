@@ -13,6 +13,7 @@ final class FileDownloadOperation: NSObject, URLSessionDownloadDelegate, @unchec
     private var task: URLSessionDownloadTask?
     private var responseError: Error?
     private var writeError: Error?
+    private var lastReportedProgress: Double = -1
 
     init(
         destination: URL,
@@ -50,6 +51,11 @@ final class FileDownloadOperation: NSObject, URLSessionDownloadDelegate, @unchec
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
+        // 下载回调可能非常密集；这里按 1% 节流，避免每来一块数据就创建 MainActor Task。
+        let expected = totalBytesExpectedToWrite
+        let progress = expected > 0 ? Double(totalBytesWritten) / Double(expected) : 0
+        guard progress - lastReportedProgress >= 0.01 || progress >= 1 else { return }
+        lastReportedProgress = progress
         progressHandler(totalBytesWritten, totalBytesExpectedToWrite)
     }
 

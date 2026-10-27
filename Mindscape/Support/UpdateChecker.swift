@@ -78,6 +78,7 @@ final class UpdateChecker {
     @ObservationIgnored private var initialCheckTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var bannerAutoDismissTask: Task<Void, Never>?
+    @ObservationIgnored private var isPresentingConsent = false
     /// 本次运行内已经隐藏过横幅的版本；同一版本再次检查时不再打扰。
     @ObservationIgnored private var dismissedBannerVersion: String?
 
@@ -182,9 +183,13 @@ final class UpdateChecker {
     }
 
     func presentAutoCheckConsentIfNeeded() {
-        // 单元测试会以 App 为宿主启动，这里不能弹模态框，否则会阻塞测试主线程。
-        guard !Self.isRunningUnitTests, needsAutoCheckConsent else { return }
+        // 单元测试会以 App 为宿主启动，这里不弹窗，避免干扰测试。
+        guard !Self.isRunningUnitTests,
+              needsAutoCheckConsent,
+              !isPresentingConsent,
+              let window = consentHostWindow else { return }
 
+        isPresentingConsent = true
         NSApp.activate(ignoringOtherApps: true)
 
         let alert = NSAlert()
@@ -195,8 +200,22 @@ final class UpdateChecker {
         alert.addButton(withTitle: String(localized: "暂不"))
         alert.addButton(withTitle: String(localized: "开启自动检查"))
 
-        let response = alert.runModal()
-        resolveAutoCheckConsent(accepted: response == .alertSecondButtonReturn)
+        // 用 sheet 而不是 runModal：不阻塞 App 主线程，窗口关掉也不会把进程卡住。
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard let self else { return }
+            self.isPresentingConsent = false
+            self.resolveAutoCheckConsent(accepted: response == .alertSecondButtonReturn)
+        }
+    }
+
+    private var consentHostWindow: NSWindow? {
+        if let main = NSApp.windows.first(where: { $0.isVisible && $0.title == "Mindscape" }) {
+            return main
+        }
+        if let key = NSApp.keyWindow, key.isVisible {
+            return key
+        }
+        return NSApp.windows.first(where: { $0.isVisible })
     }
 
     func resolveAutoCheckConsent(accepted: Bool) {
@@ -414,7 +433,10 @@ final class UpdateChecker {
         if let checksumURL = release.checksumURL,
            let expected = await fetchChecksum(checksumURL) {
             do {
-                let actual = try FileChecksum.sha256Hex(of: file)
+                // 4 MB 以上的包在主线程算 SHA-256 会卡界面，放到后台执行。
+                let actual = try await Task.detached(priority: .utility) {
+                    try FileChecksum.sha256Hex(of: file)
+                }.value
                 guard actual == expected else {
                     try? fileManager.removeItem(at: file)
                     phase = .failed(String(localized: "下载文件校验失败，已删除，请重新下载。"))

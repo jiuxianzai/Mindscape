@@ -274,4 +274,33 @@ final class UpdateDownloadTests: XCTestCase {
         XCTAssertEqual(FileChecksum.digest(in: digest.uppercased()), digest)
         XCTAssertNil(FileChecksum.digest(in: "not a digest"))
     }
+
+    func testDownloadOperationDeallocatesAfterCompletion() async throws {
+        StubURLProtocol.handler = { request in
+            .success((
+                Stub.response(request.url!, 200, headers: ["Content-Length": "5"]),
+                Data("hello".utf8)
+            ))
+        }
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MindscapeDownloadOp-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        weak var weakOperation: FileDownloadOperation?
+        do {
+            let operation = FileDownloadOperation(
+                destination: directory.appendingPathComponent("test.dmg"),
+                configuration: Stub.configuration()
+            ) { _, _ in }
+            weakOperation = operation
+
+            let request = URLRequest(url: URL(string: "https://github.com/jiuxianzai/Mindscape/releases/download/v0.5.4/test.dmg")!)
+            _ = try await operation.start(with: request)
+        }
+
+        try? await Task.sleep(for: .milliseconds(200))
+        XCTAssertNil(weakOperation, "下载完成后 URLSession 不应继续持有 delegate")
+    }
 }

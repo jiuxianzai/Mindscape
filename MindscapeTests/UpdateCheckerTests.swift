@@ -156,6 +156,37 @@ final class UpdateCheckerTests: XCTestCase {
         XCTAssertEqual(checker.phase, .available, "横幅消失不代表更新不可用")
     }
 
+    func testCheckerDeallocatesAfterUse() async {
+        weak var weakChecker: UpdateChecker?
+        do {
+            let checker = makeChecker(
+                service: StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))]),
+                bannerAutoDismissDelay: .seconds(30)
+            )
+            weakChecker = checker
+            await checker.check(manual: true)
+            XCTAssertTrue(checker.shouldShowBanner)
+        }
+
+        try? await Task.sleep(for: .milliseconds(150))
+        XCTAssertNil(weakChecker, "检查任务/横幅定时器不应把 UpdateChecker 长期留住")
+    }
+
+    func testRepeatedChecksStayBounded() async {
+        let service = StubUpdateService(
+            Array(repeating: Result.success(.release(makeRelease("0.5.4"), etag: nil)), count: 40)
+        )
+        let checker = makeChecker(service: service)
+
+        for _ in 0..<40 {
+            await checker.check(manual: true)
+        }
+
+        XCTAssertEqual(service.callCount, 40)
+        XCTAssertEqual(checker.phase, .available)
+        XCTAssertEqual(checker.release?.version.description, "0.5.4")
+    }
+
     func testSameVersionIsUpToDate() async {
         let checker = makeChecker(
             service: StubUpdateService([.success(.release(makeRelease("0.5.3"), etag: nil))])
