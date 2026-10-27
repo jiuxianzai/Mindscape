@@ -23,8 +23,6 @@ final class AppModel {
     var searchText: String = ""
     var scope: LibraryScope = .all
     var startupError: String?
-    /// 刚创建、还没展示过画布提示的导图；WorkspaceView 出现时消费掉。
-    private(set) var tipsRequestDocumentID: UUID?
     var appearanceMode: AppearanceMode {
         didSet {
             guard appearanceMode != oldValue else { return }
@@ -318,16 +316,7 @@ final class AppModel {
         if let folderID = selectedFolderID {
             expandAncestors(of: folderID)
         }
-        // 先登记再切换文档，保证 WorkspaceView 出现时能读到这次「新建画布」请求。
-        tipsRequestDocumentID = map.id
         selectDocument(map.id)
-    }
-
-    /// 返回该导图是否是刚创建的；同一份导图只自动展开一次提示。
-    func consumeTipsRequest(for documentID: UUID) -> Bool {
-        guard tipsRequestDocumentID == documentID else { return false }
-        tipsRequestDocumentID = nil
-        return true
     }
 
     func createBlank() {

@@ -1866,6 +1866,23 @@ extension MindscapeFeatureTests {
         XCTAssertEqual(interactions, 2, "按键开始编辑时没有通知收起提示")
         canvas.commitEditing()
     }
+
+    /// 新手提示全局只自动展开一次，换导图 / 重启后都不再弹
+    func testCanvasTipsGateOnlyShowsOnceGlobally() throws {
+        let suiteName = "mindscape.tips.test.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let gate = CanvasTipsGate(defaults: defaults)
+        XCTAssertTrue(gate.shouldShow, "首次使用应该自动展开")
+        gate.markShown()
+
+        XCTAssertFalse(gate.shouldShow, "同一会话内不应重复展开")
+        XCTAssertFalse(
+            CanvasTipsGate(defaults: defaults).shouldShow,
+            "重新创建视图 / 重启后不应再次自动展开"
+        )
+    }
 }
 
 private extension CGRect {

@@ -1,6 +1,23 @@
 import AppKit
 import SwiftUI
 
+/// 全局只自动展开一次新手提示。
+/// 有数据的用户第一次打开导图、没数据的用户第一次新建导图，
+/// 都会第一次进入 WorkspaceView，因此一个用户级标记即可覆盖两种情况。
+struct CanvasTipsGate {
+    static let storageKey = "mindscape.canvasTipsShown.v1"
+
+    var defaults: UserDefaults = .standard
+
+    var shouldShow: Bool {
+        !defaults.bool(forKey: Self.storageKey)
+    }
+
+    func markShown() {
+        defaults.set(true, forKey: Self.storageKey)
+    }
+}
+
 /// 工具栏灯泡弹出的画布操作提示。所有零散的小提示集中在这里。
 struct CanvasTipsPopover: View {
     @ObservedObject var store: ShortcutStore

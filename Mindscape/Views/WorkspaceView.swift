@@ -47,8 +47,9 @@ struct MapCanvasRepresentable: NSViewRepresentable {
 }
 
 struct WorkspaceView: View {
-    @Environment(AppModel.self) private var app
     @Bindable var editor: MapEditor
+    /// 全局只自动展开一次：有数据的用户首次打开导图、无数据用户首次新建导图时触发
+    private let tipsGate = CanvasTipsGate()
     @State private var showHistory = false
     @State private var showInspector = true
     @State private var showExport = false
@@ -164,8 +165,10 @@ struct WorkspaceView: View {
             revealCurrentMatch()
         }
         .onAppear {
-            // 新建画布后自动展开一次；打开旧导图不会打扰。
-            guard app.consumeTipsRequest(for: editor.map.id) else { return }
+            // 全局只弹一次：有数据的用户打开导图、没数据的用户新建导图，
+            // 最终都会走到这里，因此不需要再区分数据来源。
+            guard tipsGate.shouldShow else { return }
+            tipsGate.markShown()
             // 等工具栏按钮完成布局再弹，避免 popover 找不到锚点。
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 showTips = true
