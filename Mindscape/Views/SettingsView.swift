@@ -340,6 +340,29 @@ struct GeneralSettingsContent: View {
                     .foregroundStyle(.secondary)
             }
 
+            SettingsSection("AI Agent") {
+                SettingsCard {
+                    VStack(spacing: 0) {
+                        settingsRow("允许本地 AI Agent 操作", subtitle: AgentCoordinator.shared.statusDescription) {
+                            Toggle("", isOn: Binding(
+                                get: { AgentCoordinator.shared.enabled },
+                                set: { AgentCoordinator.shared.enabled = $0 }
+                            ))
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                        }
+                        Divider().padding(.leading, 12)
+                        settingsRow("OpenAPI 与 Skill", subtitle: "安装说明书、复制接入提示、测试连接") {
+                            Button("接入设置…") {
+                                AgentSetupWindowController.shared.show(coordinator: .shared)
+                            }
+                            .buttonStyle(SettingsActionButtonStyle())
+                        }
+                    }
+                }
+            }
+
             SettingsSection("更新") {
                 SettingsCard {
                     VStack(spacing: 0) {

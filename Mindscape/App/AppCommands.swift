@@ -16,6 +16,10 @@ struct AppCommands: Commands {
                 UpdateWindowController.shared.show(checker: app.updates)
                 Task { await app.updates.check(manual: true) }
             }
+
+            Button("AI Agent 接入…") {
+                AgentSetupWindowController.shared.show(coordinator: .shared)
+            }
         }
 
         CommandGroup(replacing: .newItem) {

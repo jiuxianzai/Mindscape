@@ -1,4 +1,4 @@
-.PHONY: generate build run release package publish install clean
+.PHONY: generate build run release package publish install cli install-cli clean
 
 # 单一版本来源：project.yml 的 MARKETING_VERSION。可用 `make publish VERSION=0.5.4` 覆盖。
 VERSION := $(shell awk -F'"' '/MARKETING_VERSION:/ {print $$2; exit}' project.yml)
@@ -9,6 +9,9 @@ DMG := $(DIST)/Mindscape-$(VERSION).dmg
 ZIP := $(DIST)/Mindscape-$(VERSION).zip
 SHA := $(DMG).sha256
 NOTES := $(DIST)/release-notes.md
+CLI_DERIVED := build-cli
+CLI_BIN := $(CLI_DERIVED)/Build/Products/Release/mindscape
+PREFIX ?= /usr/local/bin
 
 generate:
 	xcodegen generate
@@ -40,6 +43,13 @@ publish: package
 		--title "Mindscape $(VERSION)" \
 		--notes-file $(NOTES)
 
+cli: generate
+	xcodebuild -project Mindscape.xcodeproj -scheme MindscapeCLI -configuration Release -derivedDataPath $(CLI_DERIVED) build
+
+install-cli: cli
+	install -d "$(PREFIX)"
+	install -m 755 $(CLI_BIN) "$(PREFIX)/mindscape"
+
 install: package
 	rm -rf /Applications/Mindscape.app
 	ditto $(DIST)/staging/Mindscape.app /Applications/Mindscape.app
@@ -47,4 +57,4 @@ install: package
 	open /Applications/Mindscape.app
 
 clean:
-	rm -rf build build-release dist Mindscape.xcodeproj
+	rm -rf build build-release build-cli dist Mindscape.xcodeproj

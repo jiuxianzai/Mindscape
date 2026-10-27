@@ -1,0 +1,386 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Mindscape Local Agent API",
+    "version": "1.0.0",
+    "description": "Local-only API for operating Mindscape mind maps. The gateway binds 127.0.0.1, requires a per-session bearer token, and stops after the configured idle timeout. Read SKILL.md for workflows and safety rules."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:47821",
+      "description": "Default port. Read ~/Library/Application Support/Mindscape/agent-gateway.json for the actual URL and token."
+    }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer" }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean", "const": false },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" }
+            },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["ok", "error"]
+      },
+      "Folder": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "parentId": { "type": ["string", "null"], "format": "uuid" },
+          "sortOrder": { "type": "integer" }
+        },
+        "required": ["id", "name", "sortOrder"]
+      },
+      "Node": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "parentId": { "type": ["string", "null"], "format": "uuid" },
+          "text": { "type": "string" },
+          "note": { "type": "string" },
+          "icon": { "type": ["string", "null"] },
+          "collapsed": { "type": "boolean" },
+          "order": { "type": "integer" },
+          "colorHex": { "type": ["string", "null"] }
+        },
+        "required": ["id", "text", "note", "collapsed", "order"]
+      },
+      "Map": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "title": { "type": "string" },
+          "layout": { "type": "string", "enum": ["mindMap", "logicRight", "logicLeft", "orgChart", "tree", "timeline", "braceMap", "free"] },
+          "theme": { "type": "string" },
+          "folderId": { "type": ["string", "null"], "format": "uuid" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "rootIds": { "type": "array", "items": { "type": "string", "format": "uuid" } },
+          "nodes": { "type": "array", "items": { "$ref": "#/components/schemas/Node" } }
+        },
+        "required": ["id", "title", "layout", "theme", "rootIds", "nodes"]
+      },
+      "MapSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "title": { "type": "string" },
+          "layout": { "type": "string" },
+          "theme": { "type": "string" },
+          "folderId": { "type": ["string", "null"] },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "nodeCount": { "type": "integer" }
+        },
+        "required": ["id", "title", "nodeCount"]
+      },
+      "BatchOperation": {
+        "type": "object",
+        "properties": {
+          "op": { "type": "string", "enum": ["addNode", "updateNode", "deleteNode", "moveNode"] },
+          "nodeId": { "type": "string", "format": "uuid" },
+          "parentId": { "type": ["string", "null"], "format": "uuid" },
+          "text": { "type": "string" },
+          "note": { "type": "string" },
+          "icon": { "type": "string" },
+          "color": { "type": "string" },
+          "collapsed": { "type": "boolean" },
+          "index": { "type": "integer" }
+        },
+        "required": ["op"]
+      }
+    }
+  },
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "summary": "Health check",
+        "responses": { "200": { "description": "Service is ready" }, "401": { "description": "Missing token" } }
+      }
+    },
+    "/v1/openapi.json": {
+      "get": {
+        "summary": "This document",
+        "responses": { "200": { "description": "OpenAPI document" } }
+      }
+    },
+    "/v1/skill.md": {
+      "get": {
+        "summary": "Agent skill manual",
+        "responses": { "200": { "description": "Markdown skill" } }
+      }
+    },
+    "/v1/folders": {
+      "get": {
+        "summary": "List folders",
+        "responses": {
+          "200": {
+            "description": "Folders",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "ok": { "type": "boolean" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/Folder" } } } } } }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a folder",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "parentId": { "type": ["string", "null"], "format": "uuid" } }, "required": ["name"] } } }
+        },
+        "responses": { "201": { "description": "Created folder" } }
+      }
+    },
+    "/v1/folders/{folderId}": {
+      "parameters": [{ "name": "folderId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+      "patch": {
+        "summary": "Rename a folder",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" } }, "required": ["name"] } } } },
+        "responses": { "200": { "description": "Renamed" } }
+      },
+      "delete": {
+        "summary": "Delete a folder (its maps move to the parent)",
+        "responses": { "200": { "description": "Deleted" } }
+      }
+    },
+    "/v1/maps": {
+      "get": {
+        "summary": "List maps",
+        "parameters": [
+          { "name": "folderId", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "includeDeleted", "in": "query", "schema": { "type": "boolean" } }
+        ],
+        "responses": { "200": { "description": "Map summaries" } }
+      },
+      "post": {
+        "summary": "Create a map",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "rootText": { "type": "string" },
+                  "folderId": { "type": ["string", "null"], "format": "uuid" },
+                  "layout": { "type": "string" },
+                  "theme": { "type": "string" },
+                  "template": { "type": "string", "enum": ["blank", "project", "meeting", "reading", "swot", "weekly"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Created map" } }
+      }
+    },
+    "/v1/maps/{mapId}": {
+      "parameters": [{ "name": "mapId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+      "get": {
+        "summary": "Read a map with all nodes",
+        "responses": { "200": { "description": "Map" }, "404": { "description": "Not found" } }
+      },
+      "patch": {
+        "summary": "Update title, layout, theme, or folder",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string" },
+                  "folderId": { "type": "string" },
+                  "layout": { "type": "string" },
+                  "theme": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Updated map" } }
+      },
+      "delete": {
+        "summary": "Trash or permanently delete a map",
+        "parameters": [{ "name": "permanent", "in": "query", "schema": { "type": "boolean" } }],
+        "responses": { "200": { "description": "Deleted" } }
+      }
+    },
+    "/v1/maps/{mapId}/nodes": {
+      "parameters": [{ "name": "mapId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+      "post": {
+        "summary": "Add a node",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parentId": { "type": ["string", "null"], "format": "uuid" },
+                  "text": { "type": "string" },
+                  "note": { "type": "string" },
+                  "icon": { "type": "string" },
+                  "color": { "type": "string" },
+                  "collapsed": { "type": "boolean" },
+                  "index": { "type": "integer" }
+                },
+                "required": ["text"]
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Created node" } }
+      }
+    },
+    "/v1/maps/{mapId}/nodes/{nodeId}": {
+      "parameters": [
+        { "name": "mapId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+        { "name": "nodeId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+      ],
+      "patch": {
+        "summary": "Update a node (empty icon/color clears it)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": { "type": "string" },
+                  "note": { "type": "string" },
+                  "icon": { "type": "string" },
+                  "color": { "type": "string" },
+                  "collapsed": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Updated node" } }
+      },
+      "delete": {
+        "summary": "Delete a node and its subtree",
+        "responses": { "200": { "description": "Deleted node IDs" } }
+      }
+    },
+    "/v1/maps/{mapId}/nodes/{nodeId}/move": {
+      "parameters": [
+        { "name": "mapId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+        { "name": "nodeId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+      ],
+      "post": {
+        "summary": "Move a node; cycles are rejected",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parentId": { "type": ["string", "null"], "format": "uuid" },
+                  "index": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Moved node" } }
+      }
+    },
+    "/v1/maps/{mapId}/batch": {
+      "parameters": [{ "name": "mapId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+      "post": {
+        "summary": "Apply up to 500 node operations and save once",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "operations": { "type": "array", "maxItems": 500, "items": { "$ref": "#/components/schemas/BatchOperation" } }
+                },
+                "required": ["operations"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Updated map" } }
+      }
+    },
+    "/v1/maps/{mapId}/export": {
+      "parameters": [{ "name": "mapId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+      "post": {
+        "summary": "Export a map to a local file",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "format": { "type": "string", "enum": ["markdown", "opml", "json", "png", "pdf"] },
+                  "path": { "type": "string", "description": "Absolute path under the user's home or /tmp" },
+                  "scale": { "type": "integer", "minimum": 1, "maximum": 3 }
+                },
+                "required": ["format", "path"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Exported file" }, "403": { "description": "Path outside allowed roots" } }
+      }
+    },
+    "/v1/import": {
+      "post": {
+        "summary": "Import Markdown, OPML, or Mindscape JSON",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "folderId": { "type": "string", "format": "uuid" },
+                  "layout": { "type": "string" },
+                  "theme": { "type": "string" }
+                },
+                "required": ["path"]
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Imported map summary" } }
+      }
+    },
+    "/v1/skill/install": {
+      "post": {
+        "summary": "Install the bundled skill for an agent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "target": { "type": "string", "enum": ["claude", "codex", "dsh", "opencode"] } },
+                "required": ["target"]
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Installed" } }
+      }
+    }
+  }
+}

@@ -46,6 +46,10 @@ struct MenuBarContent: View {
             }
         }
 
+        Button("AI Agent 接入…") {
+            AgentSetupWindowController.shared.show(coordinator: .shared)
+        }
+
         SettingsLink {
             Text("设置…")
         }

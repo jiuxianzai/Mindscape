@@ -1,8 +1,10 @@
 .DS_Store
 build/
 build-release/
+build-cli/
 dist/
 DerivedData/
+*.profraw
 *.xcodeproj
 *.xcworkspace
 xcuserdata/

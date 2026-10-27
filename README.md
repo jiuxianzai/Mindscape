@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-102-brightgreen?style=flat-square" alt="102 tests">
+  <img src="https://img.shields.io/badge/tests-129-brightgreen?style=flat-square" alt="129 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.4-lightgrey?style=flat-square" alt="Status 0.5.4">
 </p>
@@ -266,6 +266,45 @@ make install    # 安装到 /Applications 并启动
 ```bash
 xcodebuild test -project Mindscape.xcodeproj -scheme Mindscape -derivedDataPath build
 ```
+
+---
+
+## AI Agent
+
+Mindscape 可以把本地能力开放给 AI Agent：App 内置 **OpenAPI 服务 + Skill 说明书**，Agent 通过命令行或 HTTP 创建目录、建导图、编辑节点、导出。
+
+### 一次性设置
+
+1. **设置 → 通用 → AI Agent**，打开「允许本地 AI Agent 操作」
+2. 点「接入设置…」，在面板里安装 Skill：
+   - **Claude Code** → `~/.claude/skills/mindscape`
+   - **Codex** → 写入 `~/.codex/AGENTS.md`（受管段落）
+   - **DSH** → `~/.dsh/skills/mindscape`
+   - **OpenCode** → `~/.config/opencode/skills/mindscape`
+3. 对 Agent 说：「请阅读 `~/.agents/skills/mindscape/SKILL.md`，用 Mindscape 建一张项目规划导图。」
+
+服务默认关闭；启用后也是 **Agent 调用时才启动**，空闲 10 分钟自动关闭。只监听 `127.0.0.1`，每次启动生成新 token，写入 `~/Library/Application Support/Mindscape/agent-gateway.json`（0600）。
+
+### 安装 CLI
+
+```bash
+make install-cli PREFIX=$HOME/.local/bin   # 或 sudo make install-cli
+```
+
+### 常用命令
+
+```bash
+mindscape health
+mindscape folder create "项目 A"
+mindscape map create "Q4 规划" --template project
+mindscape map list
+mindscape node add <map-id> --parent <node-id> --text "目标"
+mindscape map export <map-id> --format md --out ~/Downloads/q4.md
+mindscape openapi > openapi.json
+mindscape guide
+```
+
+Agent 也可以直接访问 `http://127.0.0.1:47821/openapi.json`（实际端口与 token 以 gateway 文件为准）。完整接口和示例见 [`AgentSkill/SKILL.md`](AgentSkill/SKILL.md)。
 
 ---
 

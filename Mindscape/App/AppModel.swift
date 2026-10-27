@@ -214,6 +214,24 @@ final class AppModel {
         selectedFolderID = folder
     }
 
+    /// Agent 通过本地服务改完数据后刷新界面；不触发旧 editor 的自动保存，避免覆盖外部修改。
+    func reloadAfterExternalChange(documentID: UUID?) {
+        if let documentID, selectedDocumentID == documentID {
+            editor = nil
+            if let map = try? store.load(id: documentID) {
+                let newEditor = MapEditor(map: map, store: store)
+                newEditor.onSaved = { [weak self] in
+                    self?.refreshQuietly()
+                }
+                editor = newEditor
+            }
+        } else if let selectedDocumentID, (try? store.load(id: selectedDocumentID)) == nil {
+            editor = nil
+            self.selectedDocumentID = nil
+        }
+        refreshQuietly()
+    }
+
     // MARK: - Opening
 
     func selectDocument(_ id: UUID?) {

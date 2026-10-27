@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-102-brightgreen?style=flat-square" alt="102 tests">
+  <img src="https://img.shields.io/badge/tests-129-brightgreen?style=flat-square" alt="129 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.4-lightgrey?style=flat-square" alt="Status 0.5.4">
 </p>
@@ -198,6 +198,45 @@ Notes:
 - Import always creates a **new document**, so nothing you already have is touched.
 - Notes, icons, relationships, and summaries are not carried over by OPML — structure and text are. Verify a sample before migrating a large set.
 - Direct `.xmind` import is on the roadmap.
+
+---
+
+## AI Agent
+
+Mindscape can expose a local OpenAPI gateway to AI agents, with a bundled skill manual. Agents can create folders, build maps, edit nodes, and export through the CLI or HTTP.
+
+### One-time setup
+
+1. Open **Settings → General → AI Agent** and enable **Allow local AI agents**.
+2. Click **Agent Setup…** and install the skill for:
+   - **Claude Code** → `~/.claude/skills/mindscape`
+   - **Codex** → managed block in `~/.codex/AGENTS.md`
+   - **DSH** → `~/.dsh/skills/mindscape`
+   - **OpenCode** → `~/.config/opencode/skills/mindscape`
+3. Tell the agent: “Read `~/.agents/skills/mindscape/SKILL.md` and create a project-plan mind map with Mindscape.”
+
+The gateway is off by default, starts only when an agent calls it, and stops after 10 idle minutes. It binds `127.0.0.1` only and uses a fresh bearer token per session, stored in `~/Library/Application Support/Mindscape/agent-gateway.json` (0600).
+
+### Install the CLI
+
+```bash
+make install-cli PREFIX=$HOME/.local/bin   # or sudo make install-cli
+```
+
+### Common commands
+
+```bash
+mindscape health
+mindscape folder create "Project A"
+mindscape map create "Q4 Plan" --template project
+mindscape map list
+mindscape node add <map-id> --parent <node-id> --text "Goal"
+mindscape map export <map-id> --format md --out ~/Downloads/q4.md
+mindscape openapi > openapi.json
+mindscape guide
+```
+
+The live OpenAPI document is at `http://127.0.0.1:47821/openapi.json` (see the gateway file for the actual port and token). Full API and examples: [`AgentSkill/SKILL.md`](AgentSkill/SKILL.md).
 
 ---
 

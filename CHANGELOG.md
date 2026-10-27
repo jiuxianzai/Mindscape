@@ -2,6 +2,22 @@
 
 本项目从 0.5.0 开始记录变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循语义化版本。
 
+## [Unreleased]
+
+### 新增
+
+- AI Agent 本地 OpenAPI 网关：只监听 127.0.0.1，按需启动、空闲 10 分钟关闭，每次启动生成新 Bearer token。
+- 内置 Skill 与 `mindscape` CLI；支持 Claude Code、Codex、DSH、OpenCode 的检测、安装与版本更新。
+- 支持文件夹/导图/节点 CRUD、批量节点操作、布局/主题、Markdown/OPML/JSON/PNG/PDF 导出与导入。
+
+### 安全
+
+- Host / Origin 校验、Bearer token 常量时间比较、1 MB 请求体上限、请求频率限制、路径白名单与只读/写入位置校验。
+
+### 测试
+
+- 新增 Agent 服务、HTTP 安全、Skill 安装等用例，共 129 个 XCTest。
+
 ## [0.5.4] - 2026-10-27
 
 ### 新增

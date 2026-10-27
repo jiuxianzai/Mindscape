@@ -29,6 +29,7 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: app.updates.shouldShowBanner)
         .task {
+            AgentCoordinator.shared.attach(app: app)
             // 等主窗口稳定后再问，避免首启弹窗和窗口创建抢焦点。
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
