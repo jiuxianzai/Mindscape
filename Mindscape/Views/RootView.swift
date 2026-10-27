@@ -36,7 +36,9 @@ struct RootView: View {
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
             app.updates.presentAutoCheckConsentIfNeeded {
-                AgentOnboarding.presentIfNeeded()
+                AgentOnboarding.presentIfNeeded {
+                    FirstRunPromptCoordinator.shared.finish()
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .mindscapeOpenAgentSettings)) { _ in

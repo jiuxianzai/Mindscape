@@ -6,18 +6,28 @@ enum AgentOnboarding {
     static let didAskKey = "agent.didAskInstall"
     static let guideURL = URL(string: "https://jiuxianzai.github.io/Mindscape/#ai-agent")!
 
-    static func presentIfNeeded() {
-        guard !UpdateChecker.isRunningUnitTests else { return }
+    static func presentIfNeeded(onFinish: (() -> Void)? = nil) {
+        guard !UpdateChecker.isRunningUnitTests else {
+            onFinish?()
+            return
+        }
 
         let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: didAskKey) else { return }
+        guard !defaults.bool(forKey: didAskKey) else {
+            onFinish?()
+            return
+        }
 
         let installer = AgentSkillInstaller()
         if installer.hasAnyInstalled {
             defaults.set(true, forKey: didAskKey)
+            onFinish?()
             return
         }
-        guard let window = mainWindow else { return }
+        guard let window = mainWindow else {
+            onFinish?()
+            return
+        }
 
         NSApp.activate(ignoringOtherApps: true)
 
@@ -43,10 +53,18 @@ enum AgentOnboarding {
 
         alert.beginSheetModal(for: window) { response in
             defaults.set(true, forKey: didAskKey)
-            guard response == .alertSecondButtonReturn else { return }
+            guard response == .alertSecondButtonReturn else {
+                onFinish?()
+                return
+            }
             let enableAgent = enableCheckbox.state == .on
             DispatchQueue.main.async {
-                install(installer: installer, enableAgent: enableAgent, window: window)
+                install(
+                    installer: installer,
+                    enableAgent: enableAgent,
+                    window: window,
+                    onFinish: onFinish
+                )
             }
         }
     }
@@ -54,7 +72,8 @@ enum AgentOnboarding {
     private static func install(
         installer: AgentSkillInstaller,
         enableAgent: Bool,
-        window: NSWindow
+        window: NSWindow,
+        onFinish: (() -> Void)?
     ) {
         do {
             let results = try installer.installAllDetected()
@@ -68,7 +87,8 @@ enum AgentOnboarding {
                 installer: installer,
                 installedCount: results.count,
                 agentEnabled: AgentCoordinator.shared.enabled,
-                window: window
+                window: window,
+                onFinish: onFinish
             )
         } catch {
             let alert = NSAlert()
@@ -77,7 +97,9 @@ enum AgentOnboarding {
             alert.informativeText = error.localizedDescription
             alert.addButton(withTitle: String(localized: "好"))
             DispatchQueue.main.async {
-                alert.beginSheetModal(for: window)
+                alert.beginSheetModal(for: window) { _ in
+                    onFinish?()
+                }
             }
         }
     }
@@ -86,7 +108,8 @@ enum AgentOnboarding {
         installer: AgentSkillInstaller,
         installedCount: Int,
         agentEnabled: Bool,
-        window: NSWindow
+        window: NSWindow,
+        onFinish: (() -> Void)?
     ) {
         let agentState = agentEnabled
             ? String(localized: "已为你开启 AI Agent。")
@@ -125,6 +148,7 @@ enum AgentOnboarding {
             default:
                 break
             }
+            onFinish?()
         }
     }
 

@@ -39,6 +39,8 @@ final class AppModel {
     private static let recentDirectoriesKey = "recentDataDirectories"
 
     init() {
+        FirstRunPromptCoordinator.shared.prepareForLaunch()
+
         let initialAppearance = AppearanceMode(
             rawValue: UserDefaults.standard.string(forKey: "appearanceMode") ?? ""
         ) ?? .system

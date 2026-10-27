@@ -60,6 +60,7 @@ struct WorkspaceView: View {
     @State private var canvasBridge = CanvasBridge()
     @State private var showThemePicker = false
     @State private var showTips = false
+    @State private var tipsAutoShowTask: Task<Void, Never>?
 
     private var matches: [UUID] {
         guard showSearch else { return [] }
@@ -121,6 +122,18 @@ struct WorkspaceView: View {
                 .frame(width: 1, height: 1)
         )
         .navigationTitle("")
+        .onReceive(NotificationCenter.default.publisher(for: .mindscapeFirstRunPromptsWillPresent)) { _ in
+            tipsAutoShowTask?.cancel()
+            showTips = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mindscapeFirstRunPromptsDidFinish)) { _ in
+            guard tipsGate.shouldShow else { return }
+            showTips = false
+            scheduleTipsAutoShow()
+        }
+        .onDisappear {
+            tipsAutoShowTask?.cancel()
+        }
     }
 
     private var canvas: some View {
@@ -168,15 +181,38 @@ struct WorkspaceView: View {
             // 全局只弹一次：有数据的用户打开已有导图、没数据的用户新建导图，
             // 最终都会走到这里，因此不需要再区分是否刚创建。
             guard tipsGate.shouldShow else { return }
-            // 等工具栏按钮完成布局再弹，避免 popover 找不到锚点。
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                showTips = true
+            guard !FirstRunPromptCoordinator.shared.isRunning else {
+                // 更新 / Agent 的 sheet 还在排队，等它们全部关闭后再展开。
+                return
             }
+            scheduleTipsAutoShow()
         }
         .onChange(of: showTips) { _, isShowing in
             // 真正展示后再记账；如果锚点没准备好而没弹出来，下次还有机会。
             if isShowing { tipsGate.markShown() }
         }
+    }
+
+    private func scheduleTipsAutoShow() {
+        tipsAutoShowTask?.cancel()
+        tipsAutoShowTask = Task { @MainActor in
+            // 等工具栏完成布局，也避开刚关闭 sheet 的动画。
+            for _ in 0..<8 {
+                if !hasAttachedSheet { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            try? await Task.sleep(for: .milliseconds(180))
+            guard !Task.isCancelled,
+                  !FirstRunPromptCoordinator.shared.isRunning,
+                  tipsGate.shouldShow,
+                  !showTips,
+                  !hasAttachedSheet else { return }
+            showTips = true
+        }
+    }
+
+    private var hasAttachedSheet: Bool {
+        NSApp.windows.contains { $0.isVisible && $0.attachedSheet != nil }
     }
 
     private func focusChip(_ node: MindNode) -> some View {
