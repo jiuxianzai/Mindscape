@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
   <img src="https://img.shields.io/badge/tests-152-brightgreen?style=flat-square" alt="152 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.6.0--beta.3-lightgrey?style=flat-square" alt="Status 0.6.0-beta.3">
+  <img src="https://img.shields.io/badge/status-0.6.0-lightgrey?style=flat-square" alt="Status 0.6.0">
 </p>
 
 <p align="center">
@@ -27,9 +27,9 @@
 
 Mindscape is a native macOS mind-mapping app built for people who want to think on a canvas and keep the result on their own disk. It opens straight into a canvas, saves continuously, and never asks you to sign in.
 
-**Current version: 0.6.0 Beta 3** — a pre-release; stable remains 0.5.4. Features and the data format may still change.
+**Current version: 0.6.0** — features and the data format may still change.
 
-### What's new in 0.6.0 Beta
+### What's new in 0.6.0
 
 - Local OpenAPI gateway + AI Agent Skill for Claude Code, Codex, DSH, and OpenCode
 - Dedicated AI Agent settings, first-run install prompt, copyable starter prompt, and GitHub Pages guide
@@ -144,13 +144,7 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 
 ### Download
 
-**0.6.0 Beta 3** is the current pre-release. The stable release is still [0.5.4](https://github.com/jiuxianzai/Mindscape/releases/tag/v0.5.4).
-
-Download [`Mindscape-0.6.0-beta.3.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0-beta.3/Mindscape-0.6.0-beta.3.dmg), open it, and drag Mindscape into Applications.
-
-Beta builds automatically track newer Betas; stable builds continue to track stable releases only.
-
-You can also check for updates in-app: **Settings → About → Check for Updates**, or the menu bar. The update question appears once at first launch (off by default); the agent skill has a separate question, and “Enable AI Agent after install” is checked by default. Downloads are verified with SHA-256 before the DMG opens.
+Download [`Mindscape-0.6.0.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0/Mindscape-0.6.0.dmg), open it, and drag Mindscape into Applications.
 
 This build is **ad-hoc signed and not notarized**. If Gatekeeper blocks the first launch, run:
 
@@ -175,7 +169,7 @@ xcodegen generate && open Mindscape.xcodeproj
 Packaging and local install:
 
 ```bash
-make package    # writes dist/Mindscape-0.6.0-beta.3.dmg, .zip, and .dmg.sha256
+make package    # writes dist/Mindscape-0.6.0.dmg, .zip, and .dmg.sha256
 make publish    # creates the GitHub Release via gh (requires gh auth login)
 make install    # installs to /Applications and launches
 ```
