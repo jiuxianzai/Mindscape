@@ -1633,6 +1633,38 @@ extension MindscapeFeatureTests {
         XCTAssertNil(editor.map.node(budget.id)?.position)
     }
 
+    /// 自由布局多选迁移：所有选中节点挂到目标下，位置保留，撤销/重做成组生效
+    func testFreeLayoutMultiSelectionReparentPreservesPositionsAndUndoRedo() throws {
+        let editor = try makeEditor(layout: .free)
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        let target = try XCTUnwrap(node(editor, "目标"))
+        let oldBudgetParent = budget.parentID
+        let oldRiskParent = risk.parentID
+        let origins = [
+            budget.id: CGPoint(x: 11, y: 22),
+            risk.id: CGPoint(x: 33, y: 44)
+        ]
+
+        XCTAssertTrue(editor.move(ids: [budget.id, risk.id], to: target.id, freeOrigins: origins))
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, target.id)
+        XCTAssertEqual(editor.map.node(risk.id)?.parentID, target.id)
+        XCTAssertEqual(editor.map.node(budget.id)?.position, origins[budget.id])
+        XCTAssertEqual(editor.map.node(risk.id)?.position, origins[risk.id])
+
+        editor.undo()
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, oldBudgetParent)
+        XCTAssertEqual(editor.map.node(risk.id)?.parentID, oldRiskParent)
+        XCTAssertNil(editor.map.node(budget.id)?.position)
+        XCTAssertNil(editor.map.node(risk.id)?.position)
+
+        editor.redo()
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, target.id)
+        XCTAssertEqual(editor.map.node(risk.id)?.parentID, target.id)
+        XCTAssertEqual(editor.map.node(budget.id)?.position, origins[budget.id])
+        XCTAssertEqual(editor.map.node(risk.id)?.position, origins[risk.id])
+    }
+
     /// 自由布局批量位移应该只产生一步撤销
     func testBatchFreeMoveUsesSingleUndoStep() throws {
         let editor = try makeEditor(layout: .free)
@@ -1649,6 +1681,127 @@ extension MindscapeFeatureTests {
         editor.undo()
         XCTAssertNil(editor.map.node(budget.id)?.position)
         XCTAssertNil(editor.map.node(risk.id)?.position)
+    }
+
+    /// 自由布局多选 ⌥ 拖拽：整组迁移，位置全部保留
+    func testOptionDragReparentsMultiSelectionInFreeLayout() throws {
+        let editor = try makeEditor(layout: .free)
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        let target = try XCTUnwrap(node(editor, "目标"))
+        editor.setSelection([budget.id, risk.id])
+        let layout = LayoutEngine.layout(editor.map)
+        let startWorld = try XCTUnwrap(layout.frames[budget.id]).center
+        let endWorld = try XCTUnwrap(layout.frames[target.id]).center
+        let start = canvas.convert(canvas.worldToView(startWorld), to: nil)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(
+            .leftMouseDragged, at: end, in: window, modifiers: [.option]
+        )))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(
+            .leftMouseUp, at: end, in: window, modifiers: [.option]
+        )))
+
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, target.id)
+        XCTAssertEqual(editor.map.node(risk.id)?.parentID, target.id)
+        XCTAssertNotNil(editor.map.node(budget.id)?.position)
+        XCTAssertNotNil(editor.map.node(risk.id)?.position)
+    }
+
+    /// 自由布局拖到自己的后代上：不能迁移，只移动位置
+    func testOptionDragOnDescendantDoesNotCreateCycle() throws {
+        let editor = try makeEditor(layout: .free)
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let parent = try XCTUnwrap(node(editor, "资源"))
+        let child = try XCTUnwrap(node(editor, "预算"))
+        let oldParent = parent.parentID
+        let layout = LayoutEngine.layout(editor.map)
+        let startWorld = try XCTUnwrap(layout.frames[parent.id]).center
+        let endWorld = try XCTUnwrap(layout.frames[child.id]).center
+        let start = canvas.convert(canvas.worldToView(startWorld), to: nil)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(
+            .leftMouseDragged, at: end, in: window, modifiers: [.option]
+        )))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(
+            .leftMouseUp, at: end, in: window, modifiers: [.option]
+        )))
+
+        XCTAssertEqual(editor.map.node(parent.id)?.parentID, oldParent)
+        XCTAssertNotNil(editor.map.node(parent.id)?.position)
+        XCTAssertEqual(editor.map.node(child.id)?.parentID, parent.id)
+    }
+
+    /// 非自由布局的 ⌥ 拖到同级仍是调整兄弟顺序，不能回归成迁移
+    func testOptionDragOnSiblingReordersInMindMapLayout() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let manpower = try XCTUnwrap(node(editor, "人力"))
+        let oldParent = budget.parentID
+        let layout = LayoutEngine.layout(editor.map)
+        let startWorld = try XCTUnwrap(layout.frames[budget.id]).center
+        let manpowerFrame = try XCTUnwrap(layout.frames[manpower.id])
+        let endWorld = CGPoint(x: manpowerFrame.midX, y: manpowerFrame.minY + manpowerFrame.height * 0.2)
+        let start = canvas.convert(canvas.worldToView(startWorld), to: nil)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(
+            .leftMouseDragged, at: end, in: window, modifiers: [.option]
+        )))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(
+            .leftMouseUp, at: end, in: window, modifiers: [.option]
+        )))
+
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, oldParent)
+        XCTAssertEqual(editor.map.node(manpower.id)?.parentID, oldParent)
+        let budgetOrder = try XCTUnwrap(editor.map.node(budget.id)?.order)
+        let manpowerOrder = try XCTUnwrap(editor.map.node(manpower.id)?.order)
+        XCTAssertLessThan(budgetOrder, manpowerOrder)
+    }
+
+    /// 自由布局拖到同级节点：迁移为对方的子节点，不是兄弟重排
+    func testOptionDragOnSiblingReparentsInFreeLayout() throws {
+        let editor = try makeEditor(layout: .free)
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        let oldParent = budget.parentID
+        let layout = LayoutEngine.layout(editor.map)
+        let startWorld = try XCTUnwrap(layout.frames[budget.id]).center
+        let endWorld = try XCTUnwrap(layout.frames[risk.id]).center
+        let start = canvas.convert(canvas.worldToView(startWorld), to: nil)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(
+            .leftMouseDragged, at: end, in: window, modifiers: [.option]
+        )))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(
+            .leftMouseUp, at: end, in: window, modifiers: [.option]
+        )))
+
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, risk.id)
+        XCTAssertNotEqual(editor.map.node(budget.id)?.parentID, oldParent)
+        XCTAssertNotNil(editor.map.node(budget.id)?.position)
     }
 
     /// 自由布局普通拖动仍然只移动位置，不改变父子关系
