@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
   <img src="https://img.shields.io/badge/tests-152-brightgreen?style=flat-square" alt="152 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.6.0--beta.2-lightgrey?style=flat-square" alt="Status 0.6.0-beta.2">
+  <img src="https://img.shields.io/badge/status-0.6.0--beta.3-lightgrey?style=flat-square" alt="Status 0.6.0-beta.3">
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 
 Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据全部保存在本机。它没有登录、没有云同步、不依赖任何第三方库；默认不联网，只有手动检查更新或在设置里开启自动检查时才会访问 GitHub。
 
-当前版本：**0.6.0 Beta 2**（预发布；稳定版为 0.5.4，功能和数据结构仍可能调整）
+当前版本：**0.6.0 Beta 3**（预发布；稳定版为 0.5.4，功能和数据结构仍可能调整）
 
 ### 0.6.0 Beta 亮点
 
@@ -68,7 +68,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 ## 为什么是 Mindscape
 
 - **本地优先**：所有导图在一个 SQLite 文件里，断网可用，不登录，不上传。
-- **原生性能**：画布是自绘 `NSView`，不是 Web/Electron；大图缩放、拖拽仍然跟手，整个 app 只有 4.8 MB。
+- **原生性能**：画布是自绘 `NSView`，不是 Web/Electron；大图缩放、拖拽仍然跟手，整个 app 只有 4.9 MB。
 - **中文输入法友好**：用拼音组字时节点随着候选实时变宽，不会「先折行再弹回」，候选框始终贴着光标——这是 Web 画布类思维导图最常翻车的地方。
 - **动效克制**：折叠/展开按层级错峰落位，残影淡出、控件跟随淡入，不做“整屏闪跳”。
 - **开箱好看**：8 套主题、8 种布局、现代留白与陶土色视觉，不需要自己调样式。
@@ -234,13 +234,13 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ### 下载
 
-当前提供 **0.6.0 Beta 2**（预发布）。稳定版仍是 [0.5.4](https://github.com/jiuxianzai/Mindscape/releases/tag/v0.5.4)。
+当前提供 **0.6.0 Beta 3**（预发布）。稳定版仍是 [0.5.4](https://github.com/jiuxianzai/Mindscape/releases/tag/v0.5.4)。
 
-**Beta 下载**：[`Mindscape-0.6.0-beta.2.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0-beta.2/Mindscape-0.6.0-beta.2.dmg)，打开后把 Mindscape 拖进 Applications。
+**Beta 下载**：[`Mindscape-0.6.0-beta.3.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0-beta.3/Mindscape-0.6.0-beta.3.dmg)，打开后把 Mindscape 拖进 Applications。
 
 Beta 构建会自动检测后续 Beta；稳定版仍只检测正式版。
 
-应用内也可以检查更新：**设置 → 关于 → 检查更新**，或菜单栏的「检查更新…」。首次启动会依次询问是否开启自动检查、是否一键安装 Agent Skill（两项默认关闭）；下载完成后会校验 SHA-256 并打开 DMG，仍然需要手动拖进 Applications 覆盖旧版本。
+应用内也可以检查更新：**设置 → 关于 → 检查更新**，或菜单栏的「检查更新…」。首次启动会依次询问是否开启自动检查、是否一键安装 Agent Skill（两项默认关闭）；安装面板里的「安装后开启 AI Agent」默认勾选。下载完成后会校验 SHA-256 并打开 DMG，仍然需要手动拖进 Applications 覆盖旧版本。
 
 当前构建为 **ad-hoc 签名**，没有 notarization。首次打开如果被 Gatekeeper 拦下：
 
@@ -268,7 +268,7 @@ open Mindscape.xcodeproj
 打包与本地安装：
 
 ```bash
-make package    # 生成 dist/Mindscape-0.6.0-beta.2.dmg、.zip 和 .dmg.sha256
+make package    # 生成 dist/Mindscape-0.6.0-beta.3.dmg、.zip 和 .dmg.sha256
 make publish    # 用 gh 创建 GitHub Release（需已 gh auth login）
 make install    # 安装到 /Applications 并启动
 ```

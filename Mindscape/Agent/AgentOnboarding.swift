@@ -25,28 +25,49 @@ enum AgentOnboarding {
         alert.alertStyle = .informational
         alert.icon = NSImage(named: "BrandMark")
         alert.messageText = String(localized: "安装 AI Agent Skill？")
-        alert.informativeText = String(localized: "给已检测到的 Agent 安装本地说明书（Claude Code / Codex / DSH / OpenCode）。默认关闭，不联网；之后可在「设置 → AI Agent」安装或更新。装好后需开启开关，Agent 才能连接。\n\n安装后对 Agent 说：「请阅读 ~/.agents/skills/mindscape/SKILL.md 建一张导图。」\n\n教程：jiuxianzai.github.io/Mindscape/#ai-agent")
+        alert.informativeText = String(localized: "给已检测到的 Agent 安装本地说明书（Claude Code / Codex / DSH / OpenCode）。默认关闭，不联网；之后可在「设置 → AI Agent」安装或更新。可在下方勾选安装后直接开启。\n\n安装后对 Agent 说：「请阅读 ~/.agents/skills/mindscape/SKILL.md 建一张导图。」\n\n教程：jiuxianzai.github.io/Mindscape/#ai-agent")
+
+        let enableCheckbox = NSButton(
+            checkboxWithTitle: String(localized: "安装后开启 AI Agent"),
+            target: nil,
+            action: nil
+        )
+        enableCheckbox.state = .on
+        enableCheckbox.controlSize = .small
+        enableCheckbox.font = .systemFont(ofSize: 11)
+        enableCheckbox.frame = NSRect(x: 0, y: 0, width: 220, height: 20)
+        alert.accessoryView = enableCheckbox
+
         alert.addButton(withTitle: String(localized: "暂不"))
         alert.addButton(withTitle: String(localized: "一键安装"))
 
         alert.beginSheetModal(for: window) { response in
             defaults.set(true, forKey: didAskKey)
             guard response == .alertSecondButtonReturn else { return }
+            let enableAgent = enableCheckbox.state == .on
             DispatchQueue.main.async {
-                install(installer: installer, window: window)
+                install(installer: installer, enableAgent: enableAgent, window: window)
             }
         }
     }
 
-    private static func install(installer: AgentSkillInstaller, window: NSWindow) {
+    private static func install(
+        installer: AgentSkillInstaller,
+        enableAgent: Bool,
+        window: NSWindow
+    ) {
         do {
             let results = try installer.installAllDetected()
             if results.isEmpty {
                 _ = try installer.installCanonical()
             }
+            if enableAgent {
+                AgentCoordinator.shared.enabled = true
+            }
             showSuccess(
                 installer: installer,
                 installedCount: results.count,
+                agentEnabled: AgentCoordinator.shared.enabled,
                 window: window
             )
         } catch {
@@ -64,13 +85,18 @@ enum AgentOnboarding {
     private static func showSuccess(
         installer: AgentSkillInstaller,
         installedCount: Int,
+        agentEnabled: Bool,
         window: NSWindow
     ) {
+        let agentState = agentEnabled
+            ? String(localized: "已为你开启 AI Agent。")
+            : String(localized: "AI Agent 仍关闭，可在「设置 → AI Agent」开启。")
         let detail: String
         if installedCount > 0 {
-            detail = String(localized: "已安装到 \(installedCount) 个 Agent。使用前请在「设置 → AI Agent」开启开关；之后可在同一页更新或重新安装。")
+            detail = String(localized: "已安装到 \(installedCount) 个 Agent。") + agentState
+                + String(localized: "之后可在同一页更新或重新安装。")
         } else {
-            detail = String(localized: "未检测到已安装的 Agent，已把说明书放到公共目录 ~/.agents/skills/mindscape。使用前请在「设置 → AI Agent」开启开关。")
+            detail = String(localized: "未检测到已安装的 Agent，已把说明书放到公共目录 ~/.agents/skills/mindscape。") + agentState
         }
 
         let alert = NSAlert()
