@@ -157,7 +157,7 @@ struct InspectorView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text("已选择 \(editor.selection.count) 个节点")
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
-                Text("批量修改会作为一次操作撤销。Shift 拖拽空白处可框选。")
+                Text("批量修改会作为一次操作撤销。Shift 拖拽空白处可框选，Delete 删除所选，拖动任一选中节点可整组移动。")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -308,7 +308,7 @@ struct InspectorView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 sectionLabel("小提示")
-                Text("Space 编辑，Enter 新建同级 / 头部，Tab 新建子节点；双击空白新建头部。拖到节点上改层级；⌥ 拖到同级节点排序。方向键移动，⌘↑ / ↓ / ← / → 跳父级 / 子级 / 同级；⌘F 搜索，Shift 拖拽框选，⌘D 创建副本。")
+                Text("Space 编辑，Enter 新建同级 / 头部，Tab 新建子节点；双击空白新建头部。拖到节点上改层级；⌥ 拖到同级节点排序。方向键移动，⌘↑ / ↓ / ← / → 跳父级 / 子级 / 同级；⌘F 搜索，Shift 拖拽框选，Delete 删除所选，拖动任一选中节点可整组移动，⌘D 创建副本。")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

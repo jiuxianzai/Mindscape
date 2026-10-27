@@ -2,7 +2,8 @@ import AppKit
 
 struct RenderSelection {
     var ids: Set<UUID> = []
-    var dragNodeID: UUID?
+    /// 正在一起拖动的节点（多选时为整组）
+    var dragNodeIDs: Set<UUID> = []
     var dragOffset: CGSize = .zero
     var dimmed: Set<UUID> = []
     /// 专注 / 演示模式下被弱化节点的透明度
@@ -293,20 +294,21 @@ enum MapRenderer {
         selection: RenderSelection,
         visibleRect: CGRect
     ) {
-        let draggedID = selection.dragNodeID
+        let draggedIDs = selection.dragNodeIDs
 
         // 拖动时在原位置留一个虚线占位，明确节点是从哪里被拿起的
-        if let draggedID,
-           let original = layout.frames[draggedID],
-           original.intersects(visibleRect),
-           abs(selection.dragOffset.width) + abs(selection.dragOffset.height) > 2 {
-            let level = min(layout.depths[draggedID] ?? 0, 2)
-            let radius: CGFloat = level == 0 ? 15 : (level == 1 ? 12 : 11)
-            let placeholder = NSBezierPath(roundedRect: original, xRadius: radius, yRadius: radius)
-            theme.accent.withAlphaComponent(0.28).setStroke()
-            placeholder.lineWidth = 1.5
-            placeholder.setLineDash([4, 4], count: 2, phase: selection.dashPhase)
-            placeholder.stroke()
+        if abs(selection.dragOffset.width) + abs(selection.dragOffset.height) > 2 {
+            for draggedID in draggedIDs {
+                guard let original = layout.frames[draggedID],
+                      original.intersects(visibleRect) else { continue }
+                let level = min(layout.depths[draggedID] ?? 0, 2)
+                let radius: CGFloat = level == 0 ? 15 : (level == 1 ? 12 : 11)
+                let placeholder = NSBezierPath(roundedRect: original, xRadius: radius, yRadius: radius)
+                theme.accent.withAlphaComponent(0.28).setStroke()
+                placeholder.lineWidth = 1.5
+                placeholder.setLineDash([4, 4], count: 2, phase: selection.dashPhase)
+                placeholder.stroke()
+            }
         }
 
         // 每帧只建一次节点索引：原来每个节点都调用 map.node(id)（线性查找），
@@ -329,7 +331,7 @@ enum MapRenderer {
         }
 
         // 被拖动的节点最后画，保证浮在其它节点之上
-        for id in layout.drawOrder where id != draggedID {
+        for id in layout.drawOrder where !draggedIDs.contains(id) {
             guard let node = nodesByID[id] else { continue }
             drawNodeIfPresent(
                 node, layout: layout, theme: theme, selection: selection,
@@ -337,10 +339,11 @@ enum MapRenderer {
                 visibleRect: visibleRect
             )
         }
-        if let draggedID, let node = nodesByID[draggedID] {
+        for id in layout.drawOrder where draggedIDs.contains(id) {
+            guard let node = nodesByID[id] else { continue }
             drawNodeIfPresent(
                 node, layout: layout, theme: theme, selection: selection,
-                dragging: true, alphaScale: selection.alphaOverrides[draggedID] ?? 1,
+                dragging: true, alphaScale: selection.alphaOverrides[id] ?? 1,
                 visibleRect: visibleRect
             )
         }

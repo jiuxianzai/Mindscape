@@ -1549,3 +1549,140 @@ extension MindscapeFeatureTests {
         }
     }
 }
+
+// MARK: - 多选删除 / 批量移动
+
+extension MindscapeFeatureTests {
+    /// Delete 键删除整个选区（含各自子树），且一步撤销可恢复
+    func testDeleteSelectionRemovesEverySelectedSubtree() throws {
+        let editor = try makeEditor()
+        let milestone = try XCTUnwrap(node(editor, "里程碑"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        let removed = editor.map.subtreeIDs(of: milestone.id)
+            .union(editor.map.subtreeIDs(of: risk.id))
+        let before = editor.map.nodes.count
+
+        editor.setSelection([milestone.id, risk.id])
+        editor.deleteSelection()
+
+        XCTAssertEqual(editor.map.nodes.count, before - removed.count)
+        for id in removed {
+            XCTAssertNil(editor.map.node(id))
+        }
+        let fallback = try XCTUnwrap(editor.selection.first)
+        XCTAssertNotNil(editor.map.node(fallback), "删除后的选中项必须仍然存在")
+
+        editor.undo()
+        XCTAssertEqual(editor.map.nodes.count, before)
+        XCTAssertNotNil(editor.map.node(milestone.id))
+        XCTAssertNotNil(editor.map.node(risk.id))
+    }
+
+    /// 批量移动：选中不同父级的节点，一起挂到新目标下
+    func testBatchMoveSelectionReparentsAllNodes() throws {
+        let editor = try makeEditor()
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        let target = try XCTUnwrap(node(editor, "目标"))
+        let budgetParent = budget.parentID
+        let riskParent = risk.parentID
+
+        editor.setSelection([budget.id, risk.id])
+        XCTAssertTrue(editor.canMoveSelection(to: target.id))
+        XCTAssertTrue(editor.move(ids: editor.selection, to: target.id))
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, target.id)
+        XCTAssertEqual(editor.map.node(risk.id)?.parentID, target.id)
+
+        editor.undo()
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, budgetParent)
+        XCTAssertEqual(editor.map.node(risk.id)?.parentID, riskParent)
+    }
+
+    /// 父节点和子节点都被选中时，只搬父节点，不能把子节点从子树里拆出来
+    func testBatchMoveSkipsDescendantsAlreadyInSelection() throws {
+        let editor = try makeEditor()
+        let resource = try XCTUnwrap(node(editor, "资源"))
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let target = try XCTUnwrap(node(editor, "目标"))
+
+        editor.setSelection([resource.id, budget.id])
+        XCTAssertTrue(editor.move(ids: editor.selection, to: target.id))
+        XCTAssertEqual(editor.map.node(resource.id)?.parentID, target.id)
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, resource.id, "子节点被重复搬运了")
+    }
+
+    /// 自由布局批量位移应该只产生一步撤销
+    func testBatchFreeMoveUsesSingleUndoStep() throws {
+        let editor = try makeEditor(layout: .free)
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+
+        editor.moveFreeNodes(origins: [
+            budget.id: CGPoint(x: 10, y: 20),
+            risk.id: CGPoint(x: 30, y: 40)
+        ])
+        XCTAssertEqual(editor.map.node(budget.id)?.position, CGPoint(x: 10, y: 20))
+        XCTAssertEqual(editor.map.node(risk.id)?.position, CGPoint(x: 30, y: 40))
+
+        editor.undo()
+        XCTAssertNil(editor.map.node(budget.id)?.position)
+        XCTAssertNil(editor.map.node(risk.id)?.position)
+    }
+
+    /// 画布 Delete 键必须真正刷新布局，而不是只改模型
+    func testDeleteKeyDeletesSelectionOnCanvas() throws {
+        let shortcuts = ShortcutStore.shared
+        let old = shortcuts.combo(for: .deleteNode)
+        shortcuts.set(KeyCombo(key: "delete"), for: .deleteNode)
+        defer { shortcuts.set(old, for: .deleteNode) }
+
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let milestone = try XCTUnwrap(node(editor, "里程碑"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        let removed = editor.map.subtreeIDs(of: milestone.id)
+            .union(editor.map.subtreeIDs(of: risk.id))
+        let before = editor.map.nodes.count
+        editor.setSelection([milestone.id, risk.id])
+
+        let event = try XCTUnwrap(keyEvent("\u{7F}", keyCode: 51, in: window))
+        canvas.keyDown(with: event)
+
+        XCTAssertEqual(editor.map.nodes.count, before - removed.count)
+        XCTAssertNil(editor.map.node(milestone.id))
+        XCTAssertNil(editor.map.node(risk.id))
+    }
+
+    /// 多选后直接拖动其中一个节点，整组一起移动
+    func testDraggingSelectionMovesWholeGroup() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let risk = try XCTUnwrap(node(editor, "风险"))
+        let target = try XCTUnwrap(node(editor, "目标"))
+        editor.setSelection([budget.id, risk.id])
+
+        let layout = LayoutEngine.layout(editor.map)
+        let startWorld = try XCTUnwrap(layout.frames[budget.id]).center
+        let endWorld = try XCTUnwrap(layout.frames[target.id]).center
+        let start = canvas.convert(canvas.worldToView(startWorld), to: nil)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
+
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, target.id)
+        XCTAssertEqual(editor.map.node(risk.id)?.parentID, target.id, "只移动了按下的那个节点")
+    }
+}
+
+private extension CGRect {
+    var center: CGPoint { CGPoint(x: midX, y: midY) }
+}
