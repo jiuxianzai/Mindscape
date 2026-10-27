@@ -11,6 +11,13 @@ struct AppCommands: Commands {
     }
 
     var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("检查更新…") {
+                UpdateWindowController.shared.show(checker: app.updates)
+                Task { await app.updates.check(manual: true) }
+            }
+        }
+
         CommandGroup(replacing: .newItem) {
             Button("新建导图") {
                 app.createDocument(template: .blank)

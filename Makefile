@@ -1,11 +1,14 @@
-.PHONY: generate build run release package install clean
+.PHONY: generate build run release package publish install clean
 
-VERSION := 0.5.3
+# 单一版本来源：project.yml 的 MARKETING_VERSION。可用 `make publish VERSION=0.5.4` 覆盖。
+VERSION := $(shell awk -F'"' '/MARKETING_VERSION:/ {print $$2; exit}' project.yml)
 APP := build/Build/Products/Debug/Mindscape.app
 RELEASE_APP := build-release/Build/Products/Release/Mindscape.app
 DIST := dist
 DMG := $(DIST)/Mindscape-$(VERSION).dmg
 ZIP := $(DIST)/Mindscape-$(VERSION).zip
+SHA := $(DMG).sha256
+NOTES := $(DIST)/release-notes.md
 
 generate:
 	xcodegen generate
@@ -20,12 +23,22 @@ release: generate
 	xcodebuild -project Mindscape.xcodeproj -scheme Mindscape -configuration Release -derivedDataPath build-release build
 
 package: release
-	rm -rf $(DIST)/staging $(DMG) $(ZIP)
+	rm -rf $(DIST)/staging $(DMG) $(ZIP) $(SHA)
 	mkdir -p $(DIST)/staging
 	cp -R $(RELEASE_APP) $(DIST)/staging/
 	ln -s /Applications $(DIST)/staging/Applications
 	hdiutil create -volname "Mindscape $(VERSION)" -srcfolder $(DIST)/staging -ov -format UDZO $(DMG)
 	ditto -c -k --keepParent $(RELEASE_APP) $(ZIP)
+	shasum -a 256 $(DMG) > $(SHA)
+
+publish: package
+	@test -n "$(VERSION)" || (echo "VERSION 为空"; exit 1)
+	@grep -q "MARKETING_VERSION: \"$(VERSION)\"" project.yml || (echo "project.yml 的 MARKETING_VERSION 不是 $(VERSION)"; exit 1)
+	@grep -q "^## \[$(VERSION)\]" CHANGELOG.md || (echo "CHANGELOG.md 缺少 $(VERSION) 段落"; exit 1)
+	@awk '/^## \[$(VERSION)\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md > $(NOTES)
+	gh release create v$(VERSION) $(DMG) $(ZIP) $(SHA) \
+		--title "Mindscape $(VERSION)" \
+		--notes-file $(NOTES)
 
 install: package
 	rm -rf /Applications/Mindscape.app

@@ -25,6 +25,7 @@ final class AppModel {
     var startupError: String?
 
     let shortcuts = ShortcutStore.shared
+    let updates = UpdateChecker()
 
     private var didExpandInitialFolders = false
     private var observers: [NSObjectProtocol] = []
@@ -78,6 +79,8 @@ final class AppModel {
         if let first = documents.first {
             selectDocument(first.id)
         }
+
+        updates.start()
     }
 
     // MARK: - Lists

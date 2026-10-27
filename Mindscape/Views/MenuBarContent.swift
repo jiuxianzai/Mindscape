@@ -36,6 +36,16 @@ struct MenuBarContent: View {
 
         Divider()
 
+        Button("检查更新…") {
+            showUpdateWindow()
+        }
+
+        if case .available = app.updates.phase {
+            Button("有可用更新：Mindscape \(app.updates.release?.version.description ?? "")") {
+                showUpdateWindow()
+            }
+        }
+
         SettingsLink {
             Text("设置…")
         }
@@ -56,6 +66,11 @@ struct MenuBarContent: View {
         Button("退出 Mindscape") {
             NSApp.terminate(nil)
         }
+    }
+
+    private func showUpdateWindow() {
+        UpdateWindowController.shared.show(checker: app.updates)
+        Task { await app.updates.check(manual: true) }
     }
 
     private func showMainWindow() {

@@ -21,6 +21,13 @@ struct RootView: View {
             .frame(minWidth: 560, minHeight: 420)
         }
         .tint(Color(nsColor: NSColor(hex: "#C26A4A")))
+        .overlay(alignment: .top) {
+            if app.updates.shouldShowBanner {
+                UpdateBanner()
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: app.updates.shouldShowBanner)
         .alert("提示", isPresented: Binding(
             get: { app.startupError != nil },
             set: { if !$0 { app.startupError = nil } }

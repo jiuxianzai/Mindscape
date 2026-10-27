@@ -653,7 +653,7 @@ struct AboutSettingsContent: View {
                     Text("版本 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.2.0")")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
-                    Text("数据只存在本机，不联网、不需要账号。")
+                    Text("数据只存在本机，不需要账号；只在检查更新时访问 GitHub。")
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                 }
@@ -666,7 +666,31 @@ struct AboutSettingsContent: View {
                         Divider().padding(.leading, 12)
                         infoRow("存储方式", value: "SQLite · 完全本地")
                         Divider().padding(.leading, 12)
-                        infoRow("网络请求", value: "无")
+                        infoRow("网络请求", value: "仅更新检查")
+                    }
+                }
+            }
+
+            SettingsSection("更新") {
+                SettingsCard {
+                    VStack(spacing: 0) {
+                        settingsRow("自动检查更新", subtitle: "启动后每 24 小时访问一次 GitHub Releases") {
+                            Toggle("", isOn: Binding(
+                                get: { app.updates.autoCheckEnabled },
+                                set: { app.updates.autoCheckEnabled = $0 }
+                            ))
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                        }
+                        Divider().padding(.leading, 12)
+                        settingsRow("检查更新", subtitle: app.updates.statusDescription) {
+                            Button(checkButtonTitle) {
+                                checkForUpdates()
+                            }
+                            .buttonStyle(SettingsActionButtonStyle(primary: true))
+                            .disabled(app.updates.phase == .checking || app.updates.phase.isDownloading)
+                        }
                     }
                 }
             }
@@ -680,6 +704,25 @@ struct AboutSettingsContent: View {
             }
             .padding(.top, 4)
         }
+    }
+
+    private var checkButtonTitle: String {
+        switch app.updates.phase {
+        case .checking:
+            return String(localized: "正在检查…")
+        case .downloading:
+            return String(localized: "正在下载…")
+        case .available:
+            return String(localized: "查看更新")
+        default:
+            return String(localized: "检查更新")
+        }
+    }
+
+    private func checkForUpdates() {
+        UpdateWindowController.shared.show(checker: app.updates)
+        guard app.updates.phase != .available else { return }
+        Task { await app.updates.check(manual: true) }
     }
 
     private func infoRow(_ label: String, value: String) -> some View {
