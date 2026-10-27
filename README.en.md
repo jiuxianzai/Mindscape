@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-94-brightgreen?style=flat-square" alt="94 tests">
+  <img src="https://img.shields.io/badge/tests-99-brightgreen?style=flat-square" alt="99 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.3-lightgrey?style=flat-square" alt="Status 0.5.3">
 </p>
@@ -202,7 +202,7 @@ Default data directory:
 - Change the location under **Settings → General → Data directory**
 - "Recent directories" remembers previous locations with map counts and a switch button
 - Switching directories never deletes the old data
-- Offline by default; the only network request is the update check (toggle it under Settings → General); no telemetry, no account
+- Offline by default; the app asks once on first launch whether to enable automatic checks (change it under Settings → General); the only network request is the update check; no telemetry, no account
 
 Tables: `documents` (metadata + full map JSON + folder), `folders`, `snapshots` (version JSON), `settings`.
 

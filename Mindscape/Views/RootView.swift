@@ -28,6 +28,12 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: app.updates.shouldShowBanner)
+        .task {
+            // 等主窗口稳定后再问，避免首启弹窗和窗口创建抢焦点。
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            app.updates.presentAutoCheckConsentIfNeeded()
+        }
         .alert("提示", isPresented: Binding(
             get: { app.startupError != nil },
             set: { if !$0 { app.startupError = nil } }

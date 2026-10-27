@@ -43,7 +43,8 @@ final class UpdateCheckerTests: XCTestCase {
         now: @escaping () -> Date = Date.init,
         downloads: URL? = nil,
         configuration: URLSessionConfiguration = .ephemeral,
-        openURL: @escaping (URL) -> Void = { _ in }
+        openURL: @escaping (URL) -> Void = { _ in },
+        bannerAutoDismissDelay: Duration = .seconds(60)
     ) -> UpdateChecker {
         UpdateChecker(
             service: service,
@@ -52,7 +53,8 @@ final class UpdateCheckerTests: XCTestCase {
             downloadsDirectory: downloads,
             now: now,
             openURL: openURL,
-            downloadConfiguration: configuration
+            downloadConfiguration: configuration,
+            bannerAutoDismissDelay: bannerAutoDismissDelay
         )
     }
 
@@ -108,6 +110,50 @@ final class UpdateCheckerTests: XCTestCase {
         first.autoCheckEnabled = true
         let second = makeChecker(service: StubUpdateService([]), defaults: defaults)
         XCTAssertTrue(second.autoCheckEnabled)
+    }
+
+    func testFirstRunConsentIsOnlyAskedOnce() {
+        let defaults = makeDefaults()
+        let first = makeChecker(service: StubUpdateService([]), defaults: defaults)
+        XCTAssertTrue(first.needsAutoCheckConsent)
+
+        first.resolveAutoCheckConsent(accepted: false)
+        XCTAssertFalse(first.needsAutoCheckConsent)
+        XCTAssertFalse(first.autoCheckEnabled)
+
+        let second = makeChecker(service: StubUpdateService([]), defaults: defaults)
+        XCTAssertFalse(second.needsAutoCheckConsent, "只应询问一次")
+        XCTAssertFalse(second.autoCheckEnabled)
+    }
+
+    func testAcceptingConsentEnablesAutoCheck() {
+        let checker = makeChecker(service: StubUpdateService([]))
+        XCTAssertTrue(checker.needsAutoCheckConsent)
+
+        checker.resolveAutoCheckConsent(accepted: true)
+        XCTAssertTrue(checker.autoCheckEnabled)
+        XCTAssertFalse(checker.needsAutoCheckConsent)
+    }
+
+    func testExplicitPreferenceSkipsConsent() {
+        let defaults = makeDefaults()
+        defaults.set(false, forKey: "updates.autoCheck")
+        let checker = makeChecker(service: StubUpdateService([]), defaults: defaults)
+        XCTAssertFalse(checker.needsAutoCheckConsent, "已经改过设置的用户不再弹窗")
+    }
+
+    func testBannerAutoDismissesAfterDelay() async {
+        let checker = makeChecker(
+            service: StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))]),
+            bannerAutoDismissDelay: .milliseconds(60)
+        )
+
+        await checker.check(manual: true)
+        XCTAssertTrue(checker.shouldShowBanner)
+
+        try? await Task.sleep(for: .milliseconds(250))
+        XCTAssertFalse(checker.shouldShowBanner)
+        XCTAssertEqual(checker.phase, .available, "横幅消失不代表更新不可用")
     }
 
     func testSameVersionIsUpToDate() async {
@@ -216,6 +262,22 @@ final class UpdateCheckerTests: XCTestCase {
 
         XCTAssertEqual(checker.phase, .available)
         XCTAssertFalse(checker.shouldShowBanner)
+    }
+
+    func testBannerStaysHiddenWhenRecheckingSameVersion() async {
+        let service = StubUpdateService([
+            .success(.release(makeRelease("0.5.4"), etag: nil)),
+            .success(.release(makeRelease("0.5.4"), etag: nil))
+        ])
+        let checker = makeChecker(service: service)
+
+        await checker.check(manual: true)
+        XCTAssertTrue(checker.shouldShowBanner)
+        checker.dismissBanner()
+
+        await checker.check(manual: true)
+        XCTAssertEqual(checker.phase, .available)
+        XCTAssertFalse(checker.shouldShowBanner, "同一版本被隐藏后，重新检查不应再弹横幅")
     }
 
     func testNotModifiedUsesCachedRelease() async {

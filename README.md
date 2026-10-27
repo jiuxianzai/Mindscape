@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-94-brightgreen?style=flat-square" alt="94 tests">
+  <img src="https://img.shields.io/badge/tests-99-brightgreen?style=flat-square" alt="99 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.3-lightgrey?style=flat-square" alt="Status 0.5.3">
 </p>
@@ -219,7 +219,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 从 [Releases](https://github.com/jiuxianzai/Mindscape/releases) 下载 `Mindscape-0.5.3.dmg`，打开后把 Mindscape 拖进 Applications。
 
-应用内也可以检查更新：**设置 → 关于 → 检查更新**，或菜单栏的「检查更新…」。下载完成后会校验 SHA-256 并打开 DMG，仍然需要手动拖进 Applications 覆盖旧版本。
+应用内也可以检查更新：**设置 → 关于 → 检查更新**，或菜单栏的「检查更新…」。首次启动会询问一次是否开启自动检查（默认关闭）；下载完成后会校验 SHA-256 并打开 DMG，仍然需要手动拖进 Applications 覆盖旧版本。
 
 当前构建为 **ad-hoc 签名**，没有 notarization。首次打开如果被 Gatekeeper 拦下：
 
@@ -272,7 +272,7 @@ xcodebuild test -project Mindscape.xcodeproj -scheme Mindscape -derivedDataPath 
 - 可以在「设置 → 通用 → 数据目录」更换位置
 - 「最近目录」会列出用过的目录、导图数量和切换按钮
 - 切换目录不会删除原目录的数据
-- 默认不联网；只有检查更新时访问 GitHub（可在 设置 → 通用 开启或关闭自动检查），没有遥测、没有账号
+- 默认不联网；首次启动只询问一次是否开启自动检查，可在 设置 → 通用 修改；只有检查更新时访问 GitHub，没有遥测、没有账号
 
 数据库表：
 

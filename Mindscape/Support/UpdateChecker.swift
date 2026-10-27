@@ -31,18 +31,33 @@ final class UpdateChecker {
 
     private enum Key {
         static let autoCheck = "updates.autoCheck"
+        static let didAskAutoCheck = "updates.didAskAutoCheck"
         static let lastCheckAt = "updates.lastCheckAt"
         static let skippedVersion = "updates.skippedVersion"
         static let etag = "updates.etag"
         static let cachedRelease = "updates.cachedRelease"
     }
 
-    private(set) var phase: Phase = .idle
+    private(set) var phase: Phase = .idle {
+        didSet {
+            if phase == .available {
+                scheduleBannerAutoDismiss()
+            } else {
+                cancelBannerAutoDismiss()
+            }
+        }
+    }
     private(set) var release: UpdateRelease?
     private(set) var downloadedFile: URL?
     private(set) var checksumState: ChecksumState = .unknown
     private(set) var lastCheckAt: Date?
-    private(set) var bannerDismissed = false
+    private(set) var bannerDismissed = false {
+        didSet {
+            if bannerDismissed {
+                cancelBannerAutoDismiss()
+            }
+        }
+    }
 
     @ObservationIgnored private let service: UpdateService
     @ObservationIgnored private let defaults: UserDefaults
@@ -53,6 +68,7 @@ final class UpdateChecker {
     @ObservationIgnored private let fileManager: FileManager
     @ObservationIgnored private let downloadConfiguration: URLSessionConfiguration
     @ObservationIgnored private let session: URLSession
+    @ObservationIgnored private let bannerAutoDismissDelay: Duration
     @ObservationIgnored private let releasePageFallback = URL(string: "https://github.com/jiuxianzai/Mindscape/releases")!
 
     @ObservationIgnored private var isChecking = false
@@ -61,6 +77,9 @@ final class UpdateChecker {
     @ObservationIgnored private var activeDownload: FileDownloadOperation?
     @ObservationIgnored private var initialCheckTask: Task<Void, Never>?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var bannerAutoDismissTask: Task<Void, Never>?
+    /// 本次运行内已经隐藏过横幅的版本；同一版本再次检查时不再打扰。
+    @ObservationIgnored private var dismissedBannerVersion: String?
 
     var autoCheckEnabled: Bool {
         didSet {
@@ -86,7 +105,8 @@ final class UpdateChecker {
         openURL: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) },
         fileManager: FileManager = .default,
         downloadConfiguration: URLSessionConfiguration = .ephemeral,
-        session: URLSession? = nil
+        session: URLSession? = nil,
+        bannerAutoDismissDelay: Duration = .seconds(60)
     ) {
         let version = installedVersion ?? Self.bundleVersion
         let downloads = downloadsDirectory
@@ -101,6 +121,7 @@ final class UpdateChecker {
         self.fileManager = fileManager
         self.downloadConfiguration = downloadConfiguration
         self.session = session ?? URLSession(configuration: downloadConfiguration)
+        self.bannerAutoDismissDelay = bannerAutoDismissDelay
         self.service = service ?? GitHubUpdateService(
             configuration: GitHubUpdateConfiguration(appVersion: version.description)
         )
@@ -150,6 +171,42 @@ final class UpdateChecker {
         let bytes = release.downloadSize
         guard bytes > 0 else { return "" }
         return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+    }
+
+    // MARK: - First-run consent
+
+    /// 只在「从未问过、也没有写过偏好」时询问一次；老用户或已手动改过设置的用户不再打扰。
+    var needsAutoCheckConsent: Bool {
+        !defaults.bool(forKey: Key.didAskAutoCheck)
+            && defaults.object(forKey: Key.autoCheck) == nil
+    }
+
+    func presentAutoCheckConsentIfNeeded() {
+        // 单元测试会以 App 为宿主启动，这里不能弹模态框，否则会阻塞测试主线程。
+        guard !Self.isRunningUnitTests, needsAutoCheckConsent else { return }
+
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.icon = NSImage(named: "BrandMark")
+        alert.messageText = String(localized: "是否自动检查更新？")
+        alert.informativeText = String(localized: "开启后每 24 小时访问一次 GitHub Releases 检查新版本；关闭时 Mindscape 不会自动联网。此选择只询问一次，之后可在「设置 → 通用 → 更新」中修改。")
+        alert.addButton(withTitle: String(localized: "暂不"))
+        alert.addButton(withTitle: String(localized: "开启自动检查"))
+
+        let response = alert.runModal()
+        resolveAutoCheckConsent(accepted: response == .alertSecondButtonReturn)
+    }
+
+    func resolveAutoCheckConsent(accepted: Bool) {
+        defaults.set(true, forKey: Key.didAskAutoCheck)
+        defaults.set(accepted, forKey: Key.autoCheck)
+        autoCheckEnabled = accepted
+    }
+
+    static var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     // MARK: - Lifecycle
@@ -222,8 +279,11 @@ final class UpdateChecker {
         } catch {
             if manual {
                 phase = .failed(Self.message(for: error))
+            } else if previousPhase == .available {
+                phase = .available
+                scheduleBannerAutoDismiss()
             } else {
-                phase = previousPhase == .available ? .available : .idle
+                phase = .idle
             }
         }
     }
@@ -240,18 +300,45 @@ final class UpdateChecker {
         }
 
         phase = .available
-        bannerDismissed = false
+        if dismissedBannerVersion == candidate.version.description {
+            bannerDismissed = true
+        } else {
+            bannerDismissed = false
+            scheduleBannerAutoDismiss()
+        }
     }
 
     // MARK: - Banner & release page
 
     func dismissBanner() {
+        dismissedBannerVersion = release?.version.description
         bannerDismissed = true
+        cancelBannerAutoDismiss()
+    }
+
+    private func scheduleBannerAutoDismiss() {
+        cancelBannerAutoDismiss()
+        guard shouldShowBanner else { return }
+
+        let delay = bannerAutoDismissDelay
+        bannerAutoDismissTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled, let self else { return }
+            self.dismissedBannerVersion = self.release?.version.description
+            self.bannerDismissed = true
+            self.bannerAutoDismissTask = nil
+        }
+    }
+
+    private func cancelBannerAutoDismiss() {
+        bannerAutoDismissTask?.cancel()
+        bannerAutoDismissTask = nil
     }
 
     func skipCurrentVersion() {
         guard let release else { return }
         defaults.set(release.version.description, forKey: Key.skippedVersion)
+        dismissedBannerVersion = release.version.description
         bannerDismissed = true
         phase = .idle
     }

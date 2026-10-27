@@ -22,6 +22,7 @@ struct UpdateBanner: View {
             Spacer(minLength: 12)
 
             Button("查看") {
+                app.updates.dismissBanner()
                 showWindow()
             }
             .buttonStyle(.plain)

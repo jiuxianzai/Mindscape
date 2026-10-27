@@ -383,6 +383,10 @@
 "已是最新版本" = "You're up to date";
 "当前版本 %@ 已经是最新。" = "Version %@ is the latest.";
 "自动检查更新" = "Automatically check for updates";
+"是否自动检查更新？" = "Automatically Check for Updates?";
+"开启后每 24 小时访问一次 GitHub Releases 检查新版本；关闭时 Mindscape 不会自动联网。此选择只询问一次，之后可在「设置 → 通用 → 更新」中修改。" = "When on, Mindscape checks GitHub Releases for new versions once every 24 hours. When off, it never goes online automatically. You'll only be asked once; you can change this later under Settings → General → Updates.";
+"暂不" = "Not Now";
+"开启自动检查" = "Turn On Automatic Checks";
 "开启后每 24 小时访问一次 GitHub Releases" = "Checks GitHub Releases once every 24 hours when on";
 "默认关闭：关闭时 Mindscape 不会自动联网。手动检查更新（菜单栏「检查更新…」或 设置 → 关于）仍会访问 GitHub。" = "Off by default: Mindscape never goes online automatically. Manual checks (menu bar “Check for Updates…” or Settings → About) still contact GitHub.";
 "自动检查已开启：启动后每 24 小时检查一次。" = "Automatic checks are on: once every 24 hours after launch.";
