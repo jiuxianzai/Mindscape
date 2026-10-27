@@ -1074,6 +1074,66 @@ final class MapEditor {
         return rightHeight <= leftHeight ? .right : .left
     }
 
+    /// 非破坏性模拟一次思维导图落点，返回被拖节点在结果布局里的位置。
+    /// 只用于拖动时的虚线预览，不写入模型，也不进入撤销栈。
+    func previewMindMapDropFrame(
+        sourceID: UUID,
+        targetID: UUID,
+        after: Bool,
+        side: MindMapSide?
+    ) -> CGRect? {
+        guard let source = map.node(sourceID),
+              source.parentID != nil,
+              map.node(targetID) != nil else { return nil }
+
+        var preview = map
+        guard let sourceIndex = preview.nodes.firstIndex(where: { $0.id == sourceID }),
+              let targetNode = preview.node(targetID) else { return nil }
+        let roots = preview.rootIDs
+        let remembering = preview.layout == .mindMap
+            && preview.resolvedMindMapLayoutMode == .remember
+
+        if roots.contains(targetID) {
+            if source.parentID == targetID {
+                guard remembering, let side else { return nil }
+                preview.nodes[sourceIndex].branchSide = side
+            } else {
+                let order = (preview.rootIDs.compactMap { preview.node($0)?.order }.max() ?? -1) + 1
+                preview.nodes[sourceIndex].parentID = targetID
+                preview.nodes[sourceIndex].order = order
+                preview.nodes[sourceIndex].branchSide = remembering ? side : nil
+                if let targetIndex = preview.nodes.firstIndex(where: { $0.id == targetID }) {
+                    preview.nodes[targetIndex].collapsed = false
+                }
+            }
+        } else if source.parentID == targetNode.parentID {
+            guard let parentID = source.parentID else { return nil }
+            var siblings = preview.children(of: parentID).map(\.id)
+            guard let sourceSiblingIndex = siblings.firstIndex(of: sourceID) else { return nil }
+            siblings.remove(at: sourceSiblingIndex)
+            guard let targetSiblingIndex = siblings.firstIndex(of: targetID) else { return nil }
+            siblings.insert(sourceID, at: after ? targetSiblingIndex + 1 : targetSiblingIndex)
+            for (order, id) in siblings.enumerated() {
+                if let index = preview.nodes.firstIndex(where: { $0.id == id }) {
+                    preview.nodes[index].order = order
+                }
+            }
+            if remembering, let side, roots.contains(parentID) {
+                preview.nodes[sourceIndex].branchSide = side
+            }
+        } else {
+            let order = (preview.children(of: targetID).map(\.order).max() ?? -1) + 1
+            preview.nodes[sourceIndex].parentID = targetID
+            preview.nodes[sourceIndex].order = order
+            preview.nodes[sourceIndex].branchSide = nil
+            if let targetIndex = preview.nodes.firstIndex(where: { $0.id == targetID }) {
+                preview.nodes[targetIndex].collapsed = false
+            }
+        }
+
+        return LayoutEngine.layout(preview).frames[sourceID]
+    }
+
     private func mindMapSideSnapshot() -> [UUID: MindMapSide] {
         guard map.layout == .mindMap else { return [:] }
         let layout = LayoutEngine.layout(map)

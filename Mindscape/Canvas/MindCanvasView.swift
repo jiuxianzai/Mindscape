@@ -56,8 +56,10 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     private var drag: DragState?
     private var dragOffset: CGSize = .zero
     private var dropTargetID: UUID?
-    /// 思维导图换边拖拽时，落点会放在左侧还是右侧；nil 表示不显示提示
-    private(set) var dropSide: MindMapSide?
+    /// 拖动思维导图节点时，模拟出的落点虚线框（世界坐标）
+    private(set) var dropPreviewFrame: CGRect?
+    private var dropPreviewNodeID: UUID?
+    private var dropPreviewKey: DropPreviewKey?
     private var editTextView: NSTextView?
     private var editingID: UUID?
     private var editingOriginalText = ""
@@ -76,6 +78,13 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             super.unmarkText()
             onMarkedTextChange?()
         }
+    }
+
+    private struct DropPreviewKey: Equatable {
+        let source: UUID
+        let target: UUID
+        let after: Bool
+        let side: MindMapSide?
     }
 
     private enum DragState {
@@ -157,7 +166,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             activeSearchID = nil
             marqueeRect = nil
             snapGuides = []
-            dropSide = nil
+            clearMindMapDropPreview()
             notifyZoomChanged()
         }
         self.theme = theme
@@ -643,7 +652,8 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                 dragOffset: dragOffset,
                 dimmed: dimmedNodeIDs(),
                 dimAlpha: focusDimAlpha,
-                dropTargetID: dropTargetID,
+                // 有落点虚线预览时不再画目标节点的虚线环，避免两个虚线框叠在一起
+                dropTargetID: dropPreviewFrame == nil ? dropTargetID : nil,
                 dashPhase: dashPhase,
                 editingNodeID: editingID,
                 searchMatches: searchMatches,
@@ -660,7 +670,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         )
         drawSnapGuides(in: context)
         context.restoreGState()
-        drawMindMapDropSideHint()
+        drawMindMapDropPreview()
         drawMarquee()
     }
 
@@ -691,55 +701,56 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         context.setLineDash(phase: 0, lengths: [])
     }
 
-    /// 换边拖拽时在目标节点侧面标出「会放到左边还是右边」。
-    /// 只改变绘制，不参与命中测试。
-    private func drawMindMapDropSideHint() {
-        guard let side = dropSide,
-              let targetID = dropTargetID,
-              let frame = layoutResult?.frames[targetID] else { return }
+    /// 拖动时在最终落点画一个虚线节点预览，直观看到会落到左侧还是右侧。
+    private func drawMindMapDropPreview() {
+        guard let frame = dropPreviewFrame,
+              let nodeID = dropPreviewNodeID,
+              let editor,
+              let node = editor.map.node(nodeID) else { return }
 
-        let targetRect = worldRectToView(frame)
-        guard targetRect.intersects(bounds.insetBy(dx: -30, dy: -30)) else { return }
+        let rect = worldRectToView(frame)
+        guard rect.intersects(bounds.insetBy(dx: -20, dy: -20)) else { return }
 
-        let accent = theme.accent
-        // 目标节点对应侧的高亮条
-        let barRect = CGRect(
-            x: side == .left ? targetRect.minX + 1 : targetRect.maxX - 4,
-            y: targetRect.minY + 3,
-            width: 3,
-            height: max(targetRect.height - 6, 1)
-        )
-        let bar = NSBezierPath(roundedRect: barRect, xRadius: 1.5, yRadius: 1.5)
-        accent.withAlphaComponent(0.92).setFill()
-        bar.fill()
+        let level = min(layoutResult?.depths[nodeID] ?? 1, 2)
+        let path = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
+        theme.nodeFill.withAlphaComponent(0.55).setFill()
+        path.fill()
+        theme.accent.withAlphaComponent(0.9).setStroke()
+        path.lineWidth = 1.5
+        path.setLineDash([6, 4], count: 2, phase: 0)
+        path.stroke()
+        path.setLineDash([], count: 0, phase: 0)
 
-        // 节点外侧的「左侧 / 右侧」提示胶囊
-        let label = side == .left ? "← " + loc("左侧") : loc("右侧") + " →"
+        guard camera.zoom >= 0.5 else { return }
+        let style = NSMutableParagraphStyle()
+        style.alignment = .center
+        style.lineBreakMode = .byTruncatingTail
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
-            .foregroundColor: accent
+            .font: NSFont.systemFont(
+                ofSize: max(NodeMeasurer.font(level: level).pointSize * camera.zoom, 6),
+                weight: level == 0 ? .semibold : .medium
+            ),
+            .foregroundColor: theme.nodeText.withAlphaComponent(0.55),
+            .paragraphStyle: style
         ]
-        let textSize = (label as NSString).size(withAttributes: attributes)
-        let chipHeight = ceil(textSize.height) + 8
-        let chipWidth = ceil(textSize.width) + 14
-        var chipX = side == .left
-            ? targetRect.minX - chipWidth - 8
-            : targetRect.maxX + 8
-        let chipY = min(
-            max(targetRect.midY - chipHeight / 2, 8),
-            max(bounds.maxY - chipHeight - 8, 8)
+        let inset = max(8 * camera.zoom, 4)
+        let textRect = rect.insetBy(dx: inset, dy: inset)
+        let bounding = (node.text as NSString).boundingRect(
+            with: CGSize(width: textRect.width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes
         )
-        chipX = min(max(chipX, 8), max(bounds.maxX - chipWidth - 8, 8))
-        let chipRect = CGRect(x: chipX, y: chipY, width: chipWidth, height: chipHeight)
-        let chip = NSBezierPath(roundedRect: chipRect, xRadius: chipHeight / 2, yRadius: chipHeight / 2)
-        theme.nodeFill.withAlphaComponent(0.96).setFill()
-        chip.fill()
-        accent.withAlphaComponent(0.55).setStroke()
-        chip.lineWidth = 1
-        chip.stroke()
-        (label as NSString).draw(
-            at: CGPoint(x: chipRect.minX + 7, y: chipRect.midY - textSize.height / 2),
-            withAttributes: attributes
+        let height = min(bounding.height, textRect.height)
+        let drawRect = CGRect(
+            x: textRect.minX,
+            y: textRect.midY - height / 2,
+            width: textRect.width,
+            height: height
+        )
+        (node.text as NSString).draw(
+            with: drawRect,
+            options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+            attributes: attributes
         )
     }
 
@@ -1077,7 +1088,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                 )
                 dragOffset = .zero
                 snapGuides = []
-                dropSide = nil
+                clearMindMapDropPreview()
                 startDashTimer()
             }
             needsDisplay = true
@@ -1116,7 +1127,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             )
             if editor?.map.layout == .free {
                 snapGuides = []
-                dropSide = nil
+                clearMindMapDropPreview()
                 if !event.modifierFlags.contains(.command), let layout = layoutResult {
                     // 多选时以整组的外接矩形参与吸附，保持组内相对位置
                     var movingUnion = CGRect.null
@@ -1150,7 +1161,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                 let target = hitTest(worldPoint: world, excluding: ids)
                 let validTarget = target.flatMap { canDrop(ids, on: $0) ? $0 : nil }
                 dropTargetID = validTarget
-                dropSide = mindMapDropHintSide(ids: ids, target: validTarget, world: world)
+                updateMindMapDropPreview(ids: ids, target: validTarget, world: world)
             }
             dragOffset = offset
             needsDisplay = true
@@ -1354,23 +1365,56 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         return false
     }
 
-    /// 当前落点会不会改变节点的左右侧；会的话给出提示方向。
-    /// 返回 nil 时不显示左右提示（例如同级上下排序、平衡布局、拖动头部节点）。
-    private func mindMapDropHintSide(ids: Set<UUID>, target: UUID?, world: CGPoint) -> MindMapSide? {
+    /// 计算并缓存落点虚线框；目标 / 插入位置 / 左右侧不变时不重复跑布局。
+    private func updateMindMapDropPreview(ids: Set<UUID>, target: UUID?, world: CGPoint) {
         guard let editor,
               editor.map.layout == .mindMap,
-              editor.map.resolvedMindMapLayoutMode == .remember,
               let target,
               ids.count == 1,
-              let only = ids.first,
-              let source = editor.map.node(only),
-              let parentID = source.parentID else { return nil }
+              let sourceID = ids.first,
+              let source = editor.map.node(sourceID),
+              source.parentID != nil,
+              let targetFrame = layoutResult?.frames[target] else {
+            clearMindMapDropPreview()
+            return
+        }
 
+        let after = world.y > targetFrame.midY
+        let side = mindMapPreviewSide(source: source, target: target, world: world)
+        let key = DropPreviewKey(source: sourceID, target: target, after: after, side: side)
+        guard key != dropPreviewKey else { return }
+        dropPreviewKey = key
+
+        if let frame = editor.previewMindMapDropFrame(
+            sourceID: sourceID,
+            targetID: target,
+            after: after,
+            side: side
+        ) {
+            dropPreviewNodeID = sourceID
+            dropPreviewFrame = frame
+        } else {
+            dropPreviewNodeID = nil
+            dropPreviewFrame = nil
+        }
+    }
+
+    private func clearMindMapDropPreview() {
+        dropPreviewKey = nil
+        dropPreviewNodeID = nil
+        dropPreviewFrame = nil
+    }
+
+    /// 预览落点会在左还是右；nil 表示这次落点不改变左右侧。
+    private func mindMapPreviewSide(source: MindNode, target: UUID, world: CGPoint) -> MindMapSide? {
+        guard let editor,
+              editor.map.resolvedMindMapLayoutMode == .remember else { return nil }
         let roots = Set(editor.map.rootIDs)
         if roots.contains(target) {
             return mindMapDropSide(inRoot: target, at: world)
         }
-        guard roots.contains(parentID),
+        guard let parentID = source.parentID,
+              roots.contains(parentID),
               let targetNode = editor.map.node(target),
               targetNode.parentID == parentID else { return nil }
         return mindMapSide(of: target)
@@ -1403,7 +1447,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         drag = nil
         dragOffset = .zero
         dropTargetID = nil
-        dropSide = nil
+        clearMindMapDropPreview()
         snapGuides = []
         stopDashTimer()
         needsDisplay = true

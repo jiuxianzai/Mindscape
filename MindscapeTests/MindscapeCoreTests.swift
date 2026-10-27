@@ -2285,8 +2285,12 @@ extension MindscapeFeatureTests {
 
         canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
         canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
-        XCTAssertNil(canvas.dropSide, "普通兄弟节点上下排序不应该显示左右换边提示")
+        let reorderPreview = try XCTUnwrap(canvas.dropPreviewFrame, "拖动时应显示落点虚线预览")
         canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
+        XCTAssertNil(canvas.dropPreviewFrame, "松手后应清除落点虚线预览")
+        let actualFrame = try XCTUnwrap(LayoutEngine.layout(editor.map).frames[first.id])
+        XCTAssertEqual(reorderPreview.midX, actualFrame.midX, accuracy: 0.5, "虚线预览的位置和实际落点不一致")
+        XCTAssertEqual(reorderPreview.midY, actualFrame.midY, accuracy: 0.5, "虚线预览的位置和实际落点不一致")
 
         XCTAssertEqual(editor.map.node(first.id)?.parentID, parentID, "同级拖动不应改变父节点")
         XCTAssertGreaterThan(
@@ -2323,8 +2327,12 @@ extension MindscapeFeatureTests {
 
         canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
         canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
-        XCTAssertEqual(canvas.dropSide, .left, "拖到左侧目标时应该提示会放到左边")
+        let targetPreview = try XCTUnwrap(canvas.dropPreviewFrame, "拖到左侧目标时没有落点虚线预览")
+        XCTAssertLessThan(targetPreview.midX, rootFrame.midX, "落点虚线预览不在左侧")
         canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
+        let actualSourceFrame = try XCTUnwrap(LayoutEngine.layout(editor.map).frames[source.id])
+        XCTAssertEqual(targetPreview.midX, actualSourceFrame.midX, accuracy: 0.5, "虚线预览的位置和实际落点不一致")
+        XCTAssertEqual(targetPreview.midY, actualSourceFrame.midY, accuracy: 0.5, "虚线预览的位置和实际落点不一致")
 
         XCTAssertEqual(editor.map.node(source.id)?.branchSide, .left)
         XCTAssertEqual(editor.map.node(source.id)?.parentID, rootID, "一级分支拖动不该改变父节点")
@@ -2356,8 +2364,12 @@ extension MindscapeFeatureTests {
 
         canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
         canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
-        XCTAssertEqual(canvas.dropSide, .left, "拖到左侧目标时应该提示会放到左边")
+        let rootPreview = try XCTUnwrap(canvas.dropPreviewFrame, "拖到根节点左半边时没有落点虚线预览")
+        XCTAssertLessThan(rootPreview.midX, rootFrame.midX, "落点虚线预览不在根节点左侧")
         canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
+        let actualSourceFrame = try XCTUnwrap(LayoutEngine.layout(editor.map).frames[source.id])
+        XCTAssertEqual(rootPreview.midX, actualSourceFrame.midX, accuracy: 0.5, "虚线预览的位置和实际落点不一致")
+        XCTAssertEqual(rootPreview.midY, actualSourceFrame.midY, accuracy: 0.5, "虚线预览的位置和实际落点不一致")
 
         XCTAssertEqual(editor.map.node(source.id)?.branchSide, .left)
         let moved = LayoutEngine.layout(editor.map)
