@@ -189,6 +189,7 @@ final class AgentService {
         let title = body.title?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let title, !title.isEmpty { try validateLength(title, field: "标题", max: 200) }
         map.title = (title?.isEmpty == false ? title : nil) ?? map.primaryHeadText
+        map.normalizeTheme(isDark: NSApplication.shared.isDarkAppearance)
         map.createdAt = Date()
         map.updatedAt = Date()
         try store.save(map, folderID: folderID)
@@ -199,7 +200,7 @@ final class AgentService {
     private func showMap(parts: [String]) throws -> AgentHTTPResponse {
         guard parts.count == 3 else { throw AgentAPIError.notFound("导图 ID 缺失") }
         let id = try AgentPath.uuid(parts[2], name: "mapId")
-        guard let map = try store.load(id: id) else { throw AgentAPIError.notFound("导图不存在") }
+        let map = try loadMap(id)
         let folderID = try store.list(includeDeleted: true).first(where: { $0.id == id })?.folderID
         return .json(AgentSuccessEnvelope(data: AgentMapDTO(map: map, folderID: folderID)))
     }
@@ -225,10 +226,11 @@ final class AgentService {
             guard MapTheme.all.contains(where: { $0.id == theme }) else {
                 throw AgentAPIError.badRequest("未知主题：\(theme)")
             }
-            guard ThemePolicy.allows(theme, isDark: NSApplication.shared.isDarkAppearance) else {
-                throw AgentAPIError.badRequest("「纸白」仅浅色外观可用，深色下请使用「深空」。")
+            let isDark = NSApplication.shared.isDarkAppearance
+            guard ThemePolicy.allows(theme, isDark: isDark) else {
+                throw AgentAPIError.badRequest("主题「\(theme)」不适用于当前外观。")
             }
-            map.themeID = theme
+            map.rememberTheme(theme, isDark: isDark)
         }
         map.updatedAt = Date()
         try store.save(map)
@@ -521,6 +523,7 @@ final class AgentService {
         let requestedTheme = body.theme.flatMap { id in MapTheme.all.first(where: { $0.id == id }) }?.id ?? MapTheme.defaultThemeID
         let theme = ThemePolicy.adjusted(requestedTheme, isDark: NSApplication.shared.isDarkAppearance)
         var map = try MapImporter.load(url: url, themeID: theme, layout: layout)
+        map.normalizeTheme(isDark: NSApplication.shared.isDarkAppearance)
         map.title = url.deletingPathExtension().lastPathComponent
         map.updatedAt = Date()
 
@@ -542,7 +545,8 @@ final class AgentService {
     // MARK: - Helpers
 
     private func loadMap(_ id: UUID) throws -> MindMap {
-        guard let map = try store.load(id: id) else { throw AgentAPIError.notFound("导图不存在") }
+        guard var map = try store.load(id: id) else { throw AgentAPIError.notFound("导图不存在") }
+        map.normalizeTheme(isDark: NSApplication.shared.isDarkAppearance)
         return map
     }
 

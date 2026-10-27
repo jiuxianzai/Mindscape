@@ -131,17 +131,22 @@ struct MapTheme: Identifiable, Hashable {
     }
 }
 
-/// 纸白是浅色画布，深色系统下与黑色侧栏并排会明显割裂。
-/// 口径：纸白只在浅色外观可用；深色下自动落到深空。
+/// 浅色外观只显示浅色主题，深色外观只显示深色主题。
+/// 每个文件分别记住 pair；未设置时浅色默认纸白、深色默认深空。
 enum ThemePolicy {
     static let darkFallbackID = "midnight"
-    static let lightOnlyIDs: Set<String> = ["paper"]
+    static let lightFallbackID = "paper"
+
+    static func defaultID(isDark: Bool) -> String {
+        isDark ? darkFallbackID : lightFallbackID
+    }
 
     static func allows(_ id: String, isDark: Bool) -> Bool {
-        !(isDark && lightOnlyIDs.contains(id))
+        guard let theme = MapTheme.all.first(where: { $0.id == id }) else { return false }
+        return theme.isDark == isDark
     }
 
     static func adjusted(_ id: String, isDark: Bool) -> String {
-        allows(id, isDark: isDark) ? id : darkFallbackID
+        allows(id, isDark: isDark) ? id : defaultID(isDark: isDark)
     }
 }

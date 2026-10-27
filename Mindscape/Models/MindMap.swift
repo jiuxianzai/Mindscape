@@ -6,8 +6,53 @@ struct MindMap: Identifiable, Codable, Equatable, Sendable {
     var nodes: [MindNode] = []
     var layout: MapLayout = .mindMap
     var themeID: String = MapTheme.defaultThemeID
+    /// 浅色/深色外观下分别使用的主题；nil 表示旧数据尚未记录。
+    var lightThemeID: String?
+    var darkThemeID: String?
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
+
+
+    // MARK: - Theme pair
+
+    /// 当前外观应使用的主题。旧数据只有 themeID 时，优先保留它原本的明暗属性；
+    /// 另一种外观落到纸白/深空默认值。
+    func effectiveThemeID(isDark: Bool) -> String {
+        let stored = isDark ? darkThemeID : lightThemeID
+        if let stored, ThemePolicy.allows(stored, isDark: isDark) {
+            return stored
+        }
+        let legacy = MapTheme.byID(themeID)
+        if legacy.isDark == isDark, ThemePolicy.allows(themeID, isDark: isDark) {
+            return themeID
+        }
+        return ThemePolicy.defaultID(isDark: isDark)
+    }
+
+    /// 把旧数据的 themeID 物化成一对主题，并切换到当前外观对应的那一套。
+    mutating func normalizeTheme(isDark: Bool) {
+        let legacy = MapTheme.byID(themeID)
+        if lightThemeID == nil {
+            lightThemeID = legacy.isDark ? ThemePolicy.lightFallbackID : themeID
+        }
+        if darkThemeID == nil {
+            darkThemeID = legacy.isDark ? themeID : ThemePolicy.darkFallbackID
+        }
+        lightThemeID = ThemePolicy.adjusted(lightThemeID ?? ThemePolicy.lightFallbackID, isDark: false)
+        darkThemeID = ThemePolicy.adjusted(darkThemeID ?? ThemePolicy.darkFallbackID, isDark: true)
+        themeID = effectiveThemeID(isDark: isDark)
+    }
+
+    /// 用户在当前外观下选主题时，只更新对应的那一套。
+    mutating func rememberTheme(_ id: String, isDark: Bool) {
+        let adjusted = ThemePolicy.adjusted(id, isDark: isDark)
+        if isDark {
+            darkThemeID = adjusted
+        } else {
+            lightThemeID = adjusted
+        }
+        themeID = adjusted
+    }
 
     // MARK: - Lookup
 

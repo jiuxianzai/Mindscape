@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-134-brightgreen?style=flat-square" alt="134 tests">
+  <img src="https://img.shields.io/badge/tests-136-brightgreen?style=flat-square" alt="136 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.4-lightgrey?style=flat-square" alt="Status 0.5.4">
 </p>
@@ -92,6 +92,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 
 - 8 layouts: mind map (balanced both sides), logic chart (right/left), org chart, tree, timeline, brace map, free-form with alignment guides and snapping
 - 8 themes: Paper, Midnight, Morandi, Corporate, Blueprint, Neon, Sand, Ink
+- Each map remembers a light and a dark theme separately; light mode lists light themes, dark mode lists dark themes, defaulting to Paper / Midnight
 
 ### Outline & presentation
 

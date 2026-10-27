@@ -30,13 +30,15 @@ final class MapEditor {
     private var lastTextEditID: UUID?
     private var lastTextEditAt = Date.distantPast
 
-    var theme: MapTheme { MapTheme.byID(ThemePolicy.adjusted(map.themeID, isDark: NSApplication.shared.isDarkAppearance)) }
+    var theme: MapTheme { MapTheme.byID(map.effectiveThemeID(isDark: NSApplication.shared.isDarkAppearance)) }
     var undoCount: Int { undoStack.count }
 
     init(map: MindMap, store: DocumentStore) {
-        self.map = map
+        var normalized = map
+        normalized.normalizeTheme(isDark: NSApplication.shared.isDarkAppearance)
+        self.map = normalized
         self.store = store
-        self.selection = map.root == nil ? [] : [map.rootID]
+        self.selection = normalized.root == nil ? [] : [normalized.rootID]
         self.lastAutoSnapshot = Date()
     }
 
@@ -756,11 +758,21 @@ final class MapEditor {
     }
 
     func setTheme(_ themeID: String) {
-        let adjusted = ThemePolicy.adjusted(themeID, isDark: NSApplication.shared.isDarkAppearance)
-        guard map.themeID != adjusted else { return }
+        let isDark = NSApplication.shared.isDarkAppearance
+        let adjusted = ThemePolicy.adjusted(themeID, isDark: isDark)
+        let stored = isDark ? map.darkThemeID : map.lightThemeID
+        guard map.themeID != adjusted || stored != adjusted else { return }
         mutate { map in
-            map.themeID = adjusted
+            map.rememberTheme(adjusted, isDark: isDark)
         }
+    }
+
+    /// 外观切换后，把当前文件切换到对应的浅色/深色主题。
+    func syncThemeForAppearance() {
+        var updated = map
+        updated.normalizeTheme(isDark: NSApplication.shared.isDarkAppearance)
+        guard updated != map else { return }
+        mutate(undoable: false) { $0 = updated }
     }
 
     func requestFit() {

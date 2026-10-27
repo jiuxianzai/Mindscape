@@ -109,8 +109,7 @@ final class AppModel {
     }
 
     private func enforceThemePolicy() {
-        guard isDarkAppearance, let editor, editor.map.themeID == "paper" else { return }
-        editor.setTheme(ThemePolicy.darkFallbackID)
+        editor?.syncThemeForAppearance()
     }
 
     // MARK: - Lists
@@ -248,7 +247,8 @@ final class AppModel {
     func reloadAfterExternalChange(documentID: UUID?) {
         if let documentID, selectedDocumentID == documentID {
             editor = nil
-            if let map = try? store.load(id: documentID) {
+            if var map = try? store.load(id: documentID) {
+                map.normalizeTheme(isDark: isDarkAppearance)
                 let newEditor = MapEditor(map: map, store: store)
                 newEditor.onSaved = { [weak self] in
                     self?.refreshQuietly()
@@ -273,8 +273,9 @@ final class AppModel {
             editor = nil
             return
         }
-        if isDarkAppearance, !ThemePolicy.allows(map.themeID, isDark: true) {
-            map.themeID = ThemePolicy.adjusted(map.themeID, isDark: true)
+        let before = (map.themeID, map.lightThemeID, map.darkThemeID)
+        map.normalizeTheme(isDark: isDarkAppearance)
+        if before != (map.themeID, map.lightThemeID, map.darkThemeID) {
             map.updatedAt = Date()
             try? store.save(map)
         }
@@ -300,6 +301,7 @@ final class AppModel {
         var map = template.makeMap(themeID: themeID, layout: layout)
         // 标题默认跟随第一个头部节点；用户之后手动改名才会脱离跟随
         map.title = map.primaryHeadText
+        map.normalizeTheme(isDark: isDarkAppearance)
         map.createdAt = Date()
         map.updatedAt = Date()
 

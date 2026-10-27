@@ -281,11 +281,14 @@ struct InspectorView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("主题")
-                // 直接铺成两列网格：8 套主题一眼看全，不会因为菜单滚动
-                // 只显示当前选中项附近的几个，让新用户以为主题丢了。
+                // 直接铺成两列网格：当前浅色/深色外观对应的主题完整显示，
+                // 不会因为菜单滚动只看到选中项附近的几个。
                 ThemePickerGrid(selectedID: editor.map.themeID) { themeID in
                     editor.setTheme(themeID)
                 }
+                Text("浅色 / 深色主题分别保存")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 7) {

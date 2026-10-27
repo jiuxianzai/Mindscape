@@ -4,7 +4,7 @@ import SwiftUI
 ///
 /// 之前工具栏用的是菜单式 `Picker`：菜单会记住当前选中项，选到靠后的主题后
 /// 再打开，菜单会从选中项附近开始展示，上面的主题看起来像「消失」了。
-/// 这里改成固定两列的网格，8 套主题永远完整显示，选中项只加高亮。
+/// 这里改成固定两列的网格，当前外观对应的主题完整显示，选中项只加高亮。
 struct ThemePickerGrid: View {
     @Environment(\.colorScheme) private var colorScheme
 

@@ -289,7 +289,7 @@ struct GeneralSettingsContent: View {
             SettingsSection("外观") {
                 SettingsCard {
                     VStack(spacing: 0) {
-                        settingsRow("外观模式", subtitle: "深色模式下「纸白」自动切换为「深空」") {
+                        settingsRow("外观模式", subtitle: "每个导图分别记住浅色 / 深色主题") {
                             Picker("", selection: Binding(
                                 get: { app.appearanceMode },
                                 set: { app.appearanceMode = $0 }

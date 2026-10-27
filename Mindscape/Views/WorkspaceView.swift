@@ -306,9 +306,14 @@ struct WorkspaceView: View {
             .help("切换主题")
             .accessibilityLabel("切换主题")
             .popover(isPresented: $showThemePicker, arrowEdge: .bottom) {
-                ThemePickerGrid(selectedID: editor.map.themeID) { themeID in
-                    editor.setTheme(themeID)
-                    showThemePicker = false
+                VStack(alignment: .leading, spacing: 6) {
+                    ThemePickerGrid(selectedID: editor.map.themeID) { themeID in
+                        editor.setTheme(themeID)
+                        showThemePicker = false
+                    }
+                    Text("浅色 / 深色主题分别保存")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
                 }
                 .padding(10)
                 .frame(width: 236)

@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-134-brightgreen?style=flat-square" alt="134 tests">
+  <img src="https://img.shields.io/badge/tests-136-brightgreen?style=flat-square" alt="136 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.4-lightgrey?style=flat-square" alt="Status 0.5.4">
 </p>
@@ -118,7 +118,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 纸白、深空、莫兰迪、商务蓝、蓝图、霓虹、暖砂、墨线。
 
-主题只影响画布；窗口和侧栏跟随系统外观。当前导图的主题可以在工具栏或属性面板切换。
+主题只影响画布；窗口和侧栏跟随外观设置。每张导图分别记住浅色/深色主题：浅色只显示浅色主题，深色只显示深色主题，默认分别为纸白/深空。当前导图的主题可以在工具栏或属性面板切换。
 
 ### 图标
 

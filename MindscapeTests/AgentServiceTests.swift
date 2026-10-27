@@ -59,7 +59,7 @@ final class AgentServiceTests: XCTestCase {
 
         let updated = service.handle(request("PATCH", "/v1/maps/\(id)", ["theme": "paper"]))
         XCTAssertEqual(updated.status, 400)
-        XCTAssertTrue(String(data: updated.body, encoding: .utf8)?.contains("纸白") == true)
+        XCTAssertTrue(String(data: updated.body, encoding: .utf8)?.contains("当前外观") == true)
     }
 
     func testFolderLifecycle() throws {
