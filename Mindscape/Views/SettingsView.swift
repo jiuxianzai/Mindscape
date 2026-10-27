@@ -592,6 +592,27 @@ struct ShortcutSettingsContent: View {
                 .buttonStyle(SettingsActionButtonStyle())
             }
 
+            SettingsSection("节点多选") {
+                SettingsCard {
+                    settingsRow(
+                        "多选修饰键",
+                        subtitle: "按住它点击节点可加选 / 减选，拖拽空白处可框选。⌘ 点击始终可以加选。"
+                    ) {
+                        Picker("多选修饰键", selection: Binding(
+                            get: { store.selectionModifier },
+                            set: { store.setSelectionModifier($0) }
+                        )) {
+                            ForEach(SelectionModifier.allCases) { modifier in
+                                Text("\(modifier.symbol) \(modifier.title)").tag(modifier)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
+                        .frame(width: 190)
+                    }
+                }
+            }
+
             ForEach(categories, id: \.self) { category in
                 SettingsSection(category) {
                     SettingsCard {

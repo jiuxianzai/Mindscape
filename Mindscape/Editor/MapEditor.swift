@@ -239,23 +239,27 @@ final class MapEditor {
         return true
     }
 
+    /// 去掉「父节点也在集合里」的项，只保留最上层节点。
+    /// 批量移动/复制时以这些节点为单位，避免把同一棵子树搬两次。
+    private func topmostIDs(in ids: Set<UUID>) -> Set<UUID> {
+        Set(ids.filter { id in
+            guard map.node(id) != nil else { return false }
+            var parent = map.node(id)?.parentID
+            var guardCount = 0
+            while let current = parent, guardCount < map.nodes.count + 4 {
+                if ids.contains(current) { return false }
+                parent = map.node(current)?.parentID
+                guardCount += 1
+            }
+            return true
+        })
+    }
+
     private func clipboardPayload(for ids: Set<UUID>) -> NodeClipboardPayload? {
-        let roots = ids
-            .filter { id in
-                guard map.node(id) != nil else { return false }
-                var parent = map.node(id)?.parentID
-                var guardCount = 0
-                while let current = parent, guardCount < map.nodes.count + 4 {
-                    if ids.contains(current) { return false }
-                    parent = map.node(current)?.parentID
-                    guardCount += 1
-                }
-                return true
-            }
-            .sorted { lhs, rhs in
-                (map.nodes.firstIndex(where: { $0.id == lhs }) ?? 0) <
-                (map.nodes.firstIndex(where: { $0.id == rhs }) ?? 0)
-            }
+        let roots = topmostIDs(in: ids).sorted { lhs, rhs in
+            (map.nodes.firstIndex(where: { $0.id == lhs }) ?? 0) <
+            (map.nodes.firstIndex(where: { $0.id == rhs }) ?? 0)
+        }
         guard !roots.isEmpty else { return nil }
 
         var nodes: [MindNode] = []
@@ -619,26 +623,72 @@ final class MapEditor {
     }
 
     func move(id: UUID, to newParent: UUID) {
-        guard canMove(id, to: newParent) else { return }
+        move(ids: [id], to: newParent)
+    }
+
+    /// 当前选中的节点里，至少有一个可以挂到 `newParent` 下面。
+    /// 供画布在拖拽过程中决定是否显示落点。
+    func canMoveSelection(to newParent: UUID) -> Bool {
+        canMove(ids: selection, to: newParent)
+    }
+
+    func canMove(ids: Set<UUID>, to newParent: UUID) -> Bool {
+        guard map.node(newParent) != nil else { return false }
+        let moving = topmostIDs(in: ids)
+        guard !moving.contains(newParent) else { return false }
+        return moving.contains { canMove($0, to: newParent) }
+    }
+
+    /// 批量移动：把选中节点里最上层的几棵子树一起挂到目标节点下。
+    /// 已经在目标节点下的节点会被跳过，避免重复搬运。
+    @discardableResult
+    func move(ids: Set<UUID>, to newParent: UUID) -> Bool {
+        guard map.node(newParent) != nil else { return false }
+        let moving = topmostIDs(in: ids)
+        guard !moving.contains(newParent) else { return false }
+
+        let ordered = moving
+            .filter { canMove($0, to: newParent) }
+            .sorted { lhs, rhs in
+                (map.nodes.firstIndex(where: { $0.id == lhs }) ?? 0) <
+                (map.nodes.firstIndex(where: { $0.id == rhs }) ?? 0)
+            }
+        guard !ordered.isEmpty else { return false }
+
         let wasFollowing = titleFollowsPrimaryHead
         mutate { map in
-            let newOrder = map.children(of: newParent).count
-            if let index = map.nodes.firstIndex(where: { $0.id == id }) {
+            var newOrder = (map.children(of: newParent).map(\.order).max() ?? -1) + 1
+            for id in ordered {
+                guard let index = map.nodes.firstIndex(where: { $0.id == id }) else { continue }
                 map.nodes[index].parentID = newParent
                 map.nodes[index].order = newOrder
+                newOrder += 1
             }
             if let parentIndex = map.nodes.firstIndex(where: { $0.id == newParent }) {
                 map.nodes[parentIndex].collapsed = false
             }
             refreshTitleIfFollowing(wasFollowing, in: &map)
         }
+        return true
     }
 
     func moveFreeNode(id: UUID, to origin: CGPoint) {
-        guard map.node(id) != nil else { return }
+        moveFreeNodes(origins: [id: origin])
+    }
+
+    /// 批量移动自由布局节点。一次 mutate = 一步撤销。
+    func moveFreeNodes(origins: [UUID: CGPoint]) {
+        guard !origins.isEmpty else { return }
+        let changed = origins.contains { id, origin in
+            guard let node = map.node(id) else { return false }
+            return node.position != origin
+        }
+        guard changed else { return }
         mutate { map in
-            if let index = map.nodes.firstIndex(where: { $0.id == id }) {
-                map.nodes[index].position = origin
+            for index in map.nodes.indices {
+                if let origin = origins[map.nodes[index].id] {
+                    map.nodes[index].position = origin
+                }
             }
         }
     }

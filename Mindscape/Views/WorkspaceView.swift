@@ -10,11 +10,14 @@ struct MapCanvasRepresentable: NSViewRepresentable {
     var searchMatches: Set<UUID> = []
     var activeSearchID: UUID?
     var focusDimAlpha: CGFloat = 0.35
+    /// 用户在画布上开始点击 / 输入时回调，用于收起新手提示
+    var onUserInteraction: (() -> Void)?
 
     func makeNSView(context: Context) -> MindCanvasView {
         let view = MindCanvasView(frame: .zero)
         view.isReadOnly = readOnly
         view.focusDimAlpha = focusDimAlpha
+        view.onUserInteraction = onUserInteraction
         view.attach(editor: editor, theme: MapTheme.byID(themeID))
         view.setSearchResults(searchMatches, active: activeSearchID)
         wire(view)
@@ -25,6 +28,7 @@ struct MapCanvasRepresentable: NSViewRepresentable {
         _ = revision
         nsView.isReadOnly = readOnly
         nsView.focusDimAlpha = focusDimAlpha
+        nsView.onUserInteraction = onUserInteraction
         nsView.attach(editor: editor, theme: MapTheme.byID(themeID))
         nsView.setSearchResults(searchMatches, active: activeSearchID)
         if bridge.canvas !== nsView {
@@ -44,6 +48,8 @@ struct MapCanvasRepresentable: NSViewRepresentable {
 
 struct WorkspaceView: View {
     @Bindable var editor: MapEditor
+    /// 全局只自动展开一次：有数据的用户首次打开导图、无数据用户首次新建导图时触发
+    private let tipsGate = CanvasTipsGate()
     @State private var showHistory = false
     @State private var showInspector = true
     @State private var showExport = false
@@ -53,6 +59,7 @@ struct WorkspaceView: View {
     @State private var searchIndex = 0
     @State private var canvasBridge = CanvasBridge()
     @State private var showThemePicker = false
+    @State private var showTips = false
 
     private var matches: [UUID] {
         guard showSearch else { return [] }
@@ -123,7 +130,10 @@ struct WorkspaceView: View {
             themeID: editor.theme.id,
             bridge: canvasBridge,
             searchMatches: Set(matches),
-            activeSearchID: activeMatchID
+            activeSearchID: activeMatchID,
+            onUserInteraction: {
+                if showTips { showTips = false }
+            }
         )
         .background(Color(nsColor: editor.theme.background))
         .overlay(alignment: .top) {
@@ -153,6 +163,19 @@ struct WorkspaceView: View {
         .onChange(of: searchText) { _, _ in
             searchIndex = 0
             revealCurrentMatch()
+        }
+        .onAppear {
+            // 全局只弹一次：有数据的用户打开已有导图、没数据的用户新建导图，
+            // 最终都会走到这里，因此不需要再区分是否刚创建。
+            guard tipsGate.shouldShow else { return }
+            // 等工具栏按钮完成布局再弹，避免 popover 找不到锚点。
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                showTips = true
+            }
+        }
+        .onChange(of: showTips) { _, isShowing in
+            // 真正展示后再记账；如果锚点没准备好而没弹出来，下次还有机会。
+            if isShowing { tipsGate.markShown() }
         }
     }
 
@@ -332,6 +355,19 @@ struct WorkspaceView: View {
                 Label("导出", systemImage: "square.and.arrow.up")
             }
             .help("导出 / 分享")
+
+            Button {
+                showTips.toggle()
+            } label: {
+                Label("操作提示", systemImage: showTips ? "lightbulb.fill" : "lightbulb")
+            }
+            .help("画布操作提示")
+            .accessibilityLabel("画布操作提示")
+            .popover(isPresented: $showTips, arrowEdge: .bottom) {
+                CanvasTipsPopover(store: ShortcutStore.shared) {
+                    showTips = false
+                }
+            }
         }
     }
 }

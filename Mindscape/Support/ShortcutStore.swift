@@ -292,8 +292,11 @@ final class ShortcutStore: ObservableObject {
     static let shared = ShortcutStore()
 
     @Published private(set) var combos: [ShortcutAction: KeyCombo]
+    /// 画布多选修饰键，默认 Shift；可在设置里改成 Command。
+    @Published private(set) var selectionModifier: SelectionModifier = .shift
 
     private static let storageKey = "mindscape.shortcuts.v2"
+    private static let selectionModifierKey = "mindscape.selectionModifier.v1"
 
     private init() {
         var loaded: [ShortcutAction: KeyCombo] = [:]
@@ -320,9 +323,20 @@ final class ShortcutStore: ObservableObject {
             migrated = true
         }
         combos = loaded
+        if let raw = UserDefaults.standard.string(forKey: Self.selectionModifierKey),
+           let modifier = SelectionModifier(rawValue: raw) {
+            selectionModifier = modifier
+        }
         if migrated {
             persist()
         }
+    }
+
+    /// 修改多选修饰键；与快捷键一样写入 UserDefaults，重启后保留。
+    func setSelectionModifier(_ modifier: SelectionModifier) {
+        guard selectionModifier != modifier else { return }
+        selectionModifier = modifier
+        UserDefaults.standard.set(modifier.rawValue, forKey: Self.selectionModifierKey)
     }
 
     func combo(for action: ShortcutAction) -> KeyCombo {

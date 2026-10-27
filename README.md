@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-139-brightgreen?style=flat-square" alt="139 tests">
+  <img src="https://img.shields.io/badge/tests-152-brightgreen?style=flat-square" alt="152 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.6.0--beta.2-lightgrey?style=flat-square" alt="Status 0.6.0-beta.2">
 </p>
@@ -84,6 +84,8 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 - 无限画布：双指平移、捏合缩放、⌘ + 滚轮缩放、⌘0 适配
 - 节点：新增、重命名、折叠、多选、拖动、复制剪切粘贴、创建副本
+- 多选：设置里可选择多选修饰键（默认 ⇧，可改为 ⌘）；点击加减选区、拖拽空白处框选；⌘ 点击始终可加选；Delete 一次删除所选，拖动任一选中节点可整组移动（自由布局保持相对位置）
+- 工具栏灯泡集中展示画布操作提示；首次显示导图（打开已有或新建）时全局自动展开一次，开始绘图或手动关闭后收起
 - 支持多个头部节点；双击空白处新建头部节点并进入编辑
 - 拖动改层级：拖到节点上挂到它下面；按住 ⌥ 拖到同级节点可调整顺序
 - 画布快捷键：Space 进入编辑，Enter 新建同级节点（头部节点则新建头部），Tab 新建子节点

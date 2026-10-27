@@ -11,6 +11,8 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     weak var editor: MapEditor?
     /// 相机缩放变化时回调，供底部缩放栏同步显示
     var onZoomChanged: ((CGFloat) -> Void)?
+    /// 用户开始在画布上点击 / 输入时回调，用于自动收起新手提示
+    var onUserInteraction: (() -> Void)?
     var currentZoom: CGFloat { camera.zoom }
 
     /// 演示模式使用：不允许编辑、拖拽和框选，但保留缩放 / 平移
@@ -75,7 +77,16 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
     private enum DragState {
         case pan(startPoint: CGPoint, startCenter: CGPoint)
-        case node(id: UUID, startPoint: CGPoint, originalFrame: CGRect)
+        /// 多选拖动：`ids` 里的节点共享同一个位移。
+        /// `startFrames` 是按下时的可见坐标，松手落位时以它为基准。
+        case node(
+            id: UUID,
+            ids: Set<UUID>,
+            startPoint: CGPoint,
+            startFrames: [UUID: CGRect],
+            additive: Bool,
+            collapseOnClick: Bool
+        )
         case marquee(startPoint: CGPoint, base: Set<UUID>)
     }
 
@@ -621,7 +632,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             theme: theme,
             selection: RenderSelection(
                 ids: editor.selection,
-                dragNodeID: dragNodeID,
+                dragNodeIDs: dragNodeIDs,
                 dragOffset: dragOffset,
                 dimmed: dimmedNodeIDs(),
                 dimAlpha: focusDimAlpha,
@@ -682,9 +693,19 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         path.stroke()
     }
 
-    private var dragNodeID: UUID? {
-        if case .node(let id, _, _)? = drag { return id }
-        return nil
+    private var dragNodeIDs: Set<UUID> {
+        if case .node(_, let ids, _, _, _, _)? = drag { return ids }
+        return []
+    }
+
+    /// 设置里可选的多选修饰键（默认 Shift）。⌘ 点击始终保留为加选，兼容旧习惯。
+    private var selectionModifierFlag: NSEvent.ModifierFlags {
+        ShortcutStore.shared.selectionModifier.flag
+    }
+
+    private func isAdditiveSelection(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        return flags.contains(selectionModifierFlag) || flags.contains(.command)
     }
 
     private func drawGrid(in context: CGContext) {
@@ -733,6 +754,15 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
     private func hitTest(viewPoint: CGPoint, excluding: UUID? = nil) -> UUID? {
         hitTest(worldPoint: viewToWorld(viewPoint), excluding: excluding)
+    }
+
+    /// 多选拖拽时整组节点一起抬起来，落点不能是组内节点
+    private func hitTest(worldPoint: CGPoint, excluding ids: Set<UUID>) -> UUID? {
+        guard let layout = hitTestLayout else { return nil }
+        for id in layout.drawOrder.reversed() where !ids.contains(id) {
+            if layout.frames[id]?.contains(worldPoint) == true { return id }
+        }
+        return nil
     }
 
     private var hoveredConnectorParentID: UUID?
@@ -925,6 +955,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         userHasInteracted = true
+        onUserInteraction?()
         if editingID != nil { commitEditing() }
 
         let point = convert(event.locationInWindow, from: nil)
@@ -957,18 +988,40 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
         if let id = hitTest(worldPoint: worldPoint) {
             hoveredConnectorParentID = nil
-            let additive = event.modifierFlags.contains(.shift) || event.modifierFlags.contains(.command)
-            editor?.select(id, additive: additive)
+            let additive = isAdditiveSelection(event)
+            let wasSelected = editor?.selection.contains(id) ?? false
+            let hadMultiple = (editor?.selection.count ?? 0) > 1
+            var canDrag = true
+
+            if additive {
+                editor?.select(id, additive: true)
+                // Shift / ⌘ 点击把节点从选区里去掉时不启动拖拽
+                canDrag = editor?.selection.contains(id) ?? false
+            } else if !wasSelected {
+                editor?.select(id)
+            }
+            // 点在已选中的节点上时保留整组选区，直接拖动就是批量移动；
+            // 如果只是单击（没有位移），mouseUp 里再收窄为单选。
             NSAccessibility.post(element: self, notification: .selectedChildrenChanged)
-            if let frame = currentVisualFrames()[id] ?? layoutResult?.frames[id] {
-                drag = .node(id: id, startPoint: point, originalFrame: frame)
+
+            if canDrag {
+                let frames = currentVisualFrames()
+                let ids = editor?.selection ?? [id]
+                drag = .node(
+                    id: id,
+                    ids: ids.isEmpty ? [id] : ids,
+                    startPoint: point,
+                    startFrames: frames,
+                    additive: additive,
+                    collapseOnClick: !additive && wasSelected && hadMultiple
+                )
                 dragOffset = .zero
                 snapGuides = []
                 startDashTimer()
             }
             needsDisplay = true
         } else {
-            if event.modifierFlags.contains(.shift) {
+            if event.modifierFlags.contains(selectionModifierFlag) {
                 let base = editor?.selection ?? []
                 drag = .marquee(startPoint: point, base: base)
                 marqueeRect = CGRect(origin: point, size: .zero)
@@ -993,7 +1046,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             camera.center.y = startCenter.y - (point.y - startPoint.y) / camera.zoom
             updateEditorFrame()
             needsDisplay = true
-        case .node(let id, let startPoint, let originalFrame):
+        case .node(_, let ids, let startPoint, let startFrames, _, _):
             // 真正开始拖拽才让落位动画收口，选择/双击都不打断它
             if frameAnimation != nil || collapseFade != nil { stopFrameAnimation() }
             var offset = CGSize(
@@ -1003,24 +1056,31 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             if editor?.map.layout == .free {
                 snapGuides = []
                 if !event.modifierFlags.contains(.command), let layout = layoutResult {
-                    let moving = originalFrame.offsetBy(dx: offset.width, dy: offset.height)
-                    let others = layout.frames
-                        .filter { $0.key != id }
-                        .map(\.value)
-                    let result = FreeLayoutSnap.snap(
-                        movingFrame: moving,
-                        otherFrames: others,
-                        threshold: 7 / max(camera.zoom, 0.1)
-                    )
-                    offset.width += result.dx
-                    offset.height += result.dy
-                    snapGuides = result.guides
+                    // 多选时以整组的外接矩形参与吸附，保持组内相对位置
+                    var movingUnion = CGRect.null
+                    for id in ids {
+                        if let frame = startFrames[id] { movingUnion = movingUnion.union(frame) }
+                    }
+                    if !movingUnion.isNull {
+                        let moving = movingUnion.offsetBy(dx: offset.width, dy: offset.height)
+                        let others = layout.frames
+                            .filter { !ids.contains($0.key) }
+                            .map(\.value)
+                        let result = FreeLayoutSnap.snap(
+                            movingFrame: moving,
+                            otherFrames: others,
+                            threshold: 7 / max(camera.zoom, 0.1)
+                        )
+                        offset.width += result.dx
+                        offset.height += result.dy
+                        snapGuides = result.guides
+                    }
                 }
                 dropTargetID = nil
             } else {
                 let world = viewToWorld(point)
-                let target = hitTest(worldPoint: world, excluding: id)
-                dropTargetID = target.flatMap { canDrop(id, on: $0) ? $0 : nil }
+                let target = hitTest(worldPoint: world, excluding: ids)
+                dropTargetID = target.flatMap { canDrop(ids, on: $0) ? $0 : nil }
             }
             dragOffset = offset
             needsDisplay = true
@@ -1052,8 +1112,14 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         case .pan:
             self.drag = nil
             needsDisplay = true
-        case .node(let id, _, let originalFrame):
-            finishNodeDrag(id: id, originalFrame: originalFrame, event: event)
+        case .node(let id, let ids, _, let startFrames, _, let collapseOnClick):
+            finishNodeDrag(
+                id: id,
+                ids: ids,
+                startFrames: startFrames,
+                collapseOnClick: collapseOnClick,
+                event: event
+            )
         case .marquee:
             self.drag = nil
             marqueeRect = nil
@@ -1061,32 +1127,51 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         }
     }
 
-    private func finishNodeDrag(id: UUID, originalFrame: CGRect, event: NSEvent) {
-        let startFrames = currentVisualFrames()
+    private func finishNodeDrag(
+        id: UUID,
+        ids: Set<UUID>,
+        startFrames: [UUID: CGRect],
+        collapseOnClick: Bool,
+        event: NSEvent
+    ) {
         let offset = dragOffset
         let target = dropTargetID
+        let moved = abs(offset.width) > 1 || abs(offset.height) > 1
         dropTargetID = nil
         stopDashTimer()
 
-        // 自由布局：直接按拖动位移落位
-        if editor?.map.layout == .free {
-            if abs(offset.width) > 1 || abs(offset.height) > 1 {
-                let origin = CGPoint(x: originalFrame.minX + offset.width, y: originalFrame.minY + offset.height)
-                editor?.moveFreeNode(id: id, to: origin)
-                rebuildLayoutIfNeeded(force: true)
-                endNodeDrag()
-                animateFrames(from: startFrames, to: layoutResult?.frames ?? [:], duration: 0.2)
-            } else {
-                endNodeDrag()
+        guard moved else {
+            // 单击多选中的某个节点：不移动时把选区收窄到这一个节点
+            endNodeDrag()
+            if collapseOnClick {
+                editor?.select(id)
+                NSAccessibility.post(element: self, notification: .selectedChildrenChanged)
             }
+            needsDisplay = true
             return
         }
 
-        guard let target,
-              let editor,
-              let sourceNode = editor.map.node(id),
-              let targetNode = editor.map.node(target) else {
-            snapBack(from: startFrames)
+        let visualStart = currentVisualFrames()
+
+        // 自由布局：整组按同一个位移落位
+        if editor?.map.layout == .free {
+            var origins: [UUID: CGPoint] = [:]
+            for movingID in ids {
+                guard let frame = startFrames[movingID] ?? layoutResult?.frames[movingID] else { continue }
+                origins[movingID] = CGPoint(
+                    x: frame.minX + offset.width,
+                    y: frame.minY + offset.height
+                )
+            }
+            editor?.moveFreeNodes(origins: origins)
+            rebuildLayoutIfNeeded(force: true)
+            endNodeDrag()
+            animateFrames(from: visualStart, to: layoutResult?.frames ?? [:], duration: 0.2)
+            return
+        }
+
+        guard let target, let editor else {
+            snapBack(from: visualStart)
             return
         }
 
@@ -1098,21 +1183,25 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             : 0.5
         var didChange = false
 
-        // 默认拖到节点上 = 挂到该节点下面；按住 ⌥ 再拖到同级节点 = 调整兄弟顺序
-        if event.modifierFlags.contains(.option), sourceNode.parentID == targetNode.parentID {
-            editor.reorder(id: id, relativeTo: target, after: relativeY > 0.5)
+        // 单选 + ⌥ 拖到同级节点 = 调整兄弟顺序；多选时统一挂到目标节点下
+        if ids.count == 1,
+           let only = ids.first,
+           event.modifierFlags.contains(.option),
+           let sourceNode = editor.map.node(only),
+           let targetNode = editor.map.node(target),
+           sourceNode.parentID == targetNode.parentID {
+            editor.reorder(id: only, relativeTo: target, after: relativeY > 0.5)
             didChange = true
-        } else if editor.canMove(id, to: target) {
-            editor.move(id: id, to: target)
-            didChange = true
+        } else if editor.canMove(ids: ids, to: target) {
+            didChange = editor.move(ids: ids, to: target)
         }
 
         if didChange {
             rebuildLayoutIfNeeded(force: true)
             endNodeDrag()
-            animateFrames(from: startFrames, to: layoutResult?.frames ?? [:], duration: 0.24)
+            animateFrames(from: visualStart, to: layoutResult?.frames ?? [:], duration: 0.24)
         } else {
-            snapBack(from: startFrames)
+            snapBack(from: visualStart)
         }
     }
 
@@ -1135,8 +1224,12 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     private func currentVisualFrames() -> [UUID: CGRect] {
         var frames = displayFrames
         if frames.isEmpty { frames = layoutResult?.frames ?? [:] }
-        if case .node(let id, _, _)? = drag, let base = frames[id] {
-            frames[id] = base.offsetBy(dx: dragOffset.width, dy: dragOffset.height)
+        if case .node(_, let ids, _, _, _, _)? = drag {
+            for id in ids {
+                if let base = frames[id] {
+                    frames[id] = base.offsetBy(dx: dragOffset.width, dy: dragOffset.height)
+                }
+            }
         }
         return frames
     }
@@ -1317,6 +1410,16 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         return editor.canMove(id, to: target)
     }
 
+    private func canDrop(_ ids: Set<UUID>, on target: UUID) -> Bool {
+        guard let editor, !ids.contains(target) else { return false }
+        // 落点不能在任何一棵正在移动的子树里
+        guard !ids.contains(where: { editor.map.isDescendant(target, of: $0) }) else { return false }
+        if ids.count == 1, let id = ids.first {
+            return canDrop(id, on: target)
+        }
+        return editor.canMove(ids: ids, to: target)
+    }
+
     override func rightMouseDown(with event: NSEvent) {
         guard !isReadOnly else { return }
         let point = convert(event.locationInWindow, from: nil)
@@ -1481,8 +1584,18 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     }
 
     @objc private func menuDelete() {
-        editor?.deleteSelection()
+        deleteSelectionAndRefresh()
+    }
+
+    /// Delete 键与右键菜单共用：一次删掉整个选区，并让布局/画面立即跟上。
+    private func deleteSelectionAndRefresh() {
+        guard let editor else { return }
+        let startFrames = currentVisualFrames()
+        let before = editor.revision
+        editor.deleteSelection()
+        guard editor.revision != before else { return }
         rebuildLayoutIfNeeded(force: true)
+        animateFrames(from: startFrames, to: layoutResult?.frames ?? [:], duration: 0.2)
         needsDisplay = true
     }
 
@@ -1613,6 +1726,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             super.keyDown(with: event)
             return
         }
+        onUserInteraction?()
 
         if let action = ShortcutStore.shared.action(for: event, scope: .canvas) {
             perform(action, in: editor)
@@ -1656,6 +1770,10 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         }
 
         switch event.keyCode {
+        case 51, 117: // Delete / Forward Delete
+            // 即使「删除节点」快捷键被改过，系统删除键也应该删掉当前选区，
+            // 而不是把 DEL 字符送进就地编辑框。
+            deleteSelectionAndRefresh()
         case 53: // Esc
             if editor.focusNodeID != nil {
                 editor.setFocus(nil)
@@ -1798,7 +1916,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                 beginEditing(editor.map.rootID)
             }
         case .deleteNode:
-            editor.deleteSelection()
+            deleteSelectionAndRefresh()
         case .toggleCollapse:
             if let id = editor.selection.first {
                 editor.toggleCollapse(id)
