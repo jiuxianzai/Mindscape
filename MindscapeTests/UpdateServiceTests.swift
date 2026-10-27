@@ -138,6 +138,55 @@ final class ReleaseParsingTests: XCTestCase {
         XCTAssertNil(etag)
     }
 
+
+    func testBetaChannelSelectsNewestReleaseIncludingPrerelease() async throws {
+        let betaJSON = """
+        [
+          {
+            "tag_name": "v0.5.4",
+            "name": "Mindscape 0.5.4",
+            "body": "",
+            "html_url": "https://github.com/jiuxianzai/Mindscape/releases/tag/v0.5.4",
+            "published_at": "2026-10-26T12:00:00Z",
+            "prerelease": false,
+            "draft": false,
+            "assets": [
+              {"name":"Mindscape-0.5.4.dmg","size":1,"browser_download_url":"https://github.com/jiuxianzai/Mindscape/releases/download/v0.5.4/Mindscape-0.5.4.dmg"}
+            ]
+          },
+          {
+            "tag_name": "v0.6.0-beta.2",
+            "name": "Mindscape 0.6.0 Beta 2",
+            "body": "",
+            "html_url": "https://github.com/jiuxianzai/Mindscape/releases/tag/v0.6.0-beta.2",
+            "published_at": "2026-10-27T12:00:00Z",
+            "prerelease": true,
+            "draft": false,
+            "assets": [
+              {"name":"Mindscape-0.6.0-beta.2.dmg","size":1,"browser_download_url":"https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0-beta.2/Mindscape-0.6.0-beta.2.dmg"}
+            ]
+          }
+        ]
+        """
+        StubURLProtocol.handler = { request in
+            XCTAssertTrue(request.url?.query?.contains("per_page=30") == true)
+            return .success((Stub.response(request.url!, 200), Data(betaJSON.utf8)))
+        }
+        let service = GitHubUpdateService(
+            configuration: GitHubUpdateConfiguration(
+                appVersion: "0.6.0-beta.1",
+                includePrereleases: true
+            ),
+            session: Stub.session()
+        )
+        let result = try await service.latestRelease(etag: nil)
+        guard case .release(let release, _) = result else {
+            return XCTFail("expected beta release")
+        }
+        XCTAssertEqual(release.version.description, "0.6.0-beta.2")
+        XCTAssertEqual(release.dmg?.name, "Mindscape-0.6.0-beta.2.dmg")
+    }
+
     func testRateLimitFallsBackToAtom() async throws {
         StubURLProtocol.handler = { request in
             guard let url = request.url else { return .failure(URLError(.badURL)) }

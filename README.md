@@ -14,9 +14,9 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-136-brightgreen?style=flat-square" alt="136 tests">
+  <img src="https://img.shields.io/badge/tests-139-brightgreen?style=flat-square" alt="139 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.6.0--beta.1-lightgrey?style=flat-square" alt="Status 0.6.0-beta.1">
+  <img src="https://img.shields.io/badge/status-0.6.0--beta.2-lightgrey?style=flat-square" alt="Status 0.6.0-beta.2">
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 
 Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据全部保存在本机。它没有登录、没有云同步、不依赖任何第三方库；默认不联网，只有手动检查更新或在设置里开启自动检查时才会访问 GitHub。
 
-当前版本：**0.6.0 Beta 1**（预发布；稳定版为 0.5.4，功能和数据结构仍可能调整）
+当前版本：**0.6.0 Beta 2**（预发布；稳定版为 0.5.4，功能和数据结构仍可能调整）
 
 ### 0.6.0 Beta 亮点
 
@@ -232,11 +232,11 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ### 下载
 
-当前提供 **0.6.0 Beta 1**（预发布）。稳定版仍是 [0.5.4](https://github.com/jiuxianzai/Mindscape/releases/tag/v0.5.4)。
+当前提供 **0.6.0 Beta 2**（预发布）。稳定版仍是 [0.5.4](https://github.com/jiuxianzai/Mindscape/releases/tag/v0.5.4)。
 
-**Beta 下载**：[`Mindscape-0.6.0-beta.1.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0-beta.1/Mindscape-0.6.0-beta.1.dmg)，打开后把 Mindscape 拖进 Applications。
+**Beta 下载**：[`Mindscape-0.6.0-beta.2.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0-beta.2/Mindscape-0.6.0-beta.2.dmg)，打开后把 Mindscape 拖进 Applications。
 
-Beta 是预发布，不参与应用内自动更新；自动更新只认稳定版。
+Beta 构建会自动检测后续 Beta；稳定版仍只检测正式版。
 
 应用内也可以检查更新：**设置 → 关于 → 检查更新**，或菜单栏的「检查更新…」。首次启动会依次询问是否开启自动检查、是否一键安装 Agent Skill（两项默认关闭）；下载完成后会校验 SHA-256 并打开 DMG，仍然需要手动拖进 Applications 覆盖旧版本。
 
@@ -266,7 +266,7 @@ open Mindscape.xcodeproj
 打包与本地安装：
 
 ```bash
-make package    # 生成 dist/Mindscape-0.6.0-beta.1.dmg、.zip 和 .dmg.sha256
+make package    # 生成 dist/Mindscape-0.6.0-beta.2.dmg、.zip 和 .dmg.sha256
 make publish    # 用 gh 创建 GitHub Release（需已 gh auth login）
 make install    # 安装到 /Applications 并启动
 ```

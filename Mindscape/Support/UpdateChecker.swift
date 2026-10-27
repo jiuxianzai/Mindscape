@@ -35,6 +35,7 @@ final class UpdateChecker {
         static let lastCheckAt = "updates.lastCheckAt"
         static let skippedVersion = "updates.skippedVersion"
         static let etag = "updates.etag"
+        static let betaEtag = "updates.beta.etag"
         static let cachedRelease = "updates.cachedRelease"
     }
 
@@ -48,6 +49,8 @@ final class UpdateChecker {
         }
     }
     private(set) var release: UpdateRelease?
+    /// Beta 构建自动检测预发布版本；稳定版只检测正式版。
+    let isBetaChannel: Bool
     private(set) var downloadedFile: URL?
     private(set) var checksumState: ChecksumState = .unknown
     private(set) var lastCheckAt: Date?
@@ -110,6 +113,7 @@ final class UpdateChecker {
         bannerAutoDismissDelay: Duration = .seconds(60)
     ) {
         let version = installedVersion ?? Self.bundleVersion
+        self.isBetaChannel = version.prerelease != nil
         let downloads = downloadsDirectory
             ?? FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
@@ -124,7 +128,10 @@ final class UpdateChecker {
         self.session = session ?? URLSession(configuration: downloadConfiguration)
         self.bannerAutoDismissDelay = bannerAutoDismissDelay
         self.service = service ?? GitHubUpdateService(
-            configuration: GitHubUpdateConfiguration(appVersion: version.description)
+            configuration: GitHubUpdateConfiguration(
+                appVersion: version.description,
+                includePrereleases: version.prerelease != nil
+            )
         )
         self.autoCheckEnabled = defaults.object(forKey: Key.autoCheck) as? Bool ?? false
         self.lastCheckAt = defaults.object(forKey: Key.lastCheckAt) as? Date
@@ -132,6 +139,16 @@ final class UpdateChecker {
     }
 
     // MARK: - Public state
+
+    private var etagKey: String {
+        isBetaChannel ? Key.betaEtag : Key.etag
+    }
+
+    var channelDescription: String {
+        isBetaChannel
+            ? String(localized: "Beta 通道：会检测后续预发布版本")
+            : String(localized: "稳定版通道：只检测正式版本")
+    }
 
     var installedVersionDescription: String {
         installedVersion.description
@@ -279,7 +296,7 @@ final class UpdateChecker {
         phase = .checking
 
         do {
-            let result = try await service.latestRelease(etag: defaults.string(forKey: Key.etag))
+            let result = try await service.latestRelease(etag: defaults.string(forKey: etagKey))
             let candidate: UpdateRelease
             switch result {
             case .notModified:
@@ -291,9 +308,9 @@ final class UpdateChecker {
             case .release(let fetched, let etag):
                 candidate = fetched
                 if let etag, !etag.isEmpty {
-                    defaults.set(etag, forKey: Key.etag)
+                    defaults.set(etag, forKey: etagKey)
                 } else {
-                    defaults.removeObject(forKey: Key.etag)
+                    defaults.removeObject(forKey: etagKey)
                 }
                 Self.cache(fetched, in: defaults)
             }

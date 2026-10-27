@@ -426,6 +426,11 @@ struct GeneralSettingsContent: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                Text(app.updates.channelDescription)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if app.recentDataDirectories.count > 1 {

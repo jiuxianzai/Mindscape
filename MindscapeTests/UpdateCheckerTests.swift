@@ -97,6 +97,23 @@ final class UpdateCheckerTests: XCTestCase {
         XCTAssertEqual(checker.installedVersionDescription, "0.5.3")
     }
 
+
+    func testBetaBuildDetectsNewerBeta() async {
+        let checker = makeChecker(
+            service: StubUpdateService([.success(.release(makeRelease("0.6.0-beta.2"), etag: nil))]),
+            installedVersion: "0.6.0-beta.1"
+        )
+        XCTAssertTrue(checker.isBetaChannel)
+        await checker.check(manual: true)
+        XCTAssertEqual(checker.phase, .available)
+        XCTAssertEqual(checker.release?.version.description, "0.6.0-beta.2")
+    }
+
+    func testStableBuildUsesStableChannel() {
+        let checker = makeChecker(service: StubUpdateService([]), installedVersion: "0.6.0")
+        XCTAssertFalse(checker.isBetaChannel)
+    }
+
     func testAutoCheckIsOffByDefault() {
         let checker = makeChecker(service: StubUpdateService([]))
         XCTAssertFalse(checker.autoCheckEnabled)

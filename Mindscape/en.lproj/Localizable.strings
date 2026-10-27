@@ -447,3 +447,5 @@
 "查看教程" = "View Guide";
 "每个导图分别记住浅色 / 深色主题" = "Each map remembers its own light and dark theme.";
 "浅色 / 深色主题分别保存" = "Light and dark themes are saved separately.";
+"Beta 通道：会检测后续预发布版本" = "Beta channel: future pre-releases are checked.";
+"稳定版通道：只检测正式版本" = "Stable channel: only stable releases are checked.";

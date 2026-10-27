@@ -14,9 +14,9 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-136-brightgreen?style=flat-square" alt="136 tests">
+  <img src="https://img.shields.io/badge/tests-139-brightgreen?style=flat-square" alt="139 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.6.0--beta.1-lightgrey?style=flat-square" alt="Status 0.6.0-beta.1">
+  <img src="https://img.shields.io/badge/status-0.6.0--beta.2-lightgrey?style=flat-square" alt="Status 0.6.0-beta.2">
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 
 Mindscape is a native macOS mind-mapping app built for people who want to think on a canvas and keep the result on their own disk. It opens straight into a canvas, saves continuously, and never asks you to sign in.
 
-**Current version: 0.6.0 Beta 1** — a pre-release; stable remains 0.5.4. Features and the data format may still change.
+**Current version: 0.6.0 Beta 2** — a pre-release; stable remains 0.5.4. Features and the data format may still change.
 
 ### What's new in 0.6.0 Beta
 
@@ -142,11 +142,11 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 
 ### Download
 
-**0.6.0 Beta 1** is the current pre-release. The stable release is still [0.5.4](https://github.com/jiuxianzai/Mindscape/releases/tag/v0.5.4).
+**0.6.0 Beta 2** is the current pre-release. The stable release is still [0.5.4](https://github.com/jiuxianzai/Mindscape/releases/tag/v0.5.4).
 
-Download [`Mindscape-0.6.0-beta.1.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0-beta.1/Mindscape-0.6.0-beta.1.dmg), open it, and drag Mindscape into Applications.
+Download [`Mindscape-0.6.0-beta.2.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0-beta.2/Mindscape-0.6.0-beta.2.dmg), open it, and drag Mindscape into Applications.
 
-Beta builds are not offered through in-app auto-update; auto-update only tracks stable releases.
+Beta builds automatically track newer Betas; stable builds continue to track stable releases only.
 
 You can also check for updates in-app: **Settings → About → Check for Updates**, or the menu bar. The update question appears once at first launch (off by default); the agent skill has a separate question. Downloads are verified with SHA-256 before the DMG opens.
 
@@ -173,7 +173,7 @@ xcodegen generate && open Mindscape.xcodeproj
 Packaging and local install:
 
 ```bash
-make package    # writes dist/Mindscape-0.6.0-beta.1.dmg, .zip, and .dmg.sha256
+make package    # writes dist/Mindscape-0.6.0-beta.2.dmg, .zip, and .dmg.sha256
 make publish    # creates the GitHub Release via gh (requires gh auth login)
 make install    # installs to /Applications and launches
 ```

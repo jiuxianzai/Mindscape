@@ -43,9 +43,14 @@ struct GitHubUpdateConfiguration {
     var timeout: TimeInterval = 10
     /// Atom / 302 兜底时没有 assets 列表，需要 HEAD 一次确认包存在并拿到大小。
     var probeConstructedAssets = true
+    /// Beta 版本会打开该通道：读取 releases 列表并允许预发布版本。
+    var includePrereleases = false
 
     var apiURL: URL {
-        URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!
+        if includePrereleases {
+            return URL(string: "https://api.github.com/repos/\(repository)/releases?per_page=30")!
+        }
+        return URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!
     }
 
     var atomURL: URL {
@@ -129,9 +134,24 @@ final class GitHubUpdateService: UpdateService {
         case 304:
             return .notModified
         case 200:
+            let decoder = JSONDecoder()
+            if configuration.includePrereleases {
+                let payloads: [GitHubReleasePayload]
+                do {
+                    payloads = try decoder.decode([GitHubReleasePayload].self, from: data)
+                } catch {
+                    throw UpdateServiceError.invalidResponse
+                }
+                let releases = payloads.compactMap { try? makeRelease(from: $0) }
+                guard let latest = releases.max(by: { $0.version < $1.version }) else {
+                    throw UpdateServiceError.noRelease
+                }
+                return .release(latest, etag: http.value(forHTTPHeaderField: "ETag"))
+            }
+
             let payload: GitHubReleasePayload
             do {
-                payload = try JSONDecoder().decode(GitHubReleasePayload.self, from: data)
+                payload = try decoder.decode(GitHubReleasePayload.self, from: data)
             } catch {
                 throw UpdateServiceError.invalidResponse
             }
@@ -147,7 +167,7 @@ final class GitHubUpdateService: UpdateService {
     }
 
     private func makeRelease(from payload: GitHubReleasePayload) throws -> UpdateRelease {
-        guard !payload.draft, !payload.prerelease else {
+        guard !payload.draft else {
             throw UpdateServiceError.noRelease
         }
         guard let version = SemanticVersion(tag: payload.tagName) else {
@@ -214,6 +234,9 @@ final class GitHubUpdateService: UpdateService {
         }
         guard let entry = ReleaseAtomParser.latestEntry(from: data),
               let version = SemanticVersion(tag: entry.tag) else {
+            throw UpdateServiceError.noRelease
+        }
+        if !configuration.includePrereleases, version.prerelease != nil {
             throw UpdateServiceError.noRelease
         }
 
