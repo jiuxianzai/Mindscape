@@ -78,7 +78,7 @@ struct AgentSkillInstaller {
     }
 
     var prompt: String {
-        "请阅读 \(canonicalDirectory.path)/SKILL.md，然后通过 Mindscape 本地 OpenAPI 帮我创建一张思维导图。"
+        "请阅读 ~/.agents/skills/mindscape/SKILL.md，然后通过 Mindscape 本地 OpenAPI 帮我创建一张思维导图。"
     }
 
     func state(for target: Target) -> InstallState {

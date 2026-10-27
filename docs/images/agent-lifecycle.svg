@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="340" viewBox="0 0 1100 340" role="img" aria-label="Mindscape 网关生命周期：默认未启用，用户开启后休眠，Agent 调用时运行，空闲十分钟关闭">
+  <defs>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#9B8F84"/>
+    </marker>
+    <filter id="shadow2" x="-8%" y="-8%" width="116%" height="120%">
+      <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#2A2622" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <rect width="1100" height="340" fill="#FAF8F4"/>
+  <text x="40" y="48" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="24" font-weight="700" fill="#2A2622">本地服务生命周期</text>
+  <text x="40" y="74" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="13" fill="#6E665E">默认不监听端口；Agent 调用时才启动，空闲后自动销毁 token</text>
+
+  <g filter="url(#shadow2)">
+    <rect x="40" y="118" width="220" height="104" rx="14" fill="#FFFFFF" stroke="#E5DED3"/>
+    <rect x="350" y="118" width="220" height="104" rx="14" fill="#FFF7F2" stroke="#E8B9A6"/>
+    <rect x="660" y="118" width="220" height="104" rx="14" fill="#F3F7F4" stroke="#B9D4C0"/>
+  </g>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif">
+    <text x="62" y="154" font-size="16" font-weight="700" fill="#2A2622">未启用（默认）</text>
+    <text x="62" y="180" font-size="11.5" fill="#6E665E">无监听 · 无 token</text>
+    <text x="62" y="200" font-size="11.5" fill="#6E665E">无法被 Agent 连接</text>
+
+    <text x="372" y="154" font-size="16" font-weight="700" fill="#2A2622">已启用 · 休眠</text>
+    <text x="372" y="180" font-size="11.5" fill="#6E665E">等待 Agent 调用</text>
+    <text x="372" y="200" font-size="11.5" fill="#6E665E">端口未打开</text>
+
+    <text x="682" y="154" font-size="16" font-weight="700" fill="#2A2622">运行中</text>
+    <text x="682" y="180" font-size="11.5" fill="#6E665E">127.0.0.1 + 新 token</text>
+    <text x="682" y="200" font-size="11.5" fill="#6E665E">gateway.json 0600</text>
+  </g>
+
+  <g stroke="#9B8F84" stroke-width="1.6" fill="none" marker-end="url(#arrow2)">
+    <line x1="260" y1="170" x2="342" y2="170"/>
+    <line x1="570" y1="170" x2="652" y2="170"/>
+  </g>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="10.5" fill="#8A7F74">
+    <text x="266" y="160">设置中开启</text>
+    <text x="576" y="160">Agent 调用 / 通知</text>
+  </g>
+
+  <path d="M 770 222 C 770 284, 460 284, 460 226" stroke="#C26A4A" stroke-width="1.6" fill="none" stroke-dasharray="5 4" marker-end="url(#arrow2)"/>
+  <text x="560" y="292" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="10.5" fill="#A06A56">空闲 10 分钟：关闭端口、删除 token</text>
+
+  <text x="40" y="324" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="11" fill="#8A7F74">下一次调用会重新生成 token，不复用旧凭证。</text>
+</svg>

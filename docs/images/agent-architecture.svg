@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="430" viewBox="0 0 1100 430" role="img" aria-label="Mindscape AI Agent 架构：Agent 通过 CLI 或 HTTP 访问本机网关，再由主线程服务操作 SQLite 与导出">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#9B8F84"/>
+    </marker>
+    <filter id="shadow" x="-8%" y="-8%" width="116%" height="120%">
+      <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#2A2622" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <rect width="1100" height="430" fill="#FAF8F4"/>
+  <text x="40" y="48" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="24" font-weight="700" fill="#2A2622">Mindscape AI Agent 架构</text>
+  <text x="40" y="74" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="13" fill="#6E665E">Agent 通过 CLI 或 OpenAPI 操作 App，所有请求只在本机回环地址内完成</text>
+
+  <g filter="url(#shadow)">
+    <rect x="32" y="110" width="230" height="210" rx="14" fill="#FFFFFF" stroke="#E5DED3"/>
+    <rect x="322" y="110" width="220" height="210" rx="14" fill="#FFF7F2" stroke="#E8B9A6"/>
+    <rect x="602" y="110" width="220" height="210" rx="14" fill="#F3F7F4" stroke="#B9D4C0"/>
+    <rect x="882" y="110" width="186" height="210" rx="14" fill="#FFFFFF" stroke="#E5DED3"/>
+  </g>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif">
+    <text x="54" y="148" font-size="18" font-weight="700" fill="#2A2622">AI Agent</text>
+    <text x="54" y="178" font-size="12.5" fill="#5E564E">Claude Code · Codex</text>
+    <text x="54" y="200" font-size="12.5" fill="#5E564E">DSH · OpenCode</text>
+    <text x="54" y="222" font-size="12.5" fill="#5E564E">其他可执行命令的 Agent</text>
+    <rect x="54" y="244" width="186" height="42" rx="8" fill="#FAF6F0"/>
+    <text x="66" y="262" font-size="10.5" fill="#8A7F74">先读说明书</text>
+    <text x="66" y="278" font-size="11" fill="#4A433C">SKILL.md / openapi.json</text>
+
+    <text x="344" y="148" font-size="18" font-weight="700" fill="#2A2622">mindscape CLI</text>
+    <text x="344" y="178" font-size="12.5" fill="#5E564E">JSON 输出 · 自动唤醒</text>
+    <text x="344" y="200" font-size="12.5" fill="#5E564E">读取 gateway.json</text>
+    <text x="344" y="222" font-size="12.5" fill="#5E564E">也可以直接调用 HTTP</text>
+    <text x="344" y="262" font-size="10.5" fill="#A06A56">通用兜底：任何 Agent</text>
+    <text x="344" y="278" font-size="11" fill="#4A433C">curl / HTTP 客户端</text>
+
+    <text x="624" y="148" font-size="18" font-weight="700" fill="#2A2622">AgentGateway</text>
+    <text x="624" y="178" font-size="12.5" fill="#5E564E">127.0.0.1:47821</text>
+    <text x="624" y="200" font-size="12.5" fill="#5E564E">Bearer token · 0600</text>
+    <text x="624" y="222" font-size="12.5" fill="#5E564E">Host / Origin / 限流</text>
+    <rect x="624" y="244" width="176" height="42" rx="8" fill="#E8F1EA"/>
+    <text x="636" y="262" font-size="10.5" fill="#4D7360">只监听回环地址</text>
+    <text x="636" y="278" font-size="11" fill="#2E5540">空闲 10 分钟自动关闭</text>
+
+    <text x="904" y="148" font-size="18" font-weight="700" fill="#2A2622">AgentService</text>
+    <text x="904" y="178" font-size="12.5" fill="#5E564E">MainActor 串行</text>
+    <text x="904" y="200" font-size="12.5" fill="#5E564E">SQLite WAL</text>
+    <text x="904" y="222" font-size="12.5" fill="#5E564E">MD / OPML / JSON</text>
+    <text x="904" y="244" font-size="12.5" fill="#5E564E">PNG / PDF</text>
+    <text x="904" y="278" font-size="10.5" fill="#8A7F74">写操作实时刷新界面</text>
+  </g>
+
+  <g stroke="#9B8F84" stroke-width="1.6" fill="none" marker-end="url(#arrow)">
+    <line x1="262" y1="215" x2="314" y2="215"/>
+    <line x1="542" y1="215" x2="594" y2="215"/>
+    <line x1="822" y1="215" x2="874" y2="215"/>
+  </g>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="10.5" fill="#8A7F74">
+    <text x="270" y="205">命令</text>
+    <text x="550" y="205">HTTP + token</text>
+    <text x="830" y="205">MainActor</text>
+  </g>
+
+  <text x="40" y="372" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="11.5" fill="#8A7F74">安全边界：非 loopback 拒绝 · token 0600 · 请求体 ≤ 1 MB · 60 次 / 10 秒 · 导出路径白名单</text>
+  <text x="40" y="396" font-family="-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif" font-size="11.5" fill="#8A7F74">数据只写入本机 SQLite；Agent 不会直接接触数据库文件。</text>
+</svg>

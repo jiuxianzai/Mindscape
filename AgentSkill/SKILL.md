@@ -34,6 +34,33 @@ It contains `url` and `token`. Never print the token in your answer or write it 
 
 Use IDs, not titles, for every subsequent mutation. Save returned IDs in your working notes.
 
+## Request flow
+
+```
+You ── shell ──▶ mindscape CLI ── HTTP + Bearer ──▶ 127.0.0.1 gateway
+                                                        │ MainActor
+                                                        ▼
+                                              AgentService → SQLite / export
+```
+
+The gateway is stopped by default and after 10 idle minutes. `mindscape` starts it on demand and reads the token from the gateway file. Prefer the CLI over raw HTTP: it handles discovery, token rotation, and JSON envelopes.
+
+## API map
+
+| Goal | Call |
+|---|---|
+| Check service | `GET /v1/health` |
+| List folders / maps | `GET /v1/folders` · `GET /v1/maps` |
+| Create folder / map | `POST /v1/folders` · `POST /v1/maps` |
+| Read full map (IDs) | `GET /v1/maps/{mapId}` |
+| Add / update / move / delete node | `POST .../nodes` · `PATCH/DELETE .../nodes/{nodeId}` · `POST .../nodes/{nodeId}/move` |
+| Bulk create/edit | `POST /v1/maps/{mapId}/batch` (≤ 500 ops) |
+| Export | `POST /v1/maps/{mapId}/export` |
+| Import | `POST /v1/import` |
+| Full spec | `GET /v1/openapi.json` |
+
+All responses are `{"ok":true,"data":...}` or `{"ok":false,"error":{"code","message"}}`. HTTP status is meaningful: 400/401/403/404/409/413/429/503.
+
 ## Standard workflow
 
 ### Create a map
@@ -108,6 +135,16 @@ Content-Type: application/json
 ```
 
 Supports Markdown, OPML, and Mindscape JSON.
+
+## If the CLI is unavailable
+
+Read `~/Library/Application Support/Mindscape/agent-gateway.json` and use the `url` and `token` fields:
+
+```bash
+curl -s "$URL/v1/health" -H "Authorization: Bearer $TOKEN"
+```
+
+Only call `127.0.0.1` / `localhost`; do not send an `Origin` header. If the file is missing, ask the user to enable **Settings → General → AI Agent**, then retry once.
 
 ## Safety rules
 

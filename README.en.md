@@ -205,6 +205,8 @@ Notes:
 
 Mindscape can expose a local OpenAPI gateway to AI agents, with a bundled skill manual. Agents can create folders, build maps, edit nodes, and export through the CLI or HTTP.
 
+Illustrated setup guide (screenshots, architecture, four-agent paths, troubleshooting): [docs/ai-agent.md](docs/ai-agent.md).
+
 ### One-time setup
 
 1. Open **Settings → General → AI Agent** and enable **Allow local AI agents**.

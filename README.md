@@ -273,6 +273,8 @@ xcodebuild test -project Mindscape.xcodeproj -scheme Mindscape -derivedDataPath 
 
 Mindscape 可以把本地能力开放给 AI Agent：App 内置 **OpenAPI 服务 + Skill 说明书**，Agent 通过命令行或 HTTP 创建目录、建导图、编辑节点、导出。
 
+完整图文教程（截图 + 架构图 + 四 Agent 安装路径 + 排错）：[docs/ai-agent.md](docs/ai-agent.md)。
+
 ### 一次性设置
 
 1. **设置 → 通用 → AI Agent**，打开「允许本地 AI Agent 操作」
