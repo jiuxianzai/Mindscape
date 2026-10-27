@@ -88,6 +88,7 @@ enum LayoutEngine {
             sizes: sizes,
             children: childrenMap,
             collapsed: Set(map.nodes.filter(\.collapsed).map(\.id)),
+            mindMapMode: map.resolvedMindMapLayoutMode,
             frames: [:]
         )
 
@@ -137,6 +138,7 @@ enum LayoutEngine {
                 sizes: base.sizes,
                 children: base.children,
                 collapsed: base.collapsed,
+                mindMapMode: base.mindMapMode,
                 frames: [:]
             )
             layoutIsland(rootID: root, style: style, &island)
@@ -170,6 +172,7 @@ enum LayoutEngine {
         let sizes: [UUID: CGSize]
         let children: [UUID: [UUID]]
         let collapsed: Set<UUID>
+        let mindMapMode: MindMapLayoutMode
         var frames: [UUID: CGRect]
 
         func size(_ id: UUID) -> CGSize { sizes[id] ?? CGSize(width: 100, height: 40) }
@@ -243,7 +246,17 @@ enum LayoutEngine {
             // 用“完全展开时”的高度分侧：折叠 / 展开不应让一级分支换边，
             // 否则转场时整个分支会横穿根节点，看起来像糊成一团。
             let height = expandedSubtreeHeight(kid, &ctx)
-            if rightHeight <= leftHeight {
+            let side: MindMapSide
+            switch ctx.mindMapMode {
+            case .balanced:
+                side = rightHeight <= leftHeight ? .right : .left
+            case .remember:
+                // 记住布局优先使用用户拖动后记录的左右侧；
+                // 旧数据 / 新分支还没有记录时，落到当前更空的一侧。
+                side = ctx.byID[kid]?.branchSide
+                    ?? (rightHeight <= leftHeight ? .right : .left)
+            }
+            if side == .right {
                 right.append(kid)
                 rightHeight += height + vGap
             } else {

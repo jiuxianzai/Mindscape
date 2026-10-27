@@ -5,6 +5,8 @@ struct MindMap: Identifiable, Codable, Equatable, Sendable {
     var title: String = String(localized: "未命名导图")
     var nodes: [MindNode] = []
     var layout: MapLayout = .mindMap
+    /// 思维导图一级分支的排列方式；nil 表示旧数据，按「记住布局」处理。
+    var mindMapLayoutMode: MindMapLayoutMode?
     var themeID: String = MapTheme.defaultThemeID
     /// 浅色/深色外观下分别使用的主题；nil 表示旧数据尚未记录。
     var lightThemeID: String?
@@ -12,6 +14,11 @@ struct MindMap: Identifiable, Codable, Equatable, Sendable {
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
 
+
+    /// 旧数据没有这个字段时，默认保留用户已经排好的左右分支。
+    var resolvedMindMapLayoutMode: MindMapLayoutMode {
+        mindMapLayoutMode ?? .remember
+    }
 
     // MARK: - Theme pair
 

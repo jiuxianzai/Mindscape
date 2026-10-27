@@ -374,6 +374,20 @@ struct WorkspaceView: View {
                         }
                     }
                 }
+                if editor.map.layout == .mindMap {
+                    Divider()
+                    ForEach(MindMapLayoutMode.allCases) { mode in
+                        Button {
+                            editor.setMindMapLayoutMode(mode)
+                        } label: {
+                            if editor.map.resolvedMindMapLayoutMode == mode {
+                                Label(mode.title, systemImage: "checkmark")
+                            } else {
+                                Label(mode.title, systemImage: mode.symbol)
+                            }
+                        }
+                    }
+                }
             } label: {
                 Label("布局", systemImage: "square.grid.2x2")
             }

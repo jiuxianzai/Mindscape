@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-161-brightgreen?style=flat-square" alt="161 tests">
+  <img src="https://img.shields.io/badge/tests-170-brightgreen?style=flat-square" alt="170 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.6.2-lightgrey?style=flat-square" alt="Status 0.6.2">
 </p>
@@ -83,7 +83,9 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 - Free-form layout: hold ⌥ while dropping onto a node to reparent it, keeping its position and avoiding auto-layout; a normal drag only moves it
 - Multiple root nodes; double-click empty space to start a new tree
 - Drag to re-parent; hold ⌥ while dragging to reorder among siblings
-- Canvas keys: `Space` to edit, `Enter` for a sibling, `Tab` for a child
+- Mind map drag sorting: drag siblings up/down to reorder; drop a first-level branch on a branch on the other side (or on the left/right half of the root) to switch sides, with the whole subtree following
+- Mind map branch arrangement: switch between “Remember Layout” (default, keeps manual sides) and “Balanced Layout” (auto-balances both sides) from the inspector or Layout menu
+- Canvas keys: `Space` to edit, `Enter` for a sibling, `Tab` for a child, ⇧⌘0 to center the map
 - Multi-line in-place editing at any zoom level, with IME composition handled correctly
 - Search bar (⌘F) highlights matches as you type, ↑↓ to jump
 - Branch zoom (⇧⌘B) and focus mode (⇧⌘F) to isolate one subtree
@@ -97,7 +99,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 
 ### Layouts & themes
 
-- 8 layouts: mind map (balanced both sides), logic chart (right/left), org chart, tree, timeline, brace map, free-form with alignment guides and snapping
+- 8 layouts: mind map (remembered sides by default, or balanced both sides), logic chart (right/left), org chart, tree, timeline, brace map, free-form with alignment guides and snapping
 - 8 themes: Paper, Midnight, Morandi, Corporate, Blueprint, Neon, Sand, Ink
 - Each map remembers a light and a dark theme separately; light mode lists light themes, dark mode lists dark themes, defaulting to Paper / Midnight
 
@@ -275,7 +277,7 @@ Tables: `documents` (metadata + full map JSON + folder), `folders`, `snapshots` 
 | Icons | SF Symbols (102 symbols) |
 | Storage | System `libsqlite3`, WAL mode |
 | Project | XcodeGen (`project.yml`) |
-| Tests | XCTest, 67 cases including canvas interaction and render regressions |
+| Tests | XCTest, 170 cases including canvas interaction and render regressions |
 | Minimum OS | macOS 14 |
 | Architecture | Universal (arm64 + x86_64) |
 | Third-party dependencies | None |

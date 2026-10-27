@@ -33,6 +33,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     private var accessibilityObserver: NSObjectProtocol?
     private var nodeAccessibilityElements: [UUID: MindNodeAccessibilityElement] = [:]
     private var lastFitToken: Int = -1
+    private var lastCenterContentToken: Int = 0
     private var lastZoomToken: Int = 0
     private var lastBranchZoomToken: Int = -1
     private var lastCenterToken: Int = 0
@@ -135,6 +136,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             layoutRevision = -1
             layoutDocumentID = nil
             lastFitToken = -1
+            lastCenterContentToken = editor.centerContentToken
             lastZoomToken = 0
             lastBranchZoomToken = -1
             lastCenterToken = editor.centerToken
@@ -164,6 +166,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         }
         applyPendingBranchZoomIfPossible()
         applyPendingCenterIfPossible()
+        applyPendingCenterContentIfPossible()
         needsDisplay = true
     }
 
@@ -451,6 +454,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             }
             applyPendingBranchZoomIfPossible()
             applyPendingCenterIfPossible()
+            applyPendingCenterContentIfPossible()
         }
         updateEditorFrame()
     }
@@ -1192,18 +1196,34 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             ? (world.y - targetFrame.minY) / targetFrame.height
             : 0.5
         var didChange = false
+        var handledByMindMap = false
 
-        // 单选 + ⌥ 拖到同级节点 = 调整兄弟顺序；多选时统一挂到目标节点下
-        if ids.count == 1,
-           let only = ids.first,
-           event.modifierFlags.contains(.option),
-           let sourceNode = editor.map.node(only),
-           let targetNode = editor.map.node(target),
-           sourceNode.parentID == targetNode.parentID {
-            editor.reorder(id: only, relativeTo: target, after: relativeY > 0.5)
-            didChange = true
-        } else if editor.canMove(ids: ids, to: target) {
-            didChange = editor.move(ids: ids, to: target)
+        // 思维导图布局：普通拖动即可左右换边、上下换序，子树整体跟随。
+        if editor.map.layout == .mindMap,
+           let changed = performMindMapDrop(
+               ids: ids,
+               target: target,
+               world: world,
+               relativeY: relativeY
+           ) {
+            didChange = changed
+            handledByMindMap = true
+        }
+
+        // 其它布局：单选 + ⌥ 拖到同级节点 = 调整兄弟顺序；多选时统一挂到目标节点下。
+        // 思维导图里头部节点、多选仍交给原来的逻辑。
+        if !handledByMindMap {
+            if ids.count == 1,
+               let only = ids.first,
+               event.modifierFlags.contains(.option),
+               let sourceNode = editor.map.node(only),
+               let targetNode = editor.map.node(target),
+               sourceNode.parentID == targetNode.parentID {
+                editor.reorder(id: only, relativeTo: target, after: relativeY > 0.5)
+                didChange = true
+            } else if editor.canMove(ids: ids, to: target) {
+                didChange = editor.move(ids: ids, to: target)
+            }
         }
 
         if didChange {
@@ -1213,6 +1233,82 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         } else {
             snapBack(from: visualStart)
         }
+    }
+
+    /// 思维导图布局的落点语义：
+    /// - 拖到同级节点：重排兄弟顺序；一级分支同时采用目标所在侧
+    /// - 拖到根节点：一级分支只换边；更深节点提升为一级分支并落到指针所在侧
+    /// - 拖到其它节点：沿用原来的迁移父子关系
+    /// 返回 nil 表示这次拖拽不归思维导图规则处理（例如拖动头部节点）。
+    private func performMindMapDrop(
+        ids: Set<UUID>,
+        target: UUID,
+        world: CGPoint,
+        relativeY: CGFloat
+    ) -> Bool? {
+        guard let editor,
+              ids.count == 1,
+              let only = ids.first,
+              let sourceNode = editor.map.node(only),
+              let targetNode = editor.map.node(target),
+              let parentID = sourceNode.parentID else { return nil }
+
+        let roots = Set(editor.map.rootIDs)
+        let remembering = editor.map.resolvedMindMapLayoutMode == .remember
+
+        if roots.contains(target) {
+            let side = mindMapDropSide(inRoot: target, at: world)
+            if parentID == target {
+                // 已经是一级分支：拖到根节点只改左右侧，保留同侧内的竖向顺序
+                guard remembering, let side else { return false }
+                return editor.setMindMapBranchSide(id: only, side: side)
+            }
+            if editor.canMove(ids: [only], to: target) {
+                return editor.move(
+                    ids: [only],
+                    to: target,
+                    branchSide: remembering ? side : nil
+                )
+            }
+            return false
+        }
+
+        if parentID == targetNode.parentID {
+            // 同级排序。一级分支跟随目标换到同一侧；更深节点沿用祖先分支的侧。
+            let targetSide: MindMapSide? = {
+                guard remembering, roots.contains(parentID) else { return nil }
+                return mindMapSide(of: target)
+            }()
+            editor.reorder(
+                id: only,
+                relativeTo: target,
+                after: relativeY > 0.5,
+                branchSide: targetSide
+            )
+            return true
+        }
+
+        if editor.canMove(ids: [only], to: target) {
+            return editor.move(ids: [only], to: target)
+        }
+        return false
+    }
+
+    /// 指针落在根节点左半还是右半。
+    private func mindMapDropSide(inRoot rootID: UUID, at world: CGPoint) -> MindMapSide? {
+        guard let rootFrame = layoutResult?.frames[rootID] else { return nil }
+        return world.x < rootFrame.midX ? .left : .right
+    }
+
+    /// 一级分支当前实际所在的侧（用于拖到同级节点时跟随目标）。
+    private func mindMapSide(of id: UUID) -> MindMapSide? {
+        guard let editor,
+              let node = editor.map.node(id),
+              let parentID = node.parentID,
+              editor.map.rootIDs.contains(parentID),
+              let rootFrame = layoutResult?.frames[parentID],
+              let frame = layoutResult?.frames[id] else { return nil }
+        return frame.midX < rootFrame.midX ? .left : .right
     }
 
     private func snapBack(from frames: [UUID: CGRect]) {
@@ -1416,6 +1512,13 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     private func canDrop(_ id: UUID, on target: UUID) -> Bool {
         guard let editor, id != target else { return false }
         guard let source = editor.map.node(id), let targetNode = editor.map.node(target) else { return false }
+        // 思维导图：一级分支拖到根节点是换边，不是迁移父子关系
+        if editor.map.layout == .mindMap,
+           editor.map.rootIDs.contains(target),
+           source.parentID == target {
+            // 平衡布局会立刻把分支重新分侧，只有记住布局时才允许在根节点上换边
+            return editor.map.resolvedMindMapLayoutMode == .remember
+        }
         if source.parentID == targetNode.parentID { return true }
         return editor.canMove(id, to: target)
     }
@@ -1991,6 +2094,14 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             needsDisplay = true
         }
         updateEditorFrame()
+    }
+
+    /// 消费「居中画布」请求：menu 快捷键触发，保留当前缩放。
+    /// 放在 fit / 节点居中之后处理，最后一次请求优先。
+    private func applyPendingCenterContentIfPossible() {
+        guard let editor, editor.centerContentToken != lastCenterContentToken else { return }
+        lastCenterContentToken = editor.centerContentToken
+        centerContent()
     }
 
     /// 消费 MapEditor 的居中请求。放在 fit / 分支缩放之后调用，

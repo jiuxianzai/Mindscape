@@ -15,6 +15,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
     case redo
     case showHistory
     case fitCanvas
+    case centerCanvas
     case zoomIn
     case zoomOut
     case toggleInspector
@@ -44,6 +45,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
         case .redo: return String(localized: "重做")
         case .showHistory: return String(localized: "历史版本")
         case .fitCanvas: return String(localized: "适配画布")
+        case .centerCanvas: return String(localized: "居中画布")
         case .zoomIn: return String(localized: "放大")
         case .zoomOut: return String(localized: "缩小")
         case .toggleInspector: return String(localized: "显示 / 隐藏属性面板")
@@ -69,7 +71,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
         case .newDocument, .saveDocument, .exportDocument, .importDocument: return String(localized: "文件")
         case .undo, .redo, .findNode, .duplicateNode: return String(localized: "编辑")
         case .newChild, .newSibling, .editNode, .deleteNode, .toggleCollapse: return String(localized: "节点")
-        case .fitCanvas, .zoomIn, .zoomOut, .toggleInspector,
+        case .fitCanvas, .centerCanvas, .zoomIn, .zoomOut, .toggleInspector,
              .focusMode, .zoomToBranch, .collapseAll, .expandAll, .toggleOutline, .presentMode:
             return String(localized: "视图")
         case .showHistory: return String(localized: "历史")
@@ -94,6 +96,7 @@ enum ShortcutAction: String, CaseIterable, Identifiable, Hashable {
         case .redo: return KeyCombo(key: "z", command: true, shift: true)
         case .showHistory: return KeyCombo(key: "h", command: true, shift: true)
         case .fitCanvas: return KeyCombo(key: "0", command: true)
+        case .centerCanvas: return KeyCombo(key: "0", command: true, shift: true)
         case .zoomIn: return KeyCombo(key: "=", command: true)
         case .zoomOut: return KeyCombo(key: "-", command: true)
         case .toggleInspector: return KeyCombo(key: "i", command: true, option: true)

@@ -9,6 +9,8 @@ final class MapEditor {
     var selection: Set<UUID> = []
     private(set) var revision: Int = 0
     private(set) var fitToken: Int = 0
+    /// 请求画布把整张导图居中（不改变缩放）
+    private(set) var centerContentToken: Int = 0
     private(set) var zoomToken: Int = 0
     private(set) var zoomFactor: CGFloat = 1
     /// 专注模式聚焦的节点；nil 表示未开启
@@ -36,6 +38,7 @@ final class MapEditor {
     init(map: MindMap, store: DocumentStore) {
         var normalized = map
         normalized.normalizeTheme(isDark: NSApplication.shared.isDarkAppearance)
+        Self.assignMissingMindMapSides(in: &normalized)
         self.map = normalized
         self.store = store
         self.selection = normalized.root == nil ? [] : [normalized.rootID]
@@ -97,6 +100,11 @@ final class MapEditor {
         guard map.node(parentID) != nil else { return nil }
         var node = MindNode(parentID: parentID, text: String(localized: "新主题"), order: nextOrder(parentID))
         node.icon = nil
+        if map.layout == .mindMap,
+           map.resolvedMindMapLayoutMode == .remember,
+           map.rootIDs.contains(parentID) {
+            node.branchSide = preferredMindMapSide(for: parentID)
+        }
         mutate { map in
             if let index = map.nodes.firstIndex(where: { $0.id == parentID }) {
                 map.nodes[index].collapsed = false
@@ -133,7 +141,15 @@ final class MapEditor {
         guard let parentID = current.parentID else {
             return addRoot()
         }
-        let node = MindNode(parentID: parentID, text: String(localized: "新主题"), order: nextOrder(parentID))
+        var node = MindNode(parentID: parentID, text: String(localized: "新主题"), order: nextOrder(parentID))
+        if map.layout == .mindMap,
+           map.resolvedMindMapLayoutMode == .remember,
+           map.rootIDs.contains(parentID) {
+            // 新同级默认跟当前分支同侧，插入后仍在同一列，不会跑到对面
+            node.branchSide = current.branchSide
+                ?? mindMapSide(of: id)
+                ?? preferredMindMapSide(for: parentID)
+        }
         mutate { map in
             map.nodes.append(node)
         }
@@ -332,6 +348,7 @@ final class MapEditor {
                 newRoots.append(newID)
             }
         }
+        Self.assignMissingMindMapSides(in: &map)
         return newRoots
     }
 
@@ -642,7 +659,12 @@ final class MapEditor {
     /// 批量移动：把选中节点里最上层的几棵子树一起挂到目标节点下。
     /// 已经在目标节点下的节点会被跳过，避免重复搬运。
     @discardableResult
-    func move(ids: Set<UUID>, to newParent: UUID, freeOrigins: [UUID: CGPoint] = [:]) -> Bool {
+    func move(
+        ids: Set<UUID>,
+        to newParent: UUID,
+        freeOrigins: [UUID: CGPoint] = [:],
+        branchSide: MindMapSide? = nil
+    ) -> Bool {
         guard map.node(newParent) != nil else { return false }
         let moving = topmostIDs(in: ids)
         guard !moving.contains(newParent) else { return false }
@@ -656,13 +678,25 @@ final class MapEditor {
         guard !ordered.isEmpty else { return false }
 
         let wasFollowing = titleFollowsPrimaryHead
+        let targetsRoot = map.rootIDs.contains(newParent)
+        let remembering = map.layout == .mindMap
+            && map.resolvedMindMapLayoutMode == .remember
         mutate { map in
             var newOrder = (map.children(of: newParent).map(\.order).max() ?? -1) + 1
             for id in ordered {
                 guard let index = map.nodes.firstIndex(where: { $0.id == id }) else { continue }
                 map.nodes[index].parentID = newParent
                 map.nodes[index].order = newOrder
+                // 只有一级分支才有左右侧；显式拖到根节点左右半边时优先用拖拽方向
+                if targetsRoot, remembering, ordered.count == 1, let branchSide {
+                    map.nodes[index].branchSide = branchSide
+                } else {
+                    map.nodes[index].branchSide = nil
+                }
                 newOrder += 1
+            }
+            if targetsRoot, remembering {
+                Self.assignMissingMindMapSides(in: &map)
             }
             if let parentIndex = map.nodes.firstIndex(where: { $0.id == newParent }) {
                 map.nodes[parentIndex].collapsed = false
@@ -698,7 +732,12 @@ final class MapEditor {
         }
     }
 
-    func reorder(id: UUID, relativeTo targetID: UUID, after: Bool) {
+    func reorder(
+        id: UUID,
+        relativeTo targetID: UUID,
+        after: Bool,
+        branchSide: MindMapSide? = nil
+    ) {
         guard id != targetID,
               let node = map.node(id),
               let target = map.node(targetID) else { return }
@@ -736,6 +775,13 @@ final class MapEditor {
                 if let nodeIndex = map.nodes.firstIndex(where: { $0.id == siblingID }) {
                     map.nodes[nodeIndex].order = order
                 }
+            }
+            if let branchSide,
+               map.layout == .mindMap,
+               map.resolvedMindMapLayoutMode == .remember,
+               map.rootIDs.contains(parentID),
+               let nodeIndex = map.nodes.firstIndex(where: { $0.id == id }) {
+                map.nodes[nodeIndex].branchSide = branchSide
             }
         }
     }
@@ -808,8 +854,114 @@ final class MapEditor {
         guard map.layout != layout else { return }
         mutate { map in
             map.layout = layout
+            Self.assignMissingMindMapSides(in: &map)
         }
         fitToken += 1
+    }
+
+    /// 切换思维导图一级分支的排列方式。
+    /// 切到「记住布局」时先把当前视觉上的左右侧固化下来；
+    /// 切到「平衡布局」时清掉记录，之后每次布局都会自动平衡。
+    func setMindMapLayoutMode(_ mode: MindMapLayoutMode) {
+        guard map.resolvedMindMapLayoutMode != mode else { return }
+        let sides = mindMapSideSnapshot()
+        mutate { map in
+            map.mindMapLayoutMode = mode
+            if mode == .remember {
+                for index in map.nodes.indices {
+                    if let side = sides[map.nodes[index].id] {
+                        map.nodes[index].branchSide = side
+                    }
+                }
+            } else {
+                for index in map.nodes.indices {
+                    map.nodes[index].branchSide = nil
+                }
+            }
+        }
+    }
+
+    /// 只改一级分支的左右侧，保留它当前在同侧里的竖向顺序。
+    @discardableResult
+    func setMindMapBranchSide(id: UUID, side: MindMapSide) -> Bool {
+        guard map.layout == .mindMap,
+              map.resolvedMindMapLayoutMode == .remember,
+              let node = map.node(id),
+              let parentID = node.parentID,
+              map.rootIDs.contains(parentID),
+              node.branchSide != side else { return false }
+        mutate { map in
+            if let index = map.nodes.firstIndex(where: { $0.id == id }) {
+                map.nodes[index].branchSide = side
+            }
+        }
+        return true
+    }
+
+    // MARK: - Mind map branch helpers
+
+    /// 记住布局下，把还没有显式左右侧的一级分支按当前视觉位置补记录。
+    /// 旧数据、导入的数据、粘贴进来的分支都靠这一步保持「看起来没变」。
+    private static func assignMissingMindMapSides(in map: inout MindMap) {
+        guard map.layout == .mindMap,
+              map.resolvedMindMapLayoutMode == .remember,
+              !map.nodes.isEmpty else { return }
+        let layout = LayoutEngine.layout(map)
+        for rootID in map.rootIDs {
+            guard let rootFrame = layout.frames[rootID] else { continue }
+            for child in map.children(of: rootID) where child.branchSide == nil {
+                guard let frame = layout.frames[child.id],
+                      let index = map.nodes.firstIndex(where: { $0.id == child.id }) else { continue }
+                map.nodes[index].branchSide = frame.midX < rootFrame.midX ? .left : .right
+            }
+        }
+    }
+
+    /// 一级分支当前实际在哪一侧（优先用记住的值，旧数据回退到布局坐标）。
+    private func mindMapSide(of id: UUID) -> MindMapSide? {
+        guard map.layout == .mindMap, let node = map.node(id) else { return nil }
+        if let side = node.branchSide { return side }
+        guard let parentID = node.parentID, map.rootIDs.contains(parentID) else { return nil }
+        let layout = LayoutEngine.layout(map)
+        guard let rootFrame = layout.frames[parentID],
+              let frame = layout.frames[id] else { return nil }
+        return frame.midX < rootFrame.midX ? .left : .right
+    }
+
+    /// 新建一级分支时，放到当前总高度更小的一侧。
+    private func preferredMindMapSide(for rootID: UUID) -> MindMapSide {
+        guard map.rootIDs.contains(rootID) else { return .right }
+        let layout = LayoutEngine.layout(map)
+        guard let rootFrame = layout.frames[rootID] else { return .right }
+        var leftHeight: CGFloat = 0
+        var rightHeight: CGFloat = 0
+        for child in map.children(of: rootID) {
+            var union = CGRect.null
+            for id in map.subtreeIDs(of: child.id) {
+                if let frame = layout.frames[id] { union = union.union(frame) }
+            }
+            guard !union.isNull else { continue }
+            if union.midX < rootFrame.midX {
+                leftHeight += union.height
+            } else {
+                rightHeight += union.height
+            }
+        }
+        return rightHeight <= leftHeight ? .right : .left
+    }
+
+    private func mindMapSideSnapshot() -> [UUID: MindMapSide] {
+        guard map.layout == .mindMap else { return [:] }
+        let layout = LayoutEngine.layout(map)
+        var sides: [UUID: MindMapSide] = [:]
+        for rootID in map.rootIDs {
+            guard let rootFrame = layout.frames[rootID] else { continue }
+            for child in map.children(of: rootID) {
+                guard let frame = layout.frames[child.id] else { continue }
+                sides[child.id] = frame.midX < rootFrame.midX ? .left : .right
+            }
+        }
+        return sides
     }
 
     func setTheme(_ themeID: String) {
@@ -832,6 +984,12 @@ final class MapEditor {
 
     func requestFit() {
         fitToken += 1
+        revision += 1
+    }
+
+    /// 请求画布把整张导图水平、垂直居中到视口中央。
+    func requestCenterContent() {
+        centerContentToken += 1
         revision += 1
     }
 

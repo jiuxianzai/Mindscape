@@ -298,6 +298,31 @@ struct InspectorView: View {
                 layoutPickerButton
             }
 
+            if editor.map.layout == .mindMap {
+                VStack(alignment: .leading, spacing: 7) {
+                    sectionLabel("分支排列")
+                    Picker("分支排列", selection: Binding(
+                        get: { editor.map.resolvedMindMapLayoutMode },
+                        set: { editor.setMindMapLayoutMode($0) }
+                    )) {
+                        ForEach(MindMapLayoutMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .controlSize(.small)
+                    Text(editor.map.resolvedMindMapLayoutMode.subtitle)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("拖动节点可调整左右换边和上下顺序，子节点会跟随移动")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("主题")
                 // 直接铺成两列网格：当前浅色/深色外观对应的主题完整显示，

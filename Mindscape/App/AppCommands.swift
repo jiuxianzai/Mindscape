@@ -130,6 +130,11 @@ struct AppCommands: Commands {
             }
             .appShortcut(shortcuts.combo(for: .fitCanvas))
 
+            Button("居中画布") {
+                app.editor?.requestCenterContent()
+            }
+            .appShortcut(shortcuts.combo(for: .centerCanvas))
+
             Button("放大") {
                 app.editor?.requestZoom(1.2)
             }
@@ -153,6 +158,14 @@ struct AppCommands: Commands {
                 ForEach(MapLayout.allCases) { layout in
                     Button(layout.title) {
                         app.editor?.setLayout(layout)
+                    }
+                }
+                if app.editor?.map.layout == .mindMap {
+                    Divider()
+                    ForEach(MindMapLayoutMode.allCases) { mode in
+                        Button(mode.title) {
+                            app.editor?.setMindMapLayoutMode(mode)
+                        }
                     }
                 }
             }

@@ -40,3 +40,34 @@ enum MapLayout: String, CaseIterable, Codable, Identifiable, Sendable {
 
     var usesAutoLayout: Bool { self != .free }
 }
+
+/// 思维导图一级分支的左右排列方式。
+/// - remember：记住用户拖动后的左右侧，不再自动改动
+/// - balanced：每次布局按分支高度自动平衡左右两侧
+enum MindMapLayoutMode: String, CaseIterable, Codable, Identifiable, Sendable {
+    case remember
+    case balanced
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .remember: return String(localized: "记住布局")
+        case .balanced: return String(localized: "平衡布局")
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .remember: return String(localized: "保留你拖动后的左右分支")
+        case .balanced: return String(localized: "自动平衡左右两侧，会改动你的布局")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .remember: return "pin"
+        case .balanced: return "arrow.left.and.right"
+        }
+    }
+}

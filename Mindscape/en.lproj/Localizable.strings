@@ -70,10 +70,17 @@
 "小提示" = "Tip";
 "层级大纲，可导入笔记 / 大纲工具" = "Hierarchical outline for notes and outliner apps";
 "居中" = "Center";
+"居中画布" = "Center Canvas";
 "展开" = "Expand";
 "展开分支" = "Expand Branch";
 "属性" = "Properties";
 "布局" = "Layout";
+"分支排列" = "Branch Layout";
+"记住布局" = "Remember Layout";
+"平衡布局" = "Balanced Layout";
+"保留你拖动后的左右分支" = "Keep the left/right branches where you dragged them";
+"自动平衡左右两侧，会改动你的布局" = "Balance both sides automatically; this can change your layout";
+"拖动节点可调整左右换边和上下顺序，子节点会跟随移动" = "Drag nodes to switch sides or reorder vertically; child branches follow.";
 "开始一张新的导图" = "Start a New Mind Map";
 "当前数据会复制到默认目录。" = "The current data will be copied to the default folder.";
 "彻底删除" = "Delete Permanently";

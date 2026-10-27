@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-161-brightgreen?style=flat-square" alt="161 tests">
+  <img src="https://img.shields.io/badge/tests-170-brightgreen?style=flat-square" alt="170 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.6.2-lightgrey?style=flat-square" alt="Status 0.6.2">
 </p>
@@ -80,14 +80,16 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ### 画布
 
-- 无限画布：双指平移、捏合缩放、⌘ + 滚轮缩放、⌘0 适配
+- 无限画布：双指平移、捏合缩放、⌘ + 滚轮缩放、⌘0 适配、⇧⌘0 居中
 - 节点：新增、重命名、折叠、多选、拖动、复制剪切粘贴、创建副本
 - 多选：设置里可选择多选修饰键（默认 ⇧，可改为 ⌘）；点击加减选区、拖拽空白处框选；⌘ 点击始终可加选；Delete 一次删除所选，拖动任一选中节点可整组移动（自由布局保持相对位置）
 - 工具栏灯泡集中展示画布操作提示；首次显示导图（打开已有或新建）时全局自动展开一次，开始绘图或手动关闭后收起
 - 自由布局：按住 ⌥ 拖到目标节点可迁移父子关系，节点保持当前位置、不触发自动重排；普通拖动仍只调整位置
 - 支持多个头部节点；双击空白处新建头部节点并进入编辑
 - 拖动改层级：拖到节点上挂到它下面；按住 ⌥ 拖到同级节点可调整顺序
-- 画布快捷键：Space 进入编辑，Enter 新建同级节点（头部节点则新建头部），Tab 新建子节点
+- 思维导图拖动排序：普通拖动同级节点即可上下换序；把一级分支拖到另一侧的分支或根节点左右半边即可换边，整棵子分支跟随
+- 思维导图分支排列：属性面板 / 布局菜单可切换「记住布局」（默认，保留手动左右侧）与「平衡布局」（自动平衡左右两侧）
+- 画布快捷键：Space 进入编辑，Enter 新建同级节点（头部节点则新建头部），Tab 新建子节点，⇧⌘0 把整张导图居中
 - 新增 / 编辑节点时按当前缩放自动居中，节点不断变大也不会跑出视口
 - 导图标题默认跟随第一个头部节点的文字；手动改过标题后不再自动覆盖
 - 多行就地编辑：Space / 双击 / 选中后直接打字
@@ -113,7 +115,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ### 布局（8 种）
 
-- 思维导图（左右平衡，按完全展开时的高度分侧，折叠不会换边）
+- 思维导图（默认记住手动左右侧；也可切换为平衡布局，按完全展开时的高度自动分侧，折叠不会换边）
 - 逻辑图（右 / 左）
 - 组织架构图
 - 树形图
@@ -356,6 +358,7 @@ Agent 也可以直接访问 `http://127.0.0.1:47821/openapi.json`（实际端口
 | 撤销 / 重做 | ⌘Z / ⇧⌘Z |
 | 查找节点 | ⌘F |
 | 适配画布 | ⌘0 |
+| 居中画布 | ⇧⌘0 |
 | 放大 / 缩小 | ⌘= / ⌘- |
 | 缩放到分支 | ⇧⌘B |
 | 专注当前分支 | ⇧⌘F |
@@ -379,7 +382,7 @@ Agent 也可以直接访问 `http://127.0.0.1:47821/openapi.json`（实际端口
 | 图标 | SF Symbols |
 | 数据 | 系统 `libsqlite3`，WAL 模式 |
 | 工程 | XcodeGen（`project.yml`） |
-| 测试 | XCTest（67 个用例，含画布交互与渲染回归） |
+| 测试 | XCTest（170 个用例，含画布交互与渲染回归） |
 | 最低系统 | macOS 14 |
 | 架构 | Universal（arm64 + x86_64） |
 | 第三方依赖 | 无 |

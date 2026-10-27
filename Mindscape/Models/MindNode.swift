@@ -10,6 +10,9 @@ struct MindNode: Identifiable, Codable, Equatable, Sendable {
     var icon: String?
     var collapsed: Bool
     var order: Int
+    /// 仅思维导图布局的一级分支使用：显式记住分支在根节点的左侧还是右侧。
+    /// 其它节点 / 其它布局忽略这个值。
+    var branchSide: MindMapSide?
     var colorHex: String?
     /// 仅自由布局使用
     var position: CGPoint?
@@ -22,6 +25,7 @@ struct MindNode: Identifiable, Codable, Equatable, Sendable {
         icon: String? = nil,
         collapsed: Bool = false,
         order: Int = 0,
+        branchSide: MindMapSide? = nil,
         colorHex: String? = nil,
         position: CGPoint? = nil
     ) {
@@ -32,6 +36,7 @@ struct MindNode: Identifiable, Codable, Equatable, Sendable {
         self.icon = icon
         self.collapsed = collapsed
         self.order = order
+        self.branchSide = branchSide
         self.colorHex = colorHex
         self.position = position
     }
@@ -42,7 +47,7 @@ struct MindNode: Identifiable, Codable, Equatable, Sendable {
 
     // 兼容旧版本用 emoji 字段存图标的数据
     enum CodingKeys: String, CodingKey {
-        case id, parentID, text, note, icon, emoji, collapsed, order, colorHex, position
+        case id, parentID, text, note, icon, emoji, collapsed, order, branchSide, colorHex, position
     }
 
     init(from decoder: Decoder) throws {
@@ -55,6 +60,7 @@ struct MindNode: Identifiable, Codable, Equatable, Sendable {
             ?? container.decodeIfPresent(String.self, forKey: .emoji)
         collapsed = try container.decodeIfPresent(Bool.self, forKey: .collapsed) ?? false
         order = try container.decodeIfPresent(Int.self, forKey: .order) ?? 0
+        branchSide = try container.decodeIfPresent(MindMapSide.self, forKey: .branchSide)
         colorHex = try container.decodeIfPresent(String.self, forKey: .colorHex)
         position = try container.decodeIfPresent(CGPoint.self, forKey: .position)
     }
@@ -68,7 +74,14 @@ struct MindNode: Identifiable, Codable, Equatable, Sendable {
         try container.encodeIfPresent(icon, forKey: .icon)
         try container.encode(collapsed, forKey: .collapsed)
         try container.encode(order, forKey: .order)
+        try container.encodeIfPresent(branchSide, forKey: .branchSide)
         try container.encodeIfPresent(colorHex, forKey: .colorHex)
         try container.encodeIfPresent(position, forKey: .position)
     }
+}
+
+/// 思维导图一级分支的相对根节点方向。
+enum MindMapSide: String, Codable, Equatable, Sendable {
+    case left
+    case right
 }

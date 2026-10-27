@@ -2135,6 +2135,284 @@ extension MindscapeFeatureTests {
     }
 }
 
+
+// MARK: - Mind map drag layout
+
+extension MindscapeFeatureTests {
+    func testCenterCanvasShortcutAndRequest() throws {
+        XCTAssertEqual(
+            ShortcutAction.centerCanvas.defaultCombo,
+            KeyCombo(key: "0", command: true, shift: true)
+        )
+        XCTAssertEqual(ShortcutAction.centerCanvas.scope, .menu)
+        XCTAssertEqual(ShortcutAction.centerCanvas.category, "视图")
+        XCTAssertNil(
+            ShortcutStore.shared.conflict(
+                with: ShortcutAction.centerCanvas.defaultCombo,
+                excluding: .centerCanvas
+            )
+        )
+
+        let editor = try makeEditor()
+        let before = editor.centerContentToken
+        editor.requestCenterContent()
+        XCTAssertEqual(editor.centerContentToken, before + 1)
+
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 420, height: 320))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        _ = canvas.attachToTestWindow()
+        canvas.setZoom(1.3)
+        editor.requestCenterContent()
+        canvas.layout()
+
+        let layout = LayoutEngine.layout(editor.map)
+        let center = canvas.worldToView(CGPoint(x: layout.bounds.midX, y: layout.bounds.midY))
+        XCTAssertEqual(center.x, canvas.bounds.midX, accuracy: 1, "居中后导图中心没有水平对齐")
+        XCTAssertEqual(center.y, canvas.bounds.midY, accuracy: 1, "居中后导图中心没有垂直对齐")
+        XCTAssertEqual(canvas.currentZoom, 1.3, accuracy: 0.001, "居中不应改变缩放")
+    }
+
+    func testMindMapDefaultsToRememberAndSnapshotsCurrentSides() throws {
+        let store = try DocumentStore(inMemory: true)
+        let map = MapTemplate.project.makeMap(themeID: "paper", layout: .mindMap)
+        let before = LayoutEngine.layout(map)
+        let rootID = map.rootID
+        let rootFrame = try XCTUnwrap(before.frames[rootID])
+
+        let editor = MapEditor(map: map, store: store)
+        XCTAssertEqual(editor.map.resolvedMindMapLayoutMode, .remember)
+
+        let children = editor.map.children(of: rootID)
+        XCTAssertFalse(children.isEmpty)
+        for child in children {
+            let frame = try XCTUnwrap(before.frames[child.id])
+            let expected: MindMapSide = frame.midX < rootFrame.midX ? .left : .right
+            XCTAssertEqual(editor.map.node(child.id)?.branchSide, expected, "旧数据没有固化当前左右侧")
+        }
+    }
+
+    func testRememberLayoutKeepsManualSideAndBalancedRebalances() throws {
+        let editor = try makeEditor()
+        let rootID = editor.map.rootID
+        let rootFrame = try XCTUnwrap(LayoutEngine.layout(editor.map).frames[rootID])
+        let branches = editor.map.children(of: rootID)
+        XCTAssertGreaterThanOrEqual(branches.count, 2)
+
+        for branch in branches {
+            _ = editor.setMindMapBranchSide(id: branch.id, side: .left)
+        }
+        let layout = LayoutEngine.layout(editor.map)
+        for branch in editor.map.children(of: rootID) {
+            let frame = try XCTUnwrap(layout.frames[branch.id])
+            XCTAssertLessThan(frame.midX, rootFrame.midX, "记住布局没有保留手动换到左侧的分支")
+            XCTAssertEqual(editor.map.node(branch.id)?.branchSide, .left)
+        }
+
+        // 切到平衡布局后，左右两侧应该重新自动分配；已经不是全部在左边
+        editor.setMindMapLayoutMode(.balanced)
+        XCTAssertEqual(editor.map.resolvedMindMapLayoutMode, .balanced)
+        XCTAssertTrue(editor.map.nodes.allSatisfy { $0.branchSide == nil })
+        let balanced = LayoutEngine.layout(editor.map)
+        let frames = editor.map.children(of: rootID).compactMap { balanced.frames[$0.id] }
+        XCTAssertTrue(frames.contains(where: { $0.midX > rootFrame.midX }), "平衡布局没有把分支分到右侧")
+        XCTAssertTrue(frames.contains(where: { $0.midX < rootFrame.midX }), "平衡布局没有把分支分到左侧")
+
+        // 再切回「记住布局」时，应该把平衡后的左右侧固化下来，而不是回到之前的全左
+        editor.setMindMapLayoutMode(.remember)
+        XCTAssertTrue(editor.map.nodes.allSatisfy { node in
+            node.parentID != rootID || node.branchSide != nil
+        })
+        let remembered = LayoutEngine.layout(editor.map)
+        for child in editor.map.children(of: rootID) {
+            let frame = try XCTUnwrap(remembered.frames[child.id])
+            let desired: MindMapSide = frame.midX < rootFrame.midX ? .left : .right
+            XCTAssertEqual(editor.map.node(child.id)?.branchSide, desired)
+        }
+    }
+
+    func testReorderAcrossSidesKeepsSubtreeTogether() throws {
+        let editor = try makeEditor()
+        let rootID = editor.map.rootID
+        let layout = LayoutEngine.layout(editor.map)
+        let rootFrame = try XCTUnwrap(layout.frames[rootID])
+
+        let branches = editor.map.children(of: rootID)
+        let source = try XCTUnwrap(branches.first(where: { branch in
+            guard let frame = layout.frames[branch.id] else { return false }
+            return frame.midX > rootFrame.midX && !editor.map.children(of: branch.id).isEmpty
+        }))
+        let target = try XCTUnwrap(branches.first(where: { branch in
+            guard let frame = layout.frames[branch.id] else { return false }
+            return frame.midX < rootFrame.midX
+        }))
+        let childIDs = editor.map.children(of: source.id).map(\.id)
+        XCTAssertFalse(childIDs.isEmpty)
+
+        editor.reorder(id: source.id, relativeTo: target.id, after: true, branchSide: .left)
+        XCTAssertEqual(editor.map.node(source.id)?.branchSide, .left)
+        XCTAssertGreaterThan(
+            try XCTUnwrap(editor.map.node(source.id)?.order),
+            try XCTUnwrap(editor.map.node(target.id)?.order)
+        )
+        XCTAssertEqual(editor.map.children(of: source.id).map(\.id), childIDs, "排序后子节点没有跟着走")
+
+        let moved = LayoutEngine.layout(editor.map)
+        let movedRoot = try XCTUnwrap(moved.frames[rootID])
+        for id in editor.map.subtreeIDs(of: source.id) {
+            let frame = try XCTUnwrap(moved.frames[id])
+            XCTAssertLessThan(frame.midX, movedRoot.midX, "子树节点没有跟随分支换到左侧")
+        }
+    }
+
+    func testDragSiblingReordersWithoutOptionKey() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let first = try XCTUnwrap(node(editor, "第一阶段"))
+        let second = try XCTUnwrap(node(editor, "第二阶段"))
+        let parentID = first.parentID
+        XCTAssertEqual(parentID, second.parentID)
+
+        let layout = LayoutEngine.layout(editor.map)
+        let startFrame = try XCTUnwrap(layout.frames[first.id])
+        let targetFrame = try XCTUnwrap(layout.frames[second.id])
+        let start = canvas.convert(canvas.worldToView(startFrame.center), to: nil)
+        let endWorld = CGPoint(x: targetFrame.midX, y: targetFrame.minY + targetFrame.height * 0.8)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
+
+        XCTAssertEqual(editor.map.node(first.id)?.parentID, parentID, "同级拖动不应改变父节点")
+        XCTAssertGreaterThan(
+            try XCTUnwrap(editor.map.node(first.id)?.order),
+            try XCTUnwrap(editor.map.node(second.id)?.order),
+            "普通拖动没有调整同级顺序"
+        )
+    }
+
+    func testDragFirstLevelBranchToOtherSideAdoptsTargetSide() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let rootID = editor.map.rootID
+        let layout = LayoutEngine.layout(editor.map)
+        let rootFrame = try XCTUnwrap(layout.frames[rootID])
+        let branches = editor.map.children(of: rootID)
+        let source = try XCTUnwrap(branches.first(where: { branch in
+            guard let frame = layout.frames[branch.id] else { return false }
+            return frame.midX > rootFrame.midX && !editor.map.children(of: branch.id).isEmpty
+        }))
+        let target = try XCTUnwrap(branches.first(where: { branch in
+            guard let frame = layout.frames[branch.id] else { return false }
+            return frame.midX < rootFrame.midX
+        }))
+        let subtree = editor.map.subtreeIDs(of: source.id)
+        let sourceFrame = try XCTUnwrap(layout.frames[source.id])
+        let targetFrame = try XCTUnwrap(layout.frames[target.id])
+        let start = canvas.convert(canvas.worldToView(sourceFrame.center), to: nil)
+        let endWorld = CGPoint(x: targetFrame.midX, y: targetFrame.midY)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
+
+        XCTAssertEqual(editor.map.node(source.id)?.branchSide, .left)
+        XCTAssertEqual(editor.map.node(source.id)?.parentID, rootID, "一级分支拖动不该改变父节点")
+        let moved = LayoutEngine.layout(editor.map)
+        let movedRoot = try XCTUnwrap(moved.frames[rootID])
+        for id in subtree {
+            let frame = try XCTUnwrap(moved.frames[id])
+            XCTAssertLessThan(frame.midX, movedRoot.midX, "子节点没有跟随一级分支换到左侧")
+        }
+    }
+
+    func testDragBranchOntoRootSwitchesSide() throws {
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let rootID = editor.map.rootID
+        let layout = LayoutEngine.layout(editor.map)
+        let rootFrame = try XCTUnwrap(layout.frames[rootID])
+        let source = try XCTUnwrap(editor.map.children(of: rootID).first(where: { branch in
+            guard let frame = layout.frames[branch.id] else { return false }
+            return frame.midX > rootFrame.midX && !editor.map.children(of: branch.id).isEmpty
+        }))
+        let sourceFrame = try XCTUnwrap(layout.frames[source.id])
+        let start = canvas.convert(canvas.worldToView(sourceFrame.center), to: nil)
+        let endWorld = CGPoint(x: rootFrame.minX + rootFrame.width * 0.2, y: rootFrame.midY)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
+
+        XCTAssertEqual(editor.map.node(source.id)?.branchSide, .left)
+        let moved = LayoutEngine.layout(editor.map)
+        let movedRoot = try XCTUnwrap(moved.frames[rootID])
+        for id in editor.map.subtreeIDs(of: source.id) {
+            let frame = try XCTUnwrap(moved.frames[id])
+            XCTAssertLessThan(frame.midX, movedRoot.midX, "拖到根节点左侧后子树没有跟随")
+        }
+    }
+
+    func testMindMapLayoutFieldsRoundTripAndLegacyDecode() throws {
+        var map = MapTemplate.project.makeMap(themeID: "paper", layout: .mindMap)
+        map.mindMapLayoutMode = .remember
+        let rootID = map.rootID
+        let branchIndex = try XCTUnwrap(map.nodes.firstIndex(where: { $0.parentID == rootID }))
+        map.nodes[branchIndex].branchSide = .left
+
+        let data = try JSONEncoder().encode(map)
+        let decoded = try JSONDecoder().decode(MindMap.self, from: data)
+        XCTAssertEqual(decoded.resolvedMindMapLayoutMode, .remember)
+        XCTAssertEqual(decoded.nodes[branchIndex].branchSide, .left)
+
+        // 旧版本 JSON 没有新字段，必须仍能解码，并按「记住布局」的默认处理
+        var object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "mindMapLayoutMode")
+        if var nodes = object["nodes"] as? [[String: Any]] {
+            for index in nodes.indices {
+                nodes[index].removeValue(forKey: "branchSide")
+            }
+            object["nodes"] = nodes
+        }
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+        let legacy = try JSONDecoder().decode(MindMap.self, from: legacyData)
+        XCTAssertNil(legacy.mindMapLayoutMode)
+        XCTAssertEqual(legacy.resolvedMindMapLayoutMode, .remember)
+        XCTAssertTrue(legacy.nodes.allSatisfy { $0.branchSide == nil })
+    }
+
+    func testNewBranchUsesRememberedSide() throws {
+        let editor = try makeEditor()
+        let rootID = editor.map.rootID
+        let before = editor.map.children(of: rootID).count
+        let id = try XCTUnwrap(editor.addChild(to: rootID))
+        XCTAssertEqual(editor.map.children(of: rootID).count, before + 1)
+        XCTAssertNotNil(editor.map.node(id)?.branchSide, "记住布局下新增一级分支应立刻记录左右侧")
+
+        let newBranch = try XCTUnwrap(editor.map.node(id))
+        XCTAssertNotNil(newBranch.branchSide)
+        let layout = LayoutEngine.layout(editor.map)
+        let rootFrame = try XCTUnwrap(layout.frames[rootID])
+        let frame = try XCTUnwrap(layout.frames[id])
+        switch newBranch.branchSide {
+        case .left: XCTAssertLessThan(frame.midX, rootFrame.midX)
+        case .right: XCTAssertGreaterThan(frame.midX, rootFrame.midX)
+        case nil: XCTFail("新增分支没有左右侧")
+        }
+    }
+}
+
 private extension CGRect {
     var center: CGPoint { CGPoint(x: midX, y: midY) }
 }
