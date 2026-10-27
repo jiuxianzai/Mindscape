@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.6.0-beta.1] - 2026-10-27
+
+### 亮点
+
+- 本地 OpenAPI 网关与 AI Agent Skill：一键接入 Claude Code、Codex、DSH、OpenCode。
+- AI Agent 独立设置页、首启安装引导、可复制提示与 GitHub Pages 教程。
+- 跟随系统 / 浅色 / 深色外观；每个导图分别记忆浅色、深色主题。
+
 ### 新增
 
 - AI Agent 本地 OpenAPI 网关：只监听 127.0.0.1，按需启动、空闲 10 分钟关闭，每次启动生成新 Bearer token。

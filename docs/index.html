@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mindscape — 本地优先的 macOS 思维导图</title>
-<meta name="description" content="一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件，不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。零第三方依赖，中文输入法打字不跳。">
+<meta name="description" content="一个 4.8 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件，不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。零第三方依赖，中文输入法打字不跳。">
 <link rel="icon" href="screenshots/icon.png">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Mindscape — 本地优先的 macOS 思维导图">
-<meta property="og:description" content="3.9 MB，原生 SwiftUI + 自绘画布，零第三方依赖。数据就是一个 sqlite 文件：不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。">
+<meta property="og:description" content="4.8 MB，原生 SwiftUI + 自绘画布，零第三方依赖。数据就是一个 sqlite 文件：不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。">
 <meta property="og:image" content="https://jiuxianzai.github.io/Mindscape/screenshots/main.png">
 <meta property="og:url" content="https://jiuxianzai.github.io/Mindscape/">
 <meta name="twitter:card" content="summary_large_image">
@@ -234,13 +234,16 @@
 
 <main id="top">
   <div class="wrap hero">
-    <div class="badge"><span class="pulse"></span><b data-version>v0.5.4</b><span data-i18n="hero.badge">早期版本 · 持续更新</span></div>
+    <div class="badge"><span class="pulse"></span><b data-version>v0.6.0-beta.1</b><span data-i18n="hero.badge">Beta · 预发布</span></div>
     <h1 class="wordmark">Mindscape</h1>
-    <p class="lead" data-i18n="hero.lead">一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。</p>
+    <p class="lead" data-i18n="hero.lead">一个 4.8 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://github.com/jiuxianzai/Mindscape/releases/latest" data-download>
+      <a class="btn btn-primary" href="https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0-beta.1/Mindscape-0.6.0-beta.1.dmg" data-download>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/></svg>
-        <span data-i18n="hero.cta">下载 dmg</span> <span style="opacity:.6" data-filesize>3.9 MB</span>
+        <span data-i18n="hero.cta">下载 0.6.0 Beta</span> <span style="opacity:.6" data-filesize>Beta</span>
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/jiuxianzai/Mindscape/releases/latest">
+        <span data-i18n="hero.stable">稳定版 0.5.4</span>
       </a>
       <a class="btn btn-ghost" href="https://github.com/jiuxianzai/Mindscape">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.37-3.37-1.37-.45-1.18-1.11-1.49-1.11-1.49-.91-.64.07-.62.07-.62 1 .07 1.53 1.06 1.53 1.06.9 1.57 2.34 1.12 2.91.86.09-.66.35-1.12.63-1.38-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.4 9.4 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.35 4.79-4.58 5.05.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.06 10.06 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z"/></svg>
@@ -258,7 +261,7 @@
 
   <div class="wrap">
     <div class="stats">
-      <div class="stat"><b>3.9 MB</b><span data-i18n="stat.size">完整安装包</span></div>
+      <div class="stat"><b>4.8 MB</b><span data-i18n="stat.size">完整安装包</span></div>
       <div class="stat"><b>0</b><span data-i18n="stat.deps">第三方依赖</span></div>
       <div class="stat"><b>11,656</b><span data-i18n="stat.loc">行 Swift</span></div>
       <div class="stat"><b>136</b><span data-i18n="stat.tests">个 XCTest</span></div>
@@ -269,7 +272,7 @@
     <div class="wrap">
       <p class="eyebrow" data-i18n="why.eyebrow">为什么是 Mindscape</p>
       <h2 data-i18n="why.title">不是又一个网页套壳的思维导图</h2>
-      <p class="section-lead" data-i18n="why.lead">画布是自绘的 NSView，不是 WebView。所以大图缩放跟手、启动即时、安装包只有 3.9 MB。</p>
+      <p class="section-lead" data-i18n="why.lead">画布是自绘的 NSView，不是 WebView。所以大图缩放跟手、启动即时、安装包只有 4.8 MB。</p>
 
       <div class="cards">
         <div class="card">
@@ -386,7 +389,7 @@
 
       <p class="migrate" data-i18n="in.migrate">从 XMind / FreeMind 来？在源应用里导出 <b>OPML</b>，回到 Mindscape 按 ⇧⌘I 导入即可，结构和文字都会保留。<a href="https://github.com/jiuxianzai/Mindscape#%E4%BB%8E-xmind--freemind-%E8%BF%81%E7%A7%BB">详细步骤 →</a></p>
 
-      <p class="migrate" data-i18n="in.update">装好后可在 <b>设置 → 关于</b> 检查更新；首次启动依次询问自动检查更新、是否一键安装 Agent Skill，两项默认关闭。</p>
+      <p class="migrate" data-i18n="in.update">当前提供 <b>0.6.0 Beta 1</b>（预发布）；Beta 不参与应用内自动更新，自动更新只认稳定版。首次启动仍会依次询问自动检查更新、是否一键安装 Agent Skill。</p>
     </div>
   </section>
 
@@ -450,13 +453,13 @@ const THEMES = [
 const I18N = {
   zh: {
     'nav.features':'功能','nav.themes':'布局与主题','nav.install':'安装','nav.github':'GitHub',
-    'hero.badge':'早期版本 · 持续更新',
-    'hero.lead':'一个 3.9 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。',
-    'hero.cta':'下载 dmg','hero.src':'查看源码',
+    'hero.badge':'Beta · 预发布',
+    'hero.lead':'一个 4.8 MB 的 macOS 原生思维导图。数据就是一个 sqlite 文件——不登录、不订阅，默认不联网，只在检查更新时访问 GitHub。',
+    'hero.cta':'下载 0.6.0 Beta','hero.stable':'稳定版 0.5.4','hero.src':'查看源码',
     'meta.tests':'个测试','meta.zero':'零第三方依赖',
     'stat.size':'完整安装包','stat.deps':'第三方依赖','stat.loc':'行 Swift','stat.tests':'个 XCTest',
     'why.eyebrow':'为什么是 Mindscape','why.title':'不是又一个网页套壳的思维导图',
-    'why.lead':'画布是自绘的 NSView，不是 WebView。所以大图缩放跟手、启动即时、安装包只有 3.9 MB。',
+    'why.lead':'画布是自绘的 NSView，不是 WebView。所以大图缩放跟手、启动即时、安装包只有 4.8 MB。',
     'f1.t':'原生性能','f1.d':'自绘 Core Graphics 画布，缩放时直接变换坐标系，而不是缩放上千个视图。大图拖拽、折叠都不掉帧。',
     'f2.t':'数据是一个文件','f2.d':'所有导图存在一个 SQLite 文件里，WAL 模式自动保存。断网可用，没有账号，没有遥测；默认不联网，只在检查更新时访问 GitHub。',
     'f3.t':'8 种布局 · 8 套主题','f3.d':'思维导图、逻辑图、组织架构、树形、时间轴、括号图、自由布局。主题只影响画布，窗口跟随系统深浅色。',
@@ -481,7 +484,7 @@ const I18N = {
     'in.s3t':'第一次打开','in.s3d':'右键 →「打开」，或按下面的命令去掉隔离属性。之后就正常双击启动。',
     'in.warn':'当前版本是 ad-hoc 签名、没有公证，Gatekeeper 可能拦住首次启动。用这条命令去掉隔离属性即可（只需一次）：',
     'in.migrate':'从 XMind / FreeMind 来？在源应用里导出 <b>OPML</b>，回到 Mindscape 按 ⇧⌘I 导入即可，结构和文字都会保留。<a href="https://github.com/jiuxianzai/Mindscape#%E4%BB%8E-xmind--freemind-%E8%BF%81%E7%A7%BB">详细步骤 →</a>',
-    'in.update':'装好后可在 <b>设置 → 关于</b> 检查更新；首次启动依次询问自动检查更新、是否一键安装 Agent Skill，两项默认关闭。',
+    'in.update':'当前提供 <b>0.6.0 Beta 1</b>（预发布）；Beta 不参与应用内自动更新，自动更新只认稳定版。首次启动仍会依次询问自动检查更新、是否一键安装 Agent Skill。',
     'agent.eyebrow':'AI Agent','agent.title':'让你的 Agent 直接画图',
     'agent.lead':'Mindscape 在 App 内提供只监听本机的 OpenAPI 服务。Claude Code、Codex、DSH、OpenCode 装上 Skill 后，就能建目录、画导图、导出。',
     'agent.s1t':'1. 打开开关','agent.s1d':'设置 → AI Agent，允许本地 Agent 操作。默认关闭；Agent 调用时才启动，空闲 10 分钟自动关闭。',
@@ -492,13 +495,13 @@ const I18N = {
   },
   en: {
     'nav.features':'Features','nav.themes':'Layouts & themes','nav.install':'Install','nav.github':'GitHub',
-    'hero.badge':'Early release · actively built',
-    'hero.lead':'A 3.9 MB native mind map for macOS. Everything lives in one SQLite file — no account, no cloud, no subscription. Offline by default; it only goes online to check for updates.',
-    'hero.cta':'Download dmg','hero.src':'View source',
+    'hero.badge':'Beta · pre-release',
+    'hero.lead':'A 4.8 MB native mind map for macOS. Everything lives in one SQLite file — no account, no cloud, no subscription. Offline by default; it only goes online to check for updates.',
+    'hero.cta':'Download 0.6.0 Beta','hero.stable':'Stable 0.5.4','hero.src':'View source',
     'meta.tests':'tests','meta.zero':'zero dependencies',
     'stat.size':'app bundle','stat.deps':'dependencies','stat.loc':'lines of Swift','stat.tests':'XCTest cases',
     'why.eyebrow':'Why Mindscape','why.title':'Not another web app in a window',
-    'why.lead':'The canvas is a hand-drawn NSView, not a WebView. Large maps stay responsive, launch is instant, and the whole app is 3.9 MB.',
+    'why.lead':'The canvas is a hand-drawn NSView, not a WebView. Large maps stay responsive, launch is instant, and the whole app is 4.8 MB.',
     'f1.t':'Native performance','f1.d':'A Core Graphics canvas that transforms the coordinate system instead of scaling thousands of views. Panning and collapsing large maps stay smooth.',
     'f2.t':'Your data is one file','f2.d':'Every map lives in a single SQLite file with WAL autosave. Offline by default, no account, no telemetry — GitHub is contacted only for update checks.',
     'f3.t':'8 layouts · 8 themes','f3.d':'Mind map, logic chart, org chart, tree, timeline, brace map, free-form. Themes only affect the canvas; the window follows the system appearance.',
@@ -523,7 +526,7 @@ const I18N = {
     'in.s3t':'First launch','in.s3d':'Right-click → Open, or run the command below to clear the quarantine flag. After that, double-click works normally.',
     'in.warn':'This build is ad-hoc signed and not notarized, so Gatekeeper may block the first launch. Clear the quarantine flag once:',
     'in.migrate':'Coming from XMind or FreeMind? Export <b>OPML</b> from the source app, then press ⇧⌘I in Mindscape — structure and text come across. <a href="https://github.com/jiuxianzai/Mindscape/blob/main/README.en.md#coming-from-xmind-mindnode-or-freemind">Details →</a>',
-    'in.update':'After installing, check for updates under <b>Settings → About</b>. The first launch asks about automatic updates and installing the agent skill — both off by default.',
+    'in.update':'The current build is <b>0.6.0 Beta 1</b> (pre-release). Beta builds are not auto-updated; only stable releases are. The first launch still asks about automatic updates and installing the agent skill — both off by default.',
     'agent.eyebrow':'AI Agent','agent.title':'Let your agent draw',
     'agent.lead':'Mindscape exposes a local-only OpenAPI service. Install the skill for Claude Code, Codex, DSH, or OpenCode and let it create folders, draw maps, and export.',
     'agent.s1t':'1. Enable','agent.s1d':'Settings → AI Agent, allow local agents. Off by default; starts on demand and stops after 10 idle minutes.',
@@ -568,7 +571,8 @@ function setLang(lang){
 // 下载按钮跟着最新 release 走
 (async function latestRelease(){
   try {
-    const res = await fetch('https://api.github.com/repos/jiuxianzai/Mindscape/releases/latest');
+    const BETA_TAG = 'v0.6.0-beta.1';
+    const res = await fetch(`https://api.github.com/repos/jiuxianzai/Mindscape/releases/tags/${BETA_TAG}`);
     if (!res.ok) return;
     const rel = await res.json();
     const dmg = (rel.assets || []).find(a => a.name.endsWith('.dmg'));
