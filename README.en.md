@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-174-brightgreen?style=flat-square" alt="174 tests">
+  <img src="https://img.shields.io/badge/tests-175-brightgreen?style=flat-square" alt="175 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.6.2-lightgrey?style=flat-square" alt="Status 0.6.2">
 </p>
@@ -83,7 +83,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 - Free-form layout: hold ⌥ while dropping onto a node to reparent it, keeping its position and avoiding auto-layout; a normal drag only moves it
 - Multiple root nodes; double-click empty space to start a new tree
 - Drag to re-parent; hold ⌥ while dragging to reorder among siblings
-- Mind map drag sorting: drag siblings up/down to reorder; drop a first-level branch on a branch on the other side (or on the left/right half of the root) to switch sides, with the whole subtree following; a dashed outline previews the whole subtree at the exact landing slot, with dashed links from the parent through every child (outline only)
+- Mind map drag sorting: drag siblings up/down to reorder; drop a first-level branch on a branch on the other side (or on the left/right half of the root) to switch sides, with the whole subtree following; a dashed outline previews the whole subtree at the exact landing slot, with dashed links from the parent through every child (outline only); a ~30pt magnetic zone locks the nearest target without needing to hit the node precisely
 - Mind map branch arrangement: switch between “Remember Layout” (default, keeps manual sides) and “Balanced Layout” (auto-balances both sides) from the inspector or Layout menu
 - Canvas keys: `Space` to edit, `Enter` for a sibling, `Tab` for a child, ⌃Space to center the map
 - Multi-line in-place editing at any zoom level, with IME composition handled correctly
@@ -277,7 +277,7 @@ Tables: `documents` (metadata + full map JSON + folder), `folders`, `snapshots` 
 | Icons | SF Symbols (102 symbols) |
 | Storage | System `libsqlite3`, WAL mode |
 | Project | XcodeGen (`project.yml`) |
-| Tests | XCTest, 174 cases including canvas interaction and render regressions |
+| Tests | XCTest, 175 cases including canvas interaction and render regressions |
 | Minimum OS | macOS 14 |
 | Architecture | Universal (arm64 + x86_64) |
 | Third-party dependencies | None |

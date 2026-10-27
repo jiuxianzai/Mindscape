@@ -25,6 +25,8 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     private var layoutRevision: Int = -1
     private var layoutDocumentID: UUID?
     private var camera = CanvasCamera()
+    /// 思维导图拖动时，节点外侧额外吸附的屏幕范围（pt）
+    private static let magneticDropPadding: CGFloat = 30
     private var displayFrames: [UUID: CGRect] = [:]
     private var frameAnimation: FrameAnimation?
     private var animationTimer: Timer?
@@ -746,6 +748,39 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             path.setLineDash([6, 4], count: 2, phase: 0)
             path.stroke()
         }
+
+        // 最后用细实线 + 轻光晕标出当前吸附 / 命中的目标，和虚线预览区分开
+        if let targetID = dropTargetID, let frame = layoutResult?.frames[targetID] {
+            drawDropTargetRing(frame: frame, nodeID: targetID)
+        }
+    }
+
+    private func drawDropTargetRing(frame: CGRect, nodeID: UUID) {
+        let rect = worldRectToView(frame)
+        guard rect.intersects(bounds.insetBy(dx: -30, dy: -30)) else { return }
+
+        let level = min(layoutResult?.depths[nodeID] ?? 1, 2)
+        let radius = (level == 0 ? 15 : (level == 1 ? 12 : 11)) * camera.zoom
+
+        let glowRect = rect.insetBy(dx: -4, dy: -4)
+        let glow = NSBezierPath(
+            roundedRect: glowRect,
+            xRadius: max(radius + 4, 6),
+            yRadius: max(radius + 4, 6)
+        )
+        theme.accent.withAlphaComponent(0.14).setStroke()
+        glow.lineWidth = 6
+        glow.stroke()
+
+        let ringRect = rect.insetBy(dx: -1.5, dy: -1.5)
+        let ring = NSBezierPath(
+            roundedRect: ringRect,
+            xRadius: max(radius + 1.5, 4),
+            yRadius: max(radius + 1.5, 4)
+        )
+        theme.accent.withAlphaComponent(0.9).setStroke()
+        ring.lineWidth = 1.5
+        ring.stroke()
     }
 
     /// 预览用的虚线连接线，走向和正式连接线一致，但只画虚线。
@@ -853,6 +888,39 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             if layout.frames[id]?.contains(worldPoint) == true { return id }
         }
         return nil
+    }
+
+    /// 思维导图拖动时，节点本体命中之外再给一圈屏幕空间吸附范围，
+    /// 指针不用精确压在节点上也能提前锁定目标。
+    private func mindMapDropTarget(worldPoint: CGPoint, excluding ids: Set<UUID>) -> UUID? {
+        guard let layout = hitTestLayout else { return nil }
+
+        // 先保持原来的精确命中：指针在节点内时优先取最上层节点
+        for id in layout.drawOrder.reversed() where !ids.contains(id) {
+            guard let frame = layout.frames[id] else { continue }
+            if frame.contains(worldPoint), canDrop(ids, on: id) { return id }
+        }
+
+        let padding = Self.magneticDropPadding / max(camera.zoom, CanvasCamera.minZoom)
+        var best: (id: UUID, distance: CGFloat, centerDistance: CGFloat)?
+        for id in layout.drawOrder where !ids.contains(id) {
+            guard let frame = layout.frames[id] else { continue }
+            let distance = distance(from: worldPoint, to: frame)
+            guard distance <= padding, canDrop(ids, on: id) else { continue }
+            let centerDistance = hypot(worldPoint.x - frame.midX, worldPoint.y - frame.midY)
+            if best == nil
+                || distance < best!.distance - 0.001
+                || (abs(distance - best!.distance) <= 0.001 && centerDistance < best!.centerDistance) {
+                best = (id, distance, centerDistance)
+            }
+        }
+        return best?.id
+    }
+
+    private func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {
+        let dx = max(max(rect.minX - point.x, 0), point.x - rect.maxX)
+        let dy = max(max(rect.minY - point.y, 0), point.y - rect.maxY)
+        return hypot(dx, dy)
     }
 
     private var hoveredConnectorParentID: UUID?
@@ -1177,7 +1245,9 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                 }
             } else {
                 let world = viewToWorld(point)
-                let target = hitTest(worldPoint: world, excluding: ids)
+                let target = editor?.map.layout == .mindMap
+                    ? mindMapDropTarget(worldPoint: world, excluding: ids)
+                    : hitTest(worldPoint: world, excluding: ids)
                 let validTarget = target.flatMap { canDrop(ids, on: $0) ? $0 : nil }
                 dropTargetID = validTarget
                 updateMindMapDropPreview(ids: ids, target: validTarget, world: world)

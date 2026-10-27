@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-174-brightgreen?style=flat-square" alt="174 tests">
+  <img src="https://img.shields.io/badge/tests-175-brightgreen?style=flat-square" alt="175 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.6.2-lightgrey?style=flat-square" alt="Status 0.6.2">
 </p>
@@ -87,7 +87,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 - 自由布局：按住 ⌥ 拖到目标节点可迁移父子关系，节点保持当前位置、不触发自动重排；普通拖动仍只调整位置
 - 支持多个头部节点；双击空白处新建头部节点并进入编辑
 - 拖动改层级：拖到节点上挂到它下面；按住 ⌥ 拖到同级节点可调整顺序
-- 思维导图拖动排序：普通拖动同级节点即可上下换序；把一级分支拖到另一侧的分支或根节点左右半边即可换边，整棵子分支跟随；拖动时会用虚线轮廓预览整棵子树的最终落点，主节点和子节点之间用虚线连接（只画虚线，不填充文字）
+- 思维导图拖动排序：普通拖动同级节点即可上下换序；把一级分支拖到另一侧的分支或根节点左右半边即可换边，整棵子分支跟随；拖动时会用虚线轮廓预览整棵子树的最终落点，主节点和子节点之间用虚线连接（只画虚线，不填充文字）；节点外约 30pt 带磁吸范围，靠近即可锁定最近目标，不用精确压在节点上
 - 思维导图分支排列：属性面板 / 布局菜单可切换「记住布局」（默认，保留手动左右侧）与「平衡布局」（自动平衡左右两侧）
 - 画布快捷键：Space 进入编辑，Enter 新建同级节点（头部节点则新建头部），Tab 新建子节点，⌃Space 把整张导图居中
 - 新增 / 编辑节点时按当前缩放自动居中，节点不断变大也不会跑出视口
@@ -382,7 +382,7 @@ Agent 也可以直接访问 `http://127.0.0.1:47821/openapi.json`（实际端口
 | 图标 | SF Symbols |
 | 数据 | 系统 `libsqlite3`，WAL 模式 |
 | 工程 | XcodeGen（`project.yml`） |
-| 测试 | XCTest（174 个用例，含画布交互与渲染回归） |
+| 测试 | XCTest（175 个用例，含画布交互与渲染回归） |
 | 最低系统 | macOS 14 |
 | 架构 | Universal（arm64 + x86_64） |
 | 第三方依赖 | 无 |

@@ -2428,6 +2428,63 @@ extension MindscapeFeatureTests {
         XCTAssertTrue(legacy.nodes.allSatisfy { $0.branchSide == nil })
     }
 
+    private func makeMagneticCanvas() throws -> (MapEditor, MindCanvasView, NSWindow) {
+        let store = try DocumentStore(inMemory: true)
+        let root = MindNode(parentID: nil, text: "中心", order: 0)
+        let left = MindNode(parentID: root.id, text: "左侧", order: 0, branchSide: .left)
+        let leftChild = MindNode(parentID: left.id, text: "左子", order: 0)
+        let right = MindNode(parentID: root.id, text: "右侧", order: 1, branchSide: .right)
+        let rightChild = MindNode(parentID: right.id, text: "右子", order: 0)
+        var map = MindMap(
+            title: "磁吸",
+            nodes: [root, left, leftChild, right, rightChild],
+            layout: .mindMap,
+            themeID: "paper"
+        )
+        map.mindMapLayoutMode = .remember
+        let editor = MapEditor(map: map, store: store)
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+        canvas.setZoom(1)
+        return (editor, canvas, window)
+    }
+
+    func testMindMapDragUsesMagneticDropRange() throws {
+        let (editor, canvas, window) = try makeMagneticCanvas()
+        let root = try XCTUnwrap(node(editor, "中心"))
+        let left = try XCTUnwrap(node(editor, "左侧"))
+        let right = try XCTUnwrap(node(editor, "右侧"))
+
+        let layout = LayoutEngine.layout(editor.map)
+        let leftFrame = try XCTUnwrap(layout.frames[left.id])
+        let rightFrame = try XCTUnwrap(layout.frames[right.id])
+
+        let start = canvas.convert(canvas.worldToView(rightFrame.center), to: nil)
+        let tooFarWorld = CGPoint(x: leftFrame.midX, y: leftFrame.minY - 50)
+        let tooFar = canvas.convert(canvas.worldToView(tooFarWorld), to: nil)
+
+        // 超出 30pt 磁吸范围：仍然算没有目标
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: tooFar, in: window)))
+        XCTAssertTrue(canvas.dropPreviewFrames.isEmpty, "超出磁吸范围不应该出现虚线预览")
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: tooFar, in: window)))
+        // 等第一次拖拽的落位动画结束，避免第二次 drag 用插值中的帧做命中
+        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+
+        // 指针在节点外 10pt，但仍在 30pt 磁吸范围内
+        let nearWorld = CGPoint(x: leftFrame.midX, y: leftFrame.minY - 10)
+        let near = canvas.convert(canvas.worldToView(nearWorld), to: nil)
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: near, in: window)))
+        XCTAssertFalse(canvas.dropPreviewFrames.isEmpty, "进入磁吸范围后应该提前出现虚线预览")
+        XCTAssertEqual(canvas.dropPreviewParentID, root.id)
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: near, in: window)))
+
+        XCTAssertEqual(editor.map.node(right.id)?.parentID, root.id, "磁吸落点不应改变父节点")
+        XCTAssertEqual(editor.map.node(right.id)?.branchSide, .left, "靠近左侧节点应该落到左侧")
+    }
+
     func testNewBranchUsesRememberedSide() throws {
         let editor = try makeEditor()
         let rootID = editor.map.rootID
