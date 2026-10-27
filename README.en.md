@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-152-brightgreen?style=flat-square" alt="152 tests">
+  <img src="https://img.shields.io/badge/tests-155-brightgreen?style=flat-square" alt="155 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.6.0-lightgrey?style=flat-square" alt="Status 0.6.0">
 </p>
@@ -82,6 +82,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 - Nodes: add, rename, collapse, multi-select, drag, cut/copy/paste, duplicate
 - Multi-select: choose the modifier in Settings (⇧ by default, ⌘ optional); click to add/remove, drag empty space to marquee; ⌘-click always adds; `Delete` removes the selection, and dragging any selected node moves the group (free layout keeps relative positions)
 - The toolbar lightbulb collects canvas tips; opens automatically once globally on the first map, and closes when you start drawing or dismiss it
+- Free-form layout: hold ⌥ while dropping onto a node to reparent it, keeping its position and avoiding auto-layout; a normal drag only moves it
 - Multiple root nodes; double-click empty space to start a new tree
 - Drag to re-parent; hold ⌥ while dragging to reorder among siblings
 - Canvas keys: `Space` to edit, `Enter` for a sibling, `Tab` for a child

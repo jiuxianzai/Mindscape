@@ -59,7 +59,8 @@ struct CanvasTipsPopover: View {
                     ])
 
                     section("拖动与层级", icon: "arrow.up.and.down.and.arrow.left.and.right", items: [
-                        TipItem(keys: "拖到节点上", text: "挂到该节点下面"),
+                        TipItem(keys: "拖到节点上", text: "挂到该节点下面（非自由布局）"),
+                        TipItem(keys: "⌥ 拖到节点", text: "自由布局下迁移节点"),
                         TipItem(keys: "⌥ 拖到同级", text: "调整兄弟顺序"),
                         TipItem(keys: "⌘ 拖动", text: "自由布局下暂时关闭吸附"),
                         TipItem(keys: key(.fitCanvas), text: "适配整张画布")

@@ -250,7 +250,7 @@
         <span data-i18n="hero.src">查看源码</span>
       </a>
     </div>
-    <p class="meta-line"><span>macOS 14+</span><span>Universal</span><span>MIT</span><span>152 <span data-i18n="meta.tests">个测试</span></span><span data-i18n="meta.zero">零第三方依赖</span></p>
+    <p class="meta-line"><span>macOS 14+</span><span>Universal</span><span>MIT</span><span>155 <span data-i18n="meta.tests">个测试</span></span><span data-i18n="meta.zero">零第三方依赖</span></p>
   </div>
 
   <div class="wrap shot">
@@ -264,7 +264,7 @@
       <div class="stat"><b>4.9 MB</b><span data-i18n="stat.size">完整安装包</span></div>
       <div class="stat"><b>0</b><span data-i18n="stat.deps">第三方依赖</span></div>
       <div class="stat"><b>11,656</b><span data-i18n="stat.loc">行 Swift</span></div>
-      <div class="stat"><b>152</b><span data-i18n="stat.tests">个 XCTest</span></div>
+      <div class="stat"><b>155</b><span data-i18n="stat.tests">个 XCTest</span></div>
     </div>
   </div>
 
@@ -288,7 +288,7 @@
         <div class="card">
           <div class="glyph"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="8.5" y="14" width="7" height="7" rx="1.5"/><path d="M6.5 10v2h11v-2"/></svg></div>
           <h3 data-i18n="f3.t">8 种布局 · 8 套主题</h3>
-          <p data-i18n="f3.d">思维导图、逻辑图、组织架构、树形、时间轴、括号图、自由布局。浅色/深色主题按文件分别记忆；界面可跟随系统、浅色或深色。</p>
+          <p data-i18n="f3.d">思维导图、逻辑图、组织架构、树形、时间轴、括号图、自由布局。浅色/深色主题按文件分别记忆；自由布局按住 ⌥ 拖到节点可迁移并保留位置。</p>
         </div>
         <div class="card">
           <div class="glyph"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></svg></div>
@@ -462,7 +462,7 @@ const I18N = {
     'why.lead':'画布是自绘的 NSView，不是 WebView。所以大图缩放跟手、启动即时、安装包只有 4.9 MB。',
     'f1.t':'原生性能','f1.d':'自绘 Core Graphics 画布，缩放时直接变换坐标系，而不是缩放上千个视图。大图拖拽、折叠都不掉帧。',
     'f2.t':'数据是一个文件','f2.d':'所有导图存在一个 SQLite 文件里，WAL 模式自动保存。断网可用，没有账号，没有遥测；默认不联网，只在检查更新时访问 GitHub。',
-    'f3.t':'8 种布局 · 8 套主题','f3.d':'思维导图、逻辑图、组织架构、树形、时间轴、括号图、自由布局。浅色/深色主题按文件分别记忆；界面可跟随系统、浅色或深色。',
+    'f3.t':'8 种布局 · 8 套主题','f3.d':'思维导图、逻辑图、组织架构、树形、时间轴、括号图、自由布局。浅色/深色主题按文件分别记忆；自由布局按住 ⌥ 拖到节点可迁移并保留位置。',
     'f4.t':'大纲 · 搜索 · 专注','f4.d':'⇧⌘O 打开与画布双向同步的大纲，⌘F 输入即定位，⇧⌘F 只留当前分支。长图不至于迷路。',
     'f5.t':'演示模式','f5.d':'⇧⌘P 按一级分支自动分页的独立演示窗口，每页保留上下文，适合会议讲解与评审。',
     'f6.t':'能带走','f6.d':'PNG（1x/2x/3x）、矢量 PDF、Markdown、OPML、JSON 五种导出，也能导入 Markdown / OPML / JSON。文件永远是你的。',
@@ -504,7 +504,7 @@ const I18N = {
     'why.lead':'The canvas is a hand-drawn NSView, not a WebView. Large maps stay responsive, launch is instant, and the whole app is 4.9 MB.',
     'f1.t':'Native performance','f1.d':'A Core Graphics canvas that transforms the coordinate system instead of scaling thousands of views. Panning and collapsing large maps stay smooth.',
     'f2.t':'Your data is one file','f2.d':'Every map lives in a single SQLite file with WAL autosave. Offline by default, no account, no telemetry — GitHub is contacted only for update checks.',
-    'f3.t':'8 layouts · 8 themes','f3.d':'Mind map, logic chart, org chart, tree, timeline, brace map, free-form. Light and dark themes are remembered per map; the app can follow the system, light, or dark appearance.',
+    'f3.t':'8 layouts · 8 themes','f3.d':'Mind map, logic chart, org chart, tree, timeline, brace map, free-form. Light and dark themes are remembered per map; in free-form layout, ⌥-drag onto a node to reparent without moving it.',
     'f4.t':'Outline · search · focus','f4.d':'⇧⌘O opens an outline synced with the canvas, ⌘F locates as you type, ⇧⌘F keeps only the current branch. Long maps stop being a maze.',
     'f5.t':'Presentation mode','f5.d':'⇧⌘P opens a separate window paginated by first-level branches, keeping context on every page — good for reviews and walkthroughs.',
     'f6.t':'Easy to leave','f6.d':'Export to PNG (1x/2x/3x), vector PDF, Markdown, OPML, and JSON; import Markdown, OPML, and JSON. The files are always yours.',

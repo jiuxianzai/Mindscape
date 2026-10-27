@@ -1076,7 +1076,13 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                         snapGuides = result.guides
                     }
                 }
-                dropTargetID = nil
+                if event.modifierFlags.contains(.option) {
+                    let world = viewToWorld(point)
+                    let target = hitTest(worldPoint: world, excluding: ids)
+                    dropTargetID = target.flatMap { canDrop(ids, on: $0) ? $0 : nil }
+                } else {
+                    dropTargetID = nil
+                }
             } else {
                 let world = viewToWorld(point)
                 let target = hitTest(worldPoint: world, excluding: ids)
@@ -1153,7 +1159,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
 
         let visualStart = currentVisualFrames()
 
-        // 自由布局：整组按同一个位移落位
+        // 自由布局：普通拖动只改位置；⌥ 拖到节点上则迁移父子关系，同时保留落点位置。
         if editor?.map.layout == .free {
             var origins: [UUID: CGPoint] = [:]
             for movingID in ids {
@@ -1163,7 +1169,11 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                     y: frame.minY + offset.height
                 )
             }
-            editor?.moveFreeNodes(origins: origins)
+            if let target, let editor, editor.canMove(ids: ids, to: target) {
+                _ = editor.move(ids: ids, to: target, freeOrigins: origins)
+            } else {
+                editor?.moveFreeNodes(origins: origins)
+            }
             rebuildLayoutIfNeeded(force: true)
             endNodeDrag()
             animateFrames(from: visualStart, to: layoutResult?.frames ?? [:], duration: 0.2)

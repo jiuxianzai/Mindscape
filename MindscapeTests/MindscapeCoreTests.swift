@@ -1612,6 +1612,27 @@ extension MindscapeFeatureTests {
         XCTAssertEqual(editor.map.node(budget.id)?.parentID, resource.id, "子节点被重复搬运了")
     }
 
+    /// 自由布局下迁移节点：保留自由位置，且父子关系和位置一步撤销
+    func testFreeLayoutReparentPreservesPositionInSingleUndo() throws {
+        let editor = try makeEditor(layout: .free)
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let target = try XCTUnwrap(node(editor, "目标"))
+        let oldParent = budget.parentID
+        let origin = CGPoint(x: 123, y: 456)
+
+        XCTAssertTrue(editor.move(
+            ids: [budget.id],
+            to: target.id,
+            freeOrigins: [budget.id: origin]
+        ))
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, target.id)
+        XCTAssertEqual(editor.map.node(budget.id)?.position, origin)
+
+        editor.undo()
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, oldParent)
+        XCTAssertNil(editor.map.node(budget.id)?.position)
+    }
+
     /// 自由布局批量位移应该只产生一步撤销
     func testBatchFreeMoveUsesSingleUndoStep() throws {
         let editor = try makeEditor(layout: .free)
@@ -1628,6 +1649,57 @@ extension MindscapeFeatureTests {
         editor.undo()
         XCTAssertNil(editor.map.node(budget.id)?.position)
         XCTAssertNil(editor.map.node(risk.id)?.position)
+    }
+
+    /// 自由布局普通拖动仍然只移动位置，不改变父子关系
+    func testNormalDragMovesButDoesNotReparentInFreeLayout() throws {
+        let editor = try makeEditor(layout: .free)
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let target = try XCTUnwrap(node(editor, "目标"))
+        let oldParent = budget.parentID
+        let layout = LayoutEngine.layout(editor.map)
+        let startWorld = try XCTUnwrap(layout.frames[budget.id]).center
+        let endWorld = try XCTUnwrap(layout.frames[target.id]).center
+        let start = canvas.convert(canvas.worldToView(startWorld), to: nil)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: end, in: window)))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
+
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, oldParent)
+        XCTAssertNotNil(editor.map.node(budget.id)?.position)
+    }
+
+    /// 自由布局按住 ⌥ 拖到节点上：迁移父子关系并保留自由位置
+    func testOptionDragReparentsNodeInFreeLayout() throws {
+        let editor = try makeEditor(layout: .free)
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let budget = try XCTUnwrap(node(editor, "预算"))
+        let target = try XCTUnwrap(node(editor, "目标"))
+        let layout = LayoutEngine.layout(editor.map)
+        let startWorld = try XCTUnwrap(layout.frames[budget.id]).center
+        let endWorld = try XCTUnwrap(layout.frames[target.id]).center
+        let start = canvas.convert(canvas.worldToView(startWorld), to: nil)
+        let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
+
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
+        canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(
+            .leftMouseDragged, at: end, in: window, modifiers: [.option]
+        )))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(
+            .leftMouseUp, at: end, in: window, modifiers: [.option]
+        )))
+
+        XCTAssertEqual(editor.map.node(budget.id)?.parentID, target.id)
+        XCTAssertNotNil(editor.map.node(budget.id)?.position)
     }
 
     /// 画布 Delete 键必须真正刷新布局，而不是只改模型

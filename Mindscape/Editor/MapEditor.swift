@@ -642,7 +642,7 @@ final class MapEditor {
     /// 批量移动：把选中节点里最上层的几棵子树一起挂到目标节点下。
     /// 已经在目标节点下的节点会被跳过，避免重复搬运。
     @discardableResult
-    func move(ids: Set<UUID>, to newParent: UUID) -> Bool {
+    func move(ids: Set<UUID>, to newParent: UUID, freeOrigins: [UUID: CGPoint] = [:]) -> Bool {
         guard map.node(newParent) != nil else { return false }
         let moving = topmostIDs(in: ids)
         guard !moving.contains(newParent) else { return false }
@@ -666,6 +666,11 @@ final class MapEditor {
             }
             if let parentIndex = map.nodes.firstIndex(where: { $0.id == newParent }) {
                 map.nodes[parentIndex].collapsed = false
+            }
+            for (id, origin) in freeOrigins {
+                if let index = map.nodes.firstIndex(where: { $0.id == id }) {
+                    map.nodes[index].position = origin
+                }
             }
             refreshTitleIfFollowing(wasFollowing, in: &map)
         }
