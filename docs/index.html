@@ -247,7 +247,7 @@
         <span data-i18n="hero.src">查看源码</span>
       </a>
     </div>
-    <p class="meta-line"><span>macOS 14+</span><span>Universal</span><span>MIT</span><span>129 <span data-i18n="meta.tests">个测试</span></span><span data-i18n="meta.zero">零第三方依赖</span></p>
+    <p class="meta-line"><span>macOS 14+</span><span>Universal</span><span>MIT</span><span>134 <span data-i18n="meta.tests">个测试</span></span><span data-i18n="meta.zero">零第三方依赖</span></p>
   </div>
 
   <div class="wrap shot">
@@ -261,7 +261,7 @@
       <div class="stat"><b>3.9 MB</b><span data-i18n="stat.size">完整安装包</span></div>
       <div class="stat"><b>0</b><span data-i18n="stat.deps">第三方依赖</span></div>
       <div class="stat"><b>11,656</b><span data-i18n="stat.loc">行 Swift</span></div>
-      <div class="stat"><b>129</b><span data-i18n="stat.tests">个 XCTest</span></div>
+      <div class="stat"><b>134</b><span data-i18n="stat.tests">个 XCTest</span></div>
     </div>
   </div>
 
@@ -386,7 +386,36 @@
 
       <p class="migrate" data-i18n="in.migrate">从 XMind / FreeMind 来？在源应用里导出 <b>OPML</b>，回到 Mindscape 按 ⇧⌘I 导入即可，结构和文字都会保留。<a href="https://github.com/jiuxianzai/Mindscape#%E4%BB%8E-xmind--freemind-%E8%BF%81%E7%A7%BB">详细步骤 →</a></p>
 
-      <p class="migrate" data-i18n="in.update">装好后可在 <b>设置 → 关于</b> 检查更新；首次启动询问一次是否自动检查，默认关闭。</p>
+      <p class="migrate" data-i18n="in.update">装好后可在 <b>设置 → 关于</b> 检查更新；首次启动依次询问自动检查更新、是否一键安装 Agent Skill，两项默认关闭。</p>
+    </div>
+  </section>
+
+  <section id="ai-agent">
+    <div class="wrap">
+      <p class="eyebrow" data-i18n="agent.eyebrow">AI Agent</p>
+      <h2 data-i18n="agent.title">让你的 Agent 直接画图</h2>
+      <p class="section-lead" data-i18n="agent.lead">Mindscape 在 App 内提供只监听本机的 OpenAPI 服务。Claude Code、Codex、DSH、OpenCode 装上 Skill 后，就能建目录、画导图、导出。</p>
+
+      <div class="cards">
+        <div class="card">
+          <h3 data-i18n="agent.s1t">1. 打开开关</h3>
+          <p data-i18n="agent.s1d">设置 → AI Agent，允许本地 Agent 操作。默认关闭；Agent 调用时才启动，空闲 10 分钟自动关闭。</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="agent.s2t">2. 安装 Skill</h3>
+          <p data-i18n="agent.s2d">一键写入四个 Agent 的 skills / AGENTS.md；也可以复制到任意目录，或直接让 Agent 读 SKILL.md。</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="agent.s3t">3. 对 Agent 说话</h3>
+          <p data-i18n="agent.s3d">“请阅读 ~/.agents/skills/mindscape/SKILL.md，然后建一张项目规划导图。”</p>
+        </div>
+      </div>
+
+      <p align="center">
+        <img src="images/agent-setup.png" width="760" alt="AI Agent 接入面板" loading="lazy">
+      </p>
+
+      <p class="migrate" data-i18n="agent.more">详细图文教程见 GitHub：<a href="https://github.com/jiuxianzai/Mindscape/blob/main/docs/ai-agent.md">docs/ai-agent.md →</a>。服务只监听 127.0.0.1，token 文件权限 0600。</p>
     </div>
   </section>
 </main>
@@ -452,7 +481,13 @@ const I18N = {
     'in.s3t':'第一次打开','in.s3d':'右键 →「打开」，或按下面的命令去掉隔离属性。之后就正常双击启动。',
     'in.warn':'当前版本是 ad-hoc 签名、没有公证，Gatekeeper 可能拦住首次启动。用这条命令去掉隔离属性即可（只需一次）：',
     'in.migrate':'从 XMind / FreeMind 来？在源应用里导出 <b>OPML</b>，回到 Mindscape 按 ⇧⌘I 导入即可，结构和文字都会保留。<a href="https://github.com/jiuxianzai/Mindscape#%E4%BB%8E-xmind--freemind-%E8%BF%81%E7%A7%BB">详细步骤 →</a>',
-    'in.update':'装好后可在 <b>设置 → 关于</b> 检查更新；首次启动询问一次是否自动检查，默认关闭。',
+    'in.update':'装好后可在 <b>设置 → 关于</b> 检查更新；首次启动依次询问自动检查更新、是否一键安装 Agent Skill，两项默认关闭。',
+    'agent.eyebrow':'AI Agent','agent.title':'让你的 Agent 直接画图',
+    'agent.lead':'Mindscape 在 App 内提供只监听本机的 OpenAPI 服务。Claude Code、Codex、DSH、OpenCode 装上 Skill 后，就能建目录、画导图、导出。',
+    'agent.s1t':'1. 打开开关','agent.s1d':'设置 → AI Agent，允许本地 Agent 操作。默认关闭；Agent 调用时才启动，空闲 10 分钟自动关闭。',
+    'agent.s2t':'2. 安装 Skill','agent.s2d':'一键写入四个 Agent 的 skills / AGENTS.md；也可以复制到任意目录，或直接让 Agent 读 SKILL.md。',
+    'agent.s3t':'3. 对 Agent 说话','agent.s3d':'“请阅读 ~/.agents/skills/mindscape/SKILL.md，然后建一张项目规划导图。”',
+    'agent.more':'详细图文教程见 GitHub：<a href="https://github.com/jiuxianzai/Mindscape/blob/main/docs/ai-agent.md">docs/ai-agent.md →</a>。服务只监听 127.0.0.1，token 文件权限 0600。',
     'ft.made':'用 SwiftUI 和 Core Graphics 手写。','ft.rel':'版本发布','ft.log':'更新日志'
   },
   en: {
@@ -488,7 +523,13 @@ const I18N = {
     'in.s3t':'First launch','in.s3d':'Right-click → Open, or run the command below to clear the quarantine flag. After that, double-click works normally.',
     'in.warn':'This build is ad-hoc signed and not notarized, so Gatekeeper may block the first launch. Clear the quarantine flag once:',
     'in.migrate':'Coming from XMind or FreeMind? Export <b>OPML</b> from the source app, then press ⇧⌘I in Mindscape — structure and text come across. <a href="https://github.com/jiuxianzai/Mindscape/blob/main/README.en.md#coming-from-xmind-mindnode-or-freemind">Details →</a>',
-    'in.update':'After installing, check for updates under <b>Settings → About</b>. The first launch asks once whether to check automatically — off by default.',
+    'in.update':'After installing, check for updates under <b>Settings → About</b>. The first launch asks about automatic updates and installing the agent skill — both off by default.',
+    'agent.eyebrow':'AI Agent','agent.title':'Let your agent draw',
+    'agent.lead':'Mindscape exposes a local-only OpenAPI service. Install the skill for Claude Code, Codex, DSH, or OpenCode and let it create folders, draw maps, and export.',
+    'agent.s1t':'1. Enable','agent.s1d':'Settings → AI Agent, allow local agents. Off by default; starts on demand and stops after 10 idle minutes.',
+    'agent.s2t':'2. Install the skill','agent.s2d':'One click writes skills / AGENTS.md for the four agents. You can also copy the folder anywhere or point an agent at SKILL.md.',
+    'agent.s3t':'3. Ask your agent','agent.s3d':'“Read ~/.agents/skills/mindscape/SKILL.md, then create a project-plan mind map.”',
+    'agent.more':'Illustrated guide on GitHub: <a href="https://github.com/jiuxianzai/Mindscape/blob/main/docs/ai-agent.md">docs/ai-agent.md →</a>. The gateway binds 127.0.0.1 only and stores the token in a 0600 file.',
     'ft.made':'Written by hand with SwiftUI and Core Graphics.','ft.rel':'Releases','ft.log':'Changelog'
   }
 };

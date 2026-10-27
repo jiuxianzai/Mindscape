@@ -1,9 +1,11 @@
 import AppKit
+import Observation
 import SwiftUI
 
 enum SettingsTab: Int, CaseIterable, Identifiable {
     case general = 0
     case shortcuts = 1
+    case agent = 3
     case about = 2
 
     var id: Int { rawValue }
@@ -12,6 +14,7 @@ enum SettingsTab: Int, CaseIterable, Identifiable {
         switch self {
         case .general: return String(localized: "通用")
         case .shortcuts: return String(localized: "快捷键")
+        case .agent: return String(localized: "AI Agent")
         case .about: return String(localized: "关于")
         }
     }
@@ -20,9 +23,32 @@ enum SettingsTab: Int, CaseIterable, Identifiable {
         switch self {
         case .general: return "gearshape"
         case .shortcuts: return "keyboard"
+        case .agent: return "sparkles"
         case .about: return "info.circle"
         }
     }
+}
+
+@MainActor
+@Observable
+final class SettingsRouter {
+    static let shared = SettingsRouter()
+
+    var requestedTab: SettingsTab?
+
+    func consumeRequestedTab() -> SettingsTab? {
+        defer { requestedTab = nil }
+        return requestedTab
+    }
+
+    func requestAgentTab() {
+        requestedTab = .agent
+        NotificationCenter.default.post(name: .mindscapeOpenAgentSettings, object: nil)
+    }
+}
+
+extension Notification.Name {
+    static let mindscapeOpenAgentSettings = Notification.Name("com.youyanping.mindscape.openAgentSettings")
 }
 
 struct SettingsView: View {
@@ -30,7 +56,8 @@ struct SettingsView: View {
     @State private var tab: SettingsTab
 
     init(initialTab: Int = 0) {
-        _tab = State(initialValue: SettingsTab(rawValue: initialTab) ?? .general)
+        let requested = SettingsRouter.shared.consumeRequestedTab()
+        _tab = State(initialValue: requested ?? SettingsTab(rawValue: initialTab) ?? .general)
     }
 
     var body: some View {
@@ -41,6 +68,11 @@ struct SettingsView: View {
         }
         .frame(width: 780, height: 580)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onChange(of: SettingsRouter.shared.requestedTab) { _, requested in
+            guard let requested else { return }
+            tab = requested
+            SettingsRouter.shared.requestedTab = nil
+        }
     }
 
     private var sidebar: some View {
@@ -108,6 +140,8 @@ struct SettingsView: View {
                     GeneralSettingsContent()
                 case .shortcuts:
                     ShortcutSettingsContent(store: app.shortcuts)
+                case .agent:
+                    AgentSettingsContent()
                 case .about:
                     AboutSettingsContent()
                 }
@@ -115,6 +149,7 @@ struct SettingsView: View {
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .id(tab)
         .scrollIndicators(.automatic)
     }
 }
@@ -233,14 +268,43 @@ private func settingsRow<Content: View>(
 
 struct GeneralSettingsContent: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.colorScheme) private var colorScheme
     @AppStorage("defaultThemeID") private var themeID = MapTheme.defaultThemeID
     @AppStorage("defaultLayout") private var layoutRaw = MapLayout.mindMap.rawValue
 
     @State private var errorMessage: String?
 
+    private var themeOptions: [MapTheme] {
+        MapTheme.all.filter { ThemePolicy.allows($0.id, isDark: colorScheme == .dark) }
+    }
+
+    private var effectiveDefaultThemeID: String {
+        ThemePolicy.adjusted(themeID, isDark: colorScheme == .dark)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             SettingsPageHeader(title: "通用", subtitle: "新建导图、数据存放位置")
+
+            SettingsSection("外观") {
+                SettingsCard {
+                    VStack(spacing: 0) {
+                        settingsRow("外观模式", subtitle: "深色模式下「纸白」自动切换为「深空」") {
+                            Picker("", selection: Binding(
+                                get: { app.appearanceMode },
+                                set: { app.appearanceMode = $0 }
+                            )) {
+                                ForEach(AppearanceMode.allCases) { mode in
+                                    Text(mode.title).tag(mode)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
 
             SettingsSection("新建导图") {
                 SettingsCard {
@@ -264,10 +328,13 @@ struct GeneralSettingsContent: View {
                         settingsRow("默认主题", subtitle: "只影响新建导图") {
                             HStack(spacing: 6) {
                                 Circle()
-                                    .fill(Color(nsColor: MapTheme.byID(themeID).accent))
+                                    .fill(Color(nsColor: MapTheme.byID(effectiveDefaultThemeID).accent))
                                     .frame(width: 8, height: 8)
-                                Picker("默认主题", selection: $themeID) {
-                                    ForEach(MapTheme.all) { theme in
+                                Picker("默认主题", selection: Binding(
+                                    get: { effectiveDefaultThemeID },
+                                    set: { themeID = $0 }
+                                )) {
+                                    ForEach(themeOptions) { theme in
                                         Text(theme.name).tag(theme.id)
                                     }
                                 }
@@ -338,29 +405,6 @@ struct GeneralSettingsContent: View {
                 Text("切换目录时会复制当前数据；如果目标目录中已有 Mindscape 数据，会直接打开其中的导图。所有导图都保存在该目录的一个 mindscape.sqlite 文件中。")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
-            }
-
-            SettingsSection("AI Agent") {
-                SettingsCard {
-                    VStack(spacing: 0) {
-                        settingsRow("允许本地 AI Agent 操作", subtitle: AgentCoordinator.shared.statusDescription) {
-                            Toggle("", isOn: Binding(
-                                get: { AgentCoordinator.shared.enabled },
-                                set: { AgentCoordinator.shared.enabled = $0 }
-                            ))
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                            .controlSize(.mini)
-                        }
-                        Divider().padding(.leading, 12)
-                        settingsRow("OpenAPI 与 Skill", subtitle: "安装说明书、复制接入提示、测试连接") {
-                            Button("接入设置…") {
-                                AgentSetupWindowController.shared.show(coordinator: .shared)
-                            }
-                            .buttonStyle(SettingsActionButtonStyle())
-                        }
-                    }
-                }
             }
 
             SettingsSection("更新") {

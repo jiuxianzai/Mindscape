@@ -1,75 +1,36 @@
 import AppKit
 import SwiftUI
 
-@MainActor
-final class AgentSetupWindowController {
-    static let shared = AgentSetupWindowController()
-
-    private var window: NSWindow?
-
-    func show(coordinator: AgentCoordinator) {
-        if window == nil {
-            let root = AgentSetupView(onClose: { [weak self] in self?.window?.close() })
-                .environment(coordinator)
-            let hosting = NSHostingController(rootView: root)
-            let window = NSWindow(contentViewController: hosting)
-            window.title = String(localized: "AI Agent 接入")
-            window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
-            window.setContentSize(NSSize(width: 620, height: 720))
-            window.center()
-            self.window = window
+struct AgentSettingsContent: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            SettingsPageHeader(
+                title: "AI Agent",
+                subtitle: "本地 OpenAPI、Skill 安装与测试"
+            )
+            AgentSetupContent()
         }
-        NSApp.activate(ignoringOtherApps: true)
-        window?.makeKeyAndOrderFront(nil)
     }
 }
 
-struct AgentSetupView: View {
-    @Environment(AgentCoordinator.self) private var coordinator
-    let onClose: () -> Void
-
+struct AgentSetupContent: View {
+    @State private var coordinator = AgentCoordinator.shared
     @State private var message: String?
     @State private var isTesting = false
     @State private var refreshToken = 0
 
-    private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            header
-            Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    statusCard
-                    skillSection
-                    promptCard
-                }
-                .padding(.bottom, 8)
-            }
-            Divider()
-            footer
-        }
-        .padding(24)
-        .frame(width: 620, height: 720)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
+        VStack(alignment: .leading, spacing: 18) {
+            statusCard
+            skillSection
+            promptCard
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(accent)
-                .frame(width: 40, height: 40)
-                .background(Circle().fill(accent.opacity(0.12)))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("AI Agent 接入")
-                    .font(.system(size: 18, weight: .semibold, design: .rounded))
-                Text("通过本地 OpenAPI 让 Agent 创建、编辑和导出导图")
-                    .font(.system(size: 11))
+            if let message, !message.isEmpty {
+                Text(message)
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
         }
     }
 
@@ -151,7 +112,7 @@ struct AgentSetupView: View {
 
     private var skillSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("安装给 Agent 的说明书")
+            Text("安装给 AGENT 的说明书")
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
@@ -212,7 +173,7 @@ struct AgentSetupView: View {
 
     private var promptCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("给 Agent 的第一句话")
+            Text("给 AGENT 的第一句话")
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
@@ -228,18 +189,6 @@ struct AgentSetupView: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.primary.opacity(0.03))
                 )
-        }
-    }
-
-    private var footer: some View {
-        HStack {
-            Text(message ?? "")
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-            Spacer()
-            Button("完成") { onClose() }
-                .buttonStyle(SettingsActionButtonStyle(primary: true))
         }
     }
 

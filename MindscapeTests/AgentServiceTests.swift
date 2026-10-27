@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import XCTest
 @testable import Mindscape
@@ -41,6 +42,24 @@ final class AgentServiceTests: XCTestCase {
         let response = service.handle(request("GET", "/v1/openapi.json"))
         XCTAssertEqual(response.status, 200)
         XCTAssertEqual(String(data: response.body, encoding: .utf8), "{}")
+    }
+
+    func testPaperThemeIsAdjustedOnCreateAndRejectedOnUpdateInDark() throws {
+        let previous = NSApplication.shared.appearance
+        NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
+        defer { NSApplication.shared.appearance = previous }
+
+        let created = try object(service.handle(request("POST", "/v1/maps", [
+            "title": "深色测试",
+            "theme": "paper"
+        ])))
+        let map = try XCTUnwrap(created["data"] as? [String: Any])
+        XCTAssertEqual(map["theme"] as? String, "midnight")
+        let id = try XCTUnwrap(map["id"] as? String)
+
+        let updated = service.handle(request("PATCH", "/v1/maps/\(id)", ["theme": "paper"]))
+        XCTAssertEqual(updated.status, 400)
+        XCTAssertTrue(String(data: updated.body, encoding: .utf8)?.contains("纸白") == true)
     }
 
     func testFolderLifecycle() throws {

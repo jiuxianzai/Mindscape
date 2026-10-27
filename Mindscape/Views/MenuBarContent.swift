@@ -4,6 +4,7 @@ import SwiftUI
 struct MenuBarContent: View {
     @Environment(AppModel.self) private var app
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Button("打开 Mindscape") {
@@ -47,7 +48,8 @@ struct MenuBarContent: View {
         }
 
         Button("AI Agent 接入…") {
-            AgentSetupWindowController.shared.show(coordinator: .shared)
+            SettingsRouter.shared.requestedTab = .agent
+            openSettings()
         }
 
         SettingsLink {

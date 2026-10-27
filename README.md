@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-129-brightgreen?style=flat-square" alt="129 tests">
+  <img src="https://img.shields.io/badge/tests-134-brightgreen?style=flat-square" alt="134 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.4-lightgrey?style=flat-square" alt="Status 0.5.4">
 </p>
@@ -68,7 +68,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 - **开箱好看**：8 套主题、8 种布局、现代留白与陶土色视觉，不需要自己调样式。
 - **真的能整理**：多级目录、大纲视图、全图搜索、专注模式、收藏、回收站。
 - **能带走**：PNG、PDF、Markdown、OPML、JSON 五种导出，也能导入 Markdown / OPML / JSON。
-- **更新不打扰**：默认不自动联网；首次启动只询问一次是否自动检查，下载后校验 SHA-256。
+- **更新不打扰**：默认不自动联网；更新询问只出现一次，下载后校验 SHA-256。
 
 ---
 
@@ -190,7 +190,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 ### 应用内更新
 
 - 设置 → 关于 或菜单栏「检查更新…」手动检查 GitHub Releases
-- 首次启动询问一次是否自动检查，默认关闭；之后可在 设置 → 通用 → 更新 修改
+- 首次启动询问一次是否自动检查，默认关闭；Agent Skill 另有独立询问。之后可在 设置 → 通用 → 更新 修改
 - 更新窗口展示版本说明与包大小，下载 DMG 后校验 SHA-256，再打开安装包
 - API 限流时自动降级到 Releases Atom / 302，网络与校验都在后台执行，不阻塞界面
 
@@ -228,7 +228,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 从 [Releases](https://github.com/jiuxianzai/Mindscape/releases) 下载 `Mindscape-0.5.4.dmg`，打开后把 Mindscape 拖进 Applications。
 
-应用内也可以检查更新：**设置 → 关于 → 检查更新**，或菜单栏的「检查更新…」。首次启动会询问一次是否开启自动检查（默认关闭）；下载完成后会校验 SHA-256 并打开 DMG，仍然需要手动拖进 Applications 覆盖旧版本。
+应用内也可以检查更新：**设置 → 关于 → 检查更新**，或菜单栏的「检查更新…」。首次启动会依次询问是否开启自动检查、是否一键安装 Agent Skill（两项默认关闭）；下载完成后会校验 SHA-256 并打开 DMG，仍然需要手动拖进 Applications 覆盖旧版本。
 
 当前构建为 **ad-hoc 签名**，没有 notarization。首次打开如果被 Gatekeeper 拦下：
 
@@ -277,8 +277,8 @@ Mindscape 可以把本地能力开放给 AI Agent：App 内置 **OpenAPI 服务 
 
 ### 一次性设置
 
-1. **设置 → 通用 → AI Agent**，打开「允许本地 AI Agent 操作」
-2. 点「接入设置…」，在面板里安装 Skill：
+1. **设置 → AI Agent**，打开「允许本地 AI Agent 操作」
+2. 在 AI Agent 页安装 Skill：
    - **Claude Code** → `~/.claude/skills/mindscape`
    - **Codex** → 写入 `~/.codex/AGENTS.md`（受管段落）
    - **DSH** → `~/.dsh/skills/mindscape`
@@ -322,7 +322,7 @@ Agent 也可以直接访问 `http://127.0.0.1:47821/openapi.json`（实际端口
 - 可以在「设置 → 通用 → 数据目录」更换位置
 - 「最近目录」会列出用过的目录、导图数量和切换按钮
 - 切换目录不会删除原目录的数据
-- 默认不联网；首次启动只询问一次是否开启自动检查，可在 设置 → 通用 修改；只有检查更新时访问 GitHub，没有遥测、没有账号
+- 默认不联网；更新询问只出现一次，可在 设置 → 通用 修改；只有检查更新时访问 GitHub，没有遥测、没有账号
 
 数据库表：
 

@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-129-brightgreen?style=flat-square" alt="129 tests">
+  <img src="https://img.shields.io/badge/tests-134-brightgreen?style=flat-square" alt="134 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
   <img src="https://img.shields.io/badge/status-0.5.4-lightgrey?style=flat-square" alt="Status 0.5.4">
 </p>
@@ -64,7 +64,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 - **Good-looking out of the box.** 8 themes and 8 layouts. You don't have to style anything.
 - **Actually organized.** Nested folders, an outline panel, full-map search, focus mode, favorites, and a trash can.
 - **Easy to leave.** Export to PNG, PDF, Markdown, OPML, and JSON; import Markdown, OPML, and JSON.
-- **Quiet updates.** No automatic network access by default; the app asks once on first launch, and verifies downloads with SHA-256.
+- **Quiet updates.** No automatic network access by default; the update question appears once, and downloads are verified with SHA-256.
 
 ---
 
@@ -125,7 +125,7 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 ### Updates
 
 - Check manually under Settings → About or from the menu bar's “Check for Updates…”
-- The first launch asks once whether to check automatically (off by default); change it later under Settings → General → Updates
+- The first launch asks whether to check automatically and whether to install the agent skill (both off by default); change them later in Settings
 - The update window shows release notes and download size; the DMG is verified with SHA-256 before it opens
 - If the GitHub API is rate-limited, the app falls back to the Releases Atom feed and then a 302 redirect; network and verification run off the main thread
 
@@ -137,7 +137,7 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 
 Grab `Mindscape-0.5.4.dmg` from [Releases](https://github.com/jiuxianzai/Mindscape/releases), open it, and drag Mindscape into Applications.
 
-You can also check for updates in-app: **Settings → About → Check for Updates**, or the menu bar. The first launch asks once whether to check automatically (off by default); downloads are verified with SHA-256 before the DMG opens.
+You can also check for updates in-app: **Settings → About → Check for Updates**, or the menu bar. The update question appears once at first launch (off by default); the agent skill has a separate question. Downloads are verified with SHA-256 before the DMG opens.
 
 This build is **ad-hoc signed and not notarized**. If Gatekeeper blocks the first launch, run:
 
@@ -209,8 +209,8 @@ Illustrated setup guide (screenshots, architecture, four-agent paths, troublesho
 
 ### One-time setup
 
-1. Open **Settings → General → AI Agent** and enable **Allow local AI agents**.
-2. Click **Agent Setup…** and install the skill for:
+1. Open **Settings → AI Agent** and enable **Allow local AI agents**.
+2. Install the skill from the same page for:
    - **Claude Code** → `~/.claude/skills/mindscape`
    - **Codex** → managed block in `~/.codex/AGENTS.md`
    - **DSH** → `~/.dsh/skills/mindscape`
@@ -254,7 +254,7 @@ Default data directory:
 - Change the location under **Settings → General → Data directory**
 - "Recent directories" remembers previous locations with map counts and a switch button
 - Switching directories never deletes the old data
-- Offline by default; the app asks once on first launch whether to enable automatic checks (change it under Settings → General); the only network request is the update check; no telemetry, no account
+- Offline by default; the update question appears once (change it under Settings → General); the only network request is the update check; no telemetry, no account
 
 Tables: `documents` (metadata + full map JSON + folder), `folders`, `snapshots` (version JSON), `settings`.
 

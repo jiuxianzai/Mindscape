@@ -119,7 +119,7 @@ final class AgentCoordinator {
     func requestExternalStart() {
         guard enabled else {
             lastError = "需要先在 Mindscape 中允许 AI Agent 操作。"
-            AgentSetupWindowController.shared.show(coordinator: self)
+            SettingsRouter.shared.requestAgentTab()
             return
         }
         start()

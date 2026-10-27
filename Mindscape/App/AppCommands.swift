@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 struct AppCommands: Commands {
+    @Environment(\.openSettings) private var openSettings
+
     let app: AppModel
     @ObservedObject var shortcuts: ShortcutStore
 
@@ -18,7 +20,8 @@ struct AppCommands: Commands {
             }
 
             Button("AI Agent 接入…") {
-                AgentSetupWindowController.shared.show(coordinator: .shared)
+                SettingsRouter.shared.requestedTab = .agent
+                openSettings()
             }
         }
 
@@ -151,7 +154,9 @@ struct AppCommands: Commands {
             }
 
             Menu("主题") {
-                ForEach(MapTheme.all) { theme in
+                ForEach(MapTheme.all.filter {
+                    ThemePolicy.allows($0.id, isDark: NSApplication.shared.isDarkAppearance)
+                }) { theme in
                     Button(theme.name) {
                         app.editor?.setTheme(theme.id)
                     }

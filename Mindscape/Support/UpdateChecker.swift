@@ -182,12 +182,16 @@ final class UpdateChecker {
             && defaults.object(forKey: Key.autoCheck) == nil
     }
 
-    func presentAutoCheckConsentIfNeeded() {
+    func presentAutoCheckConsentIfNeeded(onFinish: (() -> Void)? = nil) {
         // 单元测试会以 App 为宿主启动，这里不弹窗，避免干扰测试。
-        guard !Self.isRunningUnitTests,
-              needsAutoCheckConsent,
-              !isPresentingConsent,
-              let window = consentHostWindow else { return }
+        guard !Self.isRunningUnitTests, needsAutoCheckConsent, !isPresentingConsent else {
+            onFinish?()
+            return
+        }
+        guard let window = consentHostWindow else {
+            onFinish?()
+            return
+        }
 
         isPresentingConsent = true
         NSApp.activate(ignoringOtherApps: true)
@@ -205,6 +209,9 @@ final class UpdateChecker {
             guard let self else { return }
             self.isPresentingConsent = false
             self.resolveAutoCheckConsent(accepted: response == .alertSecondButtonReturn)
+            DispatchQueue.main.async {
+                onFinish?()
+            }
         }
     }
 

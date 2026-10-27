@@ -4,7 +4,7 @@
 > 目标：让本机的 Claude Code、Codex、DSH、OpenCode 或任意能执行命令的 Agent，通过本地 OpenAPI 创建、编辑、导出思维导图。
 
 <p align="center">
-  <img src="images/agent-setup.png" width="460" alt="Mindscape 的 AI Agent 接入面板：服务运行中，四个 Agent 已安装 Skill">
+  <img src="images/agent-setup.png" width="760" alt="设置 → AI Agent：服务运行中，四个 Agent 已安装 Skill">
 </p>
 
 ---
@@ -35,22 +35,24 @@ Mindscape 在 App 内起一个**只监听本机回环地址**的 OpenAPI 服务�
 
 ## 三步接入
 
+首次启动会依次询问「是否自动检查更新」和「是否一键安装 Agent Skill」，两项都默认关闭。选择安装后会直接给出一段可复制的提示。
+
 ### 第一步：打开开关
 
-打开 **设置 → 通用 → AI Agent**，启用「允许本地 AI Agent 操作」。
+打开 **设置**，在左侧选择 **AI Agent**，启用「允许本地 AI Agent 操作」。
 
 <p align="center">
-  <img src="images/agent-settings.png" width="760" alt="设置 → 通用 → AI Agent：允许本地 AI Agent 操作开关">
+  <img src="images/agent-settings.png" width="760" alt="设置 → 通用：外观模式，以及侧栏中的 AI Agent 入口">
 </p>
 
 默认是关闭的。开启后也不会立刻常驻监听：只有 Agent 调用时才启动；空闲 10 分钟自动关闭。
 
 ### 第二步：安装 Skill
 
-从菜单栏或 App 菜单打开 **AI Agent 接入…**，点「安装 / 更新」：
+点菜单栏「**AI Agent 接入…**」会直接打开 **设置 → AI Agent**；点「安装 / 更新」：
 
 <p align="center">
-  <img src="images/agent-setup.png" width="460" alt="AI Agent 接入面板：安装 Skill、测试连接、复制接入提示">
+  <img src="images/agent-setup.png" width="760" alt="设置 → AI Agent：安装 Skill、测试连接、复制接入提示">
 </p>
 
 | Agent | 安装位置 | 说明 |
@@ -170,13 +172,17 @@ App 不需要一直开着窗口，但进程必须在运行。CLI 会在服务未
 
 ---
 
+## 外观设置
+
+**设置 → 通用 → 外观** 提供「跟随系统 / 浅色 / 深色」。深色下「纸白」会自动切换为「深空」，避免浅色画布与黑色侧栏并排割裂；切回浅色后可以重新选择纸白。
+
 ## 常见问题
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
 | `401 Unauthorized` | token 已轮换/服务重启 | 重新执行命令；必要时在面板点「重新生成令牌」 |
 | `403 invalid_host` / `browser_origin` | 不是从本机 CLI 发起的请求 | 用 `mindscape` 或在 `127.0.0.1` 上直接请求 |
-| `503` / 连接失败 | 开关未开，或 App 未运行 | 打开 App → 设置 → 通用 → AI Agent；再试 |
+| `503` / 连接失败 | 开关未开，或 App 未运行 | 打开 App → 设置 → AI Agent；再试 |
 | `mindscape: command not found` | CLI 未安装或不在 PATH | `make install-cli PREFIX=$HOME/.local/bin`，确认 PATH |
 | Agent 找不到 skill | 该 Agent 未重启 / 路径不对 | 重启 Agent；核对表格里的安装位置；或直接粘贴提示词 |
 | 端口被占用 | 47821 被其他程序占用 | 服务会自动换端口，以 `agent-gateway.json` 的 `url` 为准 |

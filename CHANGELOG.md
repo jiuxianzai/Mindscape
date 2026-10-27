@@ -9,6 +9,10 @@
 - AI Agent 本地 OpenAPI 网关：只监听 127.0.0.1，按需启动、空闲 10 分钟关闭，每次启动生成新 Bearer token。
 - 内置 Skill 与 `mindscape` CLI；支持 Claude Code、Codex、DSH、OpenCode 的检测、安装与版本更新。
 - 支持文件夹/导图/节点 CRUD、批量节点操作、布局/主题、Markdown/OPML/JSON/PNG/PDF 导出与导入。
+- 首次启动依次询问自动检查更新、AI Agent Skill 一键安装；两项默认关闭，安装成功后可直接复制试用提示。
+- 设置新增 AI Agent 边栏，接入状态、Skill 安装、测试连接和提示语平铺展示。
+- 新增外观模式：跟随系统 / 浅色 / 深色。
+- 深色外观下「纸白」自动切换为「深空」，主题选择器、菜单和 Agent 接口同步限制。
 
 ### 安全
 
@@ -16,7 +20,7 @@
 
 ### 测试
 
-- 新增 Agent 服务、HTTP 安全、Skill 安装等用例，共 129 个 XCTest。
+- 新增 Agent 服务、HTTP 安全、Skill 安装等用例，共 134 个 XCTest。
 
 ## [0.5.4] - 2026-10-27
 

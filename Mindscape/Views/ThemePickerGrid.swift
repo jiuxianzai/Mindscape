@@ -6,6 +6,8 @@ import SwiftUI
 /// 再打开，菜单会从选中项附近开始展示，上面的主题看起来像「消失」了。
 /// 这里改成固定两列的网格，8 套主题永远完整显示，选中项只加高亮。
 struct ThemePickerGrid: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let selectedID: String
     var onSelect: (String) -> Void
 
@@ -16,7 +18,9 @@ struct ThemePickerGrid: View {
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 6) {
-            ForEach(MapTheme.all) { theme in
+            ForEach(MapTheme.all.filter {
+                ThemePolicy.allows($0.id, isDark: colorScheme == .dark)
+            }) { theme in
                 themeButton(theme)
             }
         }

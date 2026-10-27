@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 
@@ -29,7 +30,7 @@ final class MapEditor {
     private var lastTextEditID: UUID?
     private var lastTextEditAt = Date.distantPast
 
-    var theme: MapTheme { MapTheme.byID(map.themeID) }
+    var theme: MapTheme { MapTheme.byID(ThemePolicy.adjusted(map.themeID, isDark: NSApplication.shared.isDarkAppearance)) }
     var undoCount: Int { undoStack.count }
 
     init(map: MindMap, store: DocumentStore) {
@@ -755,9 +756,10 @@ final class MapEditor {
     }
 
     func setTheme(_ themeID: String) {
-        guard map.themeID != themeID else { return }
+        let adjusted = ThemePolicy.adjusted(themeID, isDark: NSApplication.shared.isDarkAppearance)
+        guard map.themeID != adjusted else { return }
         mutate { map in
-            map.themeID = themeID
+            map.themeID = adjusted
         }
     }
 

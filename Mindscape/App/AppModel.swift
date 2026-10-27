@@ -23,6 +23,13 @@ final class AppModel {
     var searchText: String = ""
     var scope: LibraryScope = .all
     var startupError: String?
+    var appearanceMode: AppearanceMode {
+        didSet {
+            guard appearanceMode != oldValue else { return }
+            UserDefaults.standard.set(appearanceMode.rawValue, forKey: "appearanceMode")
+            applyAppearance()
+        }
+    }
 
     let shortcuts = ShortcutStore.shared
     let updates = UpdateChecker()
@@ -32,6 +39,12 @@ final class AppModel {
     private static let recentDirectoriesKey = "recentDataDirectories"
 
     init() {
+        let initialAppearance = AppearanceMode(
+            rawValue: UserDefaults.standard.string(forKey: "appearanceMode") ?? ""
+        ) ?? .system
+        appearanceMode = initialAppearance
+        NSApplication.shared.appearance = initialAppearance.appearance
+
         let resolved: DocumentStore
         var errorMessage: String?
 
@@ -81,6 +94,23 @@ final class AppModel {
         }
 
         updates.start()
+        applyAppearance()
+    }
+
+    // MARK: - Appearance
+
+    func applyAppearance() {
+        NSApplication.shared.appearance = appearanceMode.appearance
+        enforceThemePolicy()
+    }
+
+    var isDarkAppearance: Bool {
+        NSApplication.shared.isDarkAppearance
+    }
+
+    private func enforceThemePolicy() {
+        guard isDarkAppearance, let editor, editor.map.themeID == "paper" else { return }
+        editor.setTheme(ThemePolicy.darkFallbackID)
     }
 
     // MARK: - Lists
@@ -239,9 +269,14 @@ final class AppModel {
         editor?.saveNow()
         selectedDocumentID = id
 
-        guard let id, let map = try? store.load(id: id) else {
+        guard let id, var map = try? store.load(id: id) else {
             editor = nil
             return
+        }
+        if isDarkAppearance, !ThemePolicy.allows(map.themeID, isDark: true) {
+            map.themeID = ThemePolicy.adjusted(map.themeID, isDark: true)
+            map.updatedAt = Date()
+            try? store.save(map)
         }
 
         let record = documents.first(where: { $0.id == id })
@@ -343,7 +378,8 @@ final class AppModel {
     }
 
     private var defaultThemeID: String {
-        UserDefaults.standard.string(forKey: "defaultThemeID") ?? MapTheme.defaultThemeID
+        let stored = UserDefaults.standard.string(forKey: "defaultThemeID") ?? MapTheme.defaultThemeID
+        return ThemePolicy.adjusted(stored, isDark: isDarkAppearance)
     }
 
     private var defaultLayout: MapLayout {

@@ -9,7 +9,7 @@ Mindscape is a local-first macOS mind map app. This skill lets you operate it th
 
 ## Prerequisites
 
-The user must enable **Settings → General → AI Agent → Allow local AI agents** once. The app never exposes a public port: the gateway binds `127.0.0.1`, uses a per-session bearer token, and stops after the configured idle timeout.
+The user must enable **Settings → AI Agent → Allow local AI agents** once. The app never exposes a public port: the gateway binds `127.0.0.1`, uses a per-session bearer token, and stops after the configured idle timeout.
 
 Prefer the `mindscape` CLI. It starts the gateway on demand and handles the token.
 
@@ -144,7 +144,7 @@ Read `~/Library/Application Support/Mindscape/agent-gateway.json` and use the `u
 curl -s "$URL/v1/health" -H "Authorization: Bearer $TOKEN"
 ```
 
-Only call `127.0.0.1` / `localhost`; do not send an `Origin` header. If the file is missing, ask the user to enable **Settings → General → AI Agent**, then retry once.
+Only call `127.0.0.1` / `localhost`; do not send an `Origin` header. If the file is missing, ask the user to enable **Settings → AI Agent**, then retry once.
 
 ## Safety rules
 

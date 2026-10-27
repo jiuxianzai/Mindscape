@@ -81,6 +81,24 @@ struct AgentSkillInstaller {
         "请阅读 ~/.agents/skills/mindscape/SKILL.md，然后通过 Mindscape 本地 OpenAPI 帮我创建一张思维导图。"
     }
 
+    var hasAnyInstalled: Bool {
+        if fileManager.fileExists(atPath: canonicalDirectory.appendingPathComponent("VERSION").path) {
+            return true
+        }
+        return Target.allCases.contains { target in
+            switch state(for: target) {
+            case .installed, .outdated: return true
+            case .notDetected, .notInstalled: return false
+            }
+        }
+    }
+
+    func installCanonical() throws -> InstallResult {
+        guard let resources else { throw InstallerError.missingResources }
+        try writeCanonical(resources)
+        return InstallResult(path: canonicalDirectory.path, version: resources.version)
+    }
+
     func state(for target: Target) -> InstallState {
         guard isDetected(target) else { return .notDetected }
         guard let installed = installedVersion(for: target) else { return .notInstalled }

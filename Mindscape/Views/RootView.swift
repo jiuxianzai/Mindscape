@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppModel.self) private var app
+    @Environment(\.openSettings) private var openSettings
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
@@ -29,11 +30,17 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: app.updates.shouldShowBanner)
         .task {
+            app.applyAppearance()
             AgentCoordinator.shared.attach(app: app)
             // 等主窗口稳定后再问，避免首启弹窗和窗口创建抢焦点。
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled else { return }
-            app.updates.presentAutoCheckConsentIfNeeded()
+            app.updates.presentAutoCheckConsentIfNeeded {
+                AgentOnboarding.presentIfNeeded()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mindscapeOpenAgentSettings)) { _ in
+            openSettings()
         }
         .alert("提示", isPresented: Binding(
             get: { app.startupError != nil },

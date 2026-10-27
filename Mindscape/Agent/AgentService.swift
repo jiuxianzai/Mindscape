@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 @MainActor
@@ -169,7 +170,8 @@ final class AgentService {
         let body: AgentCreateMapBody = try decode(request.body)
         let template = MapTemplate(rawValue: body.template ?? "blank") ?? .blank
         let layout = MapLayout(rawValue: body.layout ?? "") ?? .mindMap
-        let themeID = body.theme.flatMap { id in MapTheme.all.first(where: { $0.id == id }) }?.id ?? MapTheme.defaultThemeID
+        let requestedTheme = body.theme.flatMap { id in MapTheme.all.first(where: { $0.id == id }) }?.id ?? MapTheme.defaultThemeID
+        let themeID = ThemePolicy.adjusted(requestedTheme, isDark: NSApplication.shared.isDarkAppearance)
 
         var folderID: UUID?
         if let raw = body.folderId, !raw.isEmpty {
@@ -222,6 +224,9 @@ final class AgentService {
         if let theme = body.theme {
             guard MapTheme.all.contains(where: { $0.id == theme }) else {
                 throw AgentAPIError.badRequest("未知主题：\(theme)")
+            }
+            guard ThemePolicy.allows(theme, isDark: NSApplication.shared.isDarkAppearance) else {
+                throw AgentAPIError.badRequest("「纸白」仅浅色外观可用，深色下请使用「深空」。")
             }
             map.themeID = theme
         }
@@ -513,7 +518,8 @@ final class AgentService {
         let body: AgentImportBody = try decode(request.body)
         let url = try resolveReadableFileURL(path: body.path)
         let layout = MapLayout(rawValue: body.layout ?? "") ?? .mindMap
-        let theme = body.theme.flatMap { id in MapTheme.all.first(where: { $0.id == id }) }?.id ?? MapTheme.defaultThemeID
+        let requestedTheme = body.theme.flatMap { id in MapTheme.all.first(where: { $0.id == id }) }?.id ?? MapTheme.defaultThemeID
+        let theme = ThemePolicy.adjusted(requestedTheme, isDark: NSApplication.shared.isDarkAppearance)
         var map = try MapImporter.load(url: url, themeID: theme, layout: layout)
         map.title = url.deletingPathExtension().lastPathComponent
         map.updatedAt = Date()

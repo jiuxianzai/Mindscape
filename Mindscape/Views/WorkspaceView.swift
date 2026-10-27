@@ -120,7 +120,7 @@ struct WorkspaceView: View {
         MapCanvasRepresentable(
             editor: editor,
             revision: editor.revision,
-            themeID: editor.map.themeID,
+            themeID: editor.theme.id,
             bridge: canvasBridge,
             searchMatches: Set(matches),
             activeSearchID: activeMatchID
