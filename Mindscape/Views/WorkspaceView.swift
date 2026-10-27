@@ -165,14 +165,17 @@ struct WorkspaceView: View {
             revealCurrentMatch()
         }
         .onAppear {
-            // 全局只弹一次：有数据的用户打开导图、没数据的用户新建导图，
-            // 最终都会走到这里，因此不需要再区分数据来源。
+            // 全局只弹一次：有数据的用户打开已有导图、没数据的用户新建导图，
+            // 最终都会走到这里，因此不需要再区分是否刚创建。
             guard tipsGate.shouldShow else { return }
-            tipsGate.markShown()
             // 等工具栏按钮完成布局再弹，避免 popover 找不到锚点。
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 showTips = true
             }
+        }
+        .onChange(of: showTips) { _, isShowing in
+            // 真正展示后再记账；如果锚点没准备好而没弹出来，下次还有机会。
+            if isShowing { tipsGate.markShown() }
         }
     }
 

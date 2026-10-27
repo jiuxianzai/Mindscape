@@ -5,7 +5,7 @@ import SwiftUI
 /// 有数据的用户第一次打开导图、没数据的用户第一次新建导图，
 /// 都会第一次进入 WorkspaceView，因此一个用户级标记即可覆盖两种情况。
 struct CanvasTipsGate {
-    static let storageKey = "mindscape.canvasTipsShown.v1"
+    static let storageKey = "mindscape.canvasTipsShown.v2"
 
     var defaults: UserDefaults = .standard
 
