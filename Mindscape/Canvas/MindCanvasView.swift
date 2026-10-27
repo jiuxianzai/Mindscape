@@ -1805,6 +1805,13 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                let scalar = characters.unicodeScalars.first,
                scalar.value >= 32,
                let id = editor.selection.first {
+                // 空格只用于进入编辑：编辑框此时全选了原文字，若把空格交给
+                // NSTextView，会把整段文字替换成空格，点击画布提交时被当成空节点删除。
+                if scalar.value == 32 {
+                    beginEditing(id)
+                    return
+                }
+
                 // 不要预先把 event.characters 写进节点：中文输入法下第一个按键
                 // 只是拼音字母（如 n / z），提前写入会把英文留在节点里，
                 // 输入法反而收不到这次按键。先进入编辑，再把事件原样交给输入框，

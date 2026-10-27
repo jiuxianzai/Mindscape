@@ -1391,8 +1391,16 @@ extension MindscapeFeatureTests {
         canvas.keyDown(with: event)
 
         XCTAssertEqual(editor.map.node(branch.id)?.collapsed, false, "空格把节点折叠了")
-        XCTAssertNotNil(canvas.subviews.compactMap { $0 as? NSTextView }.last, "空格没有进入编辑")
-        canvas.commitEditing()
+        let editorView = try XCTUnwrap(canvas.subviews.compactMap { $0 as? NSTextView }.last, "空格没有进入编辑")
+        XCTAssertEqual(editorView.string, branch.text, "空格把节点原文字替换掉了")
+
+        // 编辑中点击画布：提交编辑，不能因为文字被空格清空而删除节点
+        let emptyPoint = canvas.convert(CGPoint(x: 20, y: 20), to: nil)
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: emptyPoint, in: window)))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: emptyPoint, in: window)))
+
+        XCTAssertNotNil(editor.map.node(branch.id), "点击画布后编辑中的节点消失了")
+        XCTAssertEqual(editor.map.node(branch.id)?.text, branch.text)
     }
 
     /// 开始输入时把按键交给输入框，而不是先把 event.characters 写进节点
