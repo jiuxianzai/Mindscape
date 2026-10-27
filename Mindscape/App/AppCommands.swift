@@ -15,7 +15,7 @@ struct AppCommands: Commands {
     var body: some Commands {
         CommandGroup(after: .appInfo) {
             Button("检查更新…") {
-                UpdateWindowController.shared.show(checker: app.updates)
+                UpdateWindowController.shared.show(checker: app.updates, app: app)
                 Task { await app.updates.check(manual: true) }
             }
 

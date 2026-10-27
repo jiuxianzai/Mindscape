@@ -438,6 +438,23 @@ final class AppModel {
         reload()
     }
 
+    // MARK: - Updates
+
+    /// 打开已下载的安装包前先保存并退出，避免拖动替换 .app 时被系统提示
+    /// 「请先关闭 Mindscape」。返回 false 表示安装包没能交给 LaunchServices，
+    /// 此时不退出，由调用方给出提示。
+    @discardableResult
+    func saveAndQuitForUpdate() -> Bool {
+        guard updates.downloadedFile != nil else { return false }
+        editor?.saveNow()
+        guard updates.openDownloaded() else { return false }
+        // 让 LaunchServices 先接住打开安装包的请求，再退出进程。
+        DispatchQueue.main.async {
+            NSApp.terminate(nil)
+        }
+        return true
+    }
+
     // MARK: - Data directory
 
     func switchDataDirectory(to directory: URL, useExisting: Bool) -> String? {

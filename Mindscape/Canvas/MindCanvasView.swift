@@ -2217,11 +2217,13 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         textView.removeFromSuperview()
 
         if text.isEmpty {
-            if editor?.map.node(id)?.parentID == nil {
-                editor?.setText("中心主题", for: id)
-            } else {
-                editor?.delete(id: id)
-            }
+            // 编辑后没有留下任何文字时保留节点与整棵子树，用占位文字兜底。
+            // 中心（根）节点仍叫「中心主题」，其它节点叫「新主题」。
+            // 这里以前会删掉非头部节点，空格进入编辑后点画布就会连同子节点一起消失。
+            let placeholder = editor?.map.node(id)?.parentID == nil
+                ? String(localized: "中心主题")
+                : String(localized: "新主题")
+            editor?.setText(placeholder, for: id)
         } else if let node = editor?.map.node(id), node.text != text {
             editor?.setText(text, for: id)
         }

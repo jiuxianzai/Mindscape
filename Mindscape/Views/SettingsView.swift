@@ -410,7 +410,7 @@ struct GeneralSettingsContent: View {
             SettingsSection("更新") {
                 SettingsCard {
                     VStack(spacing: 0) {
-                        settingsRow("自动检查更新", subtitle: "开启后每 24 小时访问一次 GitHub Releases") {
+                        settingsRow("自动检查更新", subtitle: "每次启动检查一次，之后每 24 小时访问一次 GitHub Releases") {
                             Toggle("", isOn: Binding(
                                 get: { app.updates.autoCheckEnabled },
                                 set: { app.updates.autoCheckEnabled = $0 }
@@ -817,7 +817,7 @@ struct AboutSettingsContent: View {
 
     private var autoCheckDescription: String {
         app.updates.autoCheckEnabled
-            ? String(localized: "自动检查已开启：启动后每 24 小时检查一次。")
+            ? String(localized: "自动检查已开启：每次启动检查一次，之后每 24 小时检查一次。")
             : String(localized: "自动检查已关闭，Mindscape 不会自动联网。可在「通用 → 更新」中开启。")
     }
 
@@ -835,7 +835,7 @@ struct AboutSettingsContent: View {
     }
 
     private func checkForUpdates() {
-        UpdateWindowController.shared.show(checker: app.updates)
+        UpdateWindowController.shared.show(checker: app.updates, app: app)
         guard app.updates.phase != .available else { return }
         Task { await app.updates.check(manual: true) }
     }
