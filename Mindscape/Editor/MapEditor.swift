@@ -1074,14 +1074,14 @@ final class MapEditor {
         return rightHeight <= leftHeight ? .right : .left
     }
 
-    /// 非破坏性模拟一次思维导图落点，返回被拖节点在结果布局里的位置。
+    /// 非破坏性模拟一次思维导图落点，返回整棵被拖子树在结果布局里的位置。
     /// 只用于拖动时的虚线预览，不写入模型，也不进入撤销栈。
-    func previewMindMapDropFrame(
+    func previewMindMapDropFrames(
         sourceID: UUID,
         targetID: UUID,
         after: Bool,
         side: MindMapSide?
-    ) -> CGRect? {
+    ) -> [UUID: CGRect]? {
         guard let source = map.node(sourceID),
               source.parentID != nil,
               map.node(targetID) != nil else { return nil }
@@ -1131,7 +1131,15 @@ final class MapEditor {
             }
         }
 
-        return LayoutEngine.layout(preview).frames[sourceID]
+        let layout = LayoutEngine.layout(preview)
+        let subtree = preview.subtreeIDs(of: sourceID)
+        var frames: [UUID: CGRect] = [:]
+        for id in subtree {
+            if let frame = layout.frames[id] {
+                frames[id] = frame
+            }
+        }
+        return frames.isEmpty ? nil : frames
     }
 
     private func mindMapSideSnapshot() -> [UUID: MindMapSide] {

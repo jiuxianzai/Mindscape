@@ -56,9 +56,8 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     private var drag: DragState?
     private var dragOffset: CGSize = .zero
     private var dropTargetID: UUID?
-    /// 拖动思维导图节点时，模拟出的落点虚线框（世界坐标）
-    private(set) var dropPreviewFrame: CGRect?
-    private var dropPreviewNodeID: UUID?
+    /// 拖动思维导图节点时，整棵被拖子树模拟出的落点虚线框（世界坐标）
+    private(set) var dropPreviewFrames: [UUID: CGRect] = [:]
     private var dropPreviewKey: DropPreviewKey?
     private var editTextView: NSTextView?
     private var editingID: UUID?
@@ -653,7 +652,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                 dimmed: dimmedNodeIDs(),
                 dimAlpha: focusDimAlpha,
                 // 有落点虚线预览时不再画目标节点的虚线环，避免两个虚线框叠在一起
-                dropTargetID: dropPreviewFrame == nil ? dropTargetID : nil,
+                dropTargetID: dropPreviewFrames.isEmpty ? dropTargetID : nil,
                 dashPhase: dashPhase,
                 editingNodeID: editingID,
                 searchMatches: searchMatches,
@@ -701,57 +700,27 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         context.setLineDash(phase: 0, lengths: [])
     }
 
-    /// 拖动时在最终落点画一个虚线节点预览，直观看到会落到左侧还是右侧。
+    /// 拖动时用虚线轮廓预览整棵子树最终会落到哪里。
+    /// 只画虚线，不填充、不画文字，避免和真实节点混淆。
     private func drawMindMapDropPreview() {
-        guard let frame = dropPreviewFrame,
-              let nodeID = dropPreviewNodeID,
-              let editor,
-              let node = editor.map.node(nodeID) else { return }
+        guard !dropPreviewFrames.isEmpty else { return }
 
-        let rect = worldRectToView(frame)
-        guard rect.intersects(bounds.insetBy(dx: -20, dy: -20)) else { return }
+        for (id, frame) in dropPreviewFrames {
+            let rect = worldRectToView(frame)
+            guard rect.intersects(bounds.insetBy(dx: -20, dy: -20)) else { continue }
 
-        let level = min(layoutResult?.depths[nodeID] ?? 1, 2)
-        let path = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
-        theme.nodeFill.withAlphaComponent(0.55).setFill()
-        path.fill()
-        theme.accent.withAlphaComponent(0.9).setStroke()
-        path.lineWidth = 1.5
-        path.setLineDash([6, 4], count: 2, phase: 0)
-        path.stroke()
-        path.setLineDash([], count: 0, phase: 0)
-
-        guard camera.zoom >= 0.5 else { return }
-        let style = NSMutableParagraphStyle()
-        style.alignment = .center
-        style.lineBreakMode = .byTruncatingTail
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(
-                ofSize: max(NodeMeasurer.font(level: level).pointSize * camera.zoom, 6),
-                weight: level == 0 ? .semibold : .medium
-            ),
-            .foregroundColor: theme.nodeText.withAlphaComponent(0.55),
-            .paragraphStyle: style
-        ]
-        let inset = max(8 * camera.zoom, 4)
-        let textRect = rect.insetBy(dx: inset, dy: inset)
-        let bounding = (node.text as NSString).boundingRect(
-            with: CGSize(width: textRect.width, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributes
-        )
-        let height = min(bounding.height, textRect.height)
-        let drawRect = CGRect(
-            x: textRect.minX,
-            y: textRect.midY - height / 2,
-            width: textRect.width,
-            height: height
-        )
-        (node.text as NSString).draw(
-            with: drawRect,
-            options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
-            attributes: attributes
-        )
+            let level = min(layoutResult?.depths[id] ?? 1, 2)
+            let radius = (level == 0 ? 15 : (level == 1 ? 12 : 11)) * camera.zoom
+            let path = NSBezierPath(
+                roundedRect: rect,
+                xRadius: max(radius, 3),
+                yRadius: max(radius, 3)
+            )
+            theme.accent.withAlphaComponent(0.82).setStroke()
+            path.lineWidth = 1.5
+            path.setLineDash([6, 4], count: 2, phase: 0)
+            path.stroke()
+        }
     }
 
     private func drawMarquee() {
@@ -1385,24 +1354,17 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         guard key != dropPreviewKey else { return }
         dropPreviewKey = key
 
-        if let frame = editor.previewMindMapDropFrame(
+        dropPreviewFrames = editor.previewMindMapDropFrames(
             sourceID: sourceID,
             targetID: target,
             after: after,
             side: side
-        ) {
-            dropPreviewNodeID = sourceID
-            dropPreviewFrame = frame
-        } else {
-            dropPreviewNodeID = nil
-            dropPreviewFrame = nil
-        }
+        ) ?? [:]
     }
 
     private func clearMindMapDropPreview() {
         dropPreviewKey = nil
-        dropPreviewNodeID = nil
-        dropPreviewFrame = nil
+        dropPreviewFrames = [:]
     }
 
     /// 预览落点会在左还是右；nil 表示这次落点不改变左右侧。
