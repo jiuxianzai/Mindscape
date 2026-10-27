@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
   <img src="https://img.shields.io/badge/tests-161-brightgreen?style=flat-square" alt="161 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.6.0-lightgrey?style=flat-square" alt="Status 0.6.0">
+  <img src="https://img.shields.io/badge/status-0.6.1-lightgrey?style=flat-square" alt="Status 0.6.1">
 </p>
 
 <p align="center">
@@ -27,13 +27,13 @@
 
 Mindscape is a native macOS mind-mapping app built for people who want to think on a canvas and keep the result on their own disk. It opens straight into a canvas, saves continuously, and never asks you to sign in.
 
-**Current version: 0.6.0** — features and the data format may still change.
+**Current version: 0.6.1** — features and the data format may still change.
 
-### What's new in 0.6.0
+### What's fixed in 0.6.1
 
-- Local OpenAPI gateway + AI Agent Skill for Claude Code, Codex, DSH, and OpenCode
-- Dedicated AI Agent settings, first-run install prompt, copyable starter prompt, and GitHub Pages guide
-- System / light / dark appearance, with a separate light and dark theme remembered per map
+- Free-form layout: ⌥-drag onto a node to reparent while keeping its position, without auto-layout
+- First-run canvas tips now wait until the update and agent prompts are fully closed; the lightbulb works on the first click
+- Snapshots now show create success/failure feedback and can be renamed or deleted with confirmation
 
 ---
 
@@ -64,7 +64,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 ## Why Mindscape
 
 - **Local-first.** All maps sit in a single SQLite file. Works offline, no login, nothing uploaded.
-- **Native, and small.** The canvas is a hand-drawn `NSView`, not a WebView. The whole app is a 4.9 MB download with zero third-party libraries — no Electron runtime, no bundled browser.
+- **Native, and small.** The canvas is a hand-drawn `NSView`, not a WebView. The whole app is a 5.1 MB download with zero third-party libraries — no Electron runtime, no bundled browser.
 - **CJK input-method friendly.** While you compose text with Pinyin or Zhuyin, the node grows as you type instead of wrapping and snapping back, and the candidate window stays glued to the caret. This is the detail that usually breaks in Web-canvas mind maps.
 - **Restrained motion.** Collapsing a branch staggers children by depth instead of flashing the whole screen; ghosts fade under the real nodes.
 - **Good-looking out of the box.** 8 themes and 8 layouts. You don't have to style anything.
@@ -145,7 +145,7 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 
 ### Download
 
-Download [`Mindscape-0.6.0.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.0/Mindscape-0.6.0.dmg), open it, and drag Mindscape into Applications.
+Download [`Mindscape-0.6.1.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.1/Mindscape-0.6.1.dmg), open it, and drag Mindscape into Applications.
 
 This build is **ad-hoc signed and not notarized**. If Gatekeeper blocks the first launch, run:
 
@@ -170,7 +170,7 @@ xcodegen generate && open Mindscape.xcodeproj
 Packaging and local install:
 
 ```bash
-make package    # writes dist/Mindscape-0.6.0.dmg, .zip, and .dmg.sha256
+make package    # writes dist/Mindscape-0.6.1.dmg, .zip, and .dmg.sha256
 make publish    # creates the GitHub Release via gh (requires gh auth login)
 make install    # installs to /Applications and launches
 ```
