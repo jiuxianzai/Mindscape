@@ -26,7 +26,11 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
     private var layoutDocumentID: UUID?
     private var camera = CanvasCamera()
     /// 思维导图拖动时，节点外侧额外吸附的屏幕范围（pt）
-    private static let magneticDropPadding: CGFloat = 30
+    private static let magneticDropPadding: CGFloat = 45
+    /// 已经锁定目标后的滞留范围，避免指针轻微移动就丢失目标
+    private static let magneticReleasePadding: CGFloat = 60
+    /// 切换到更近目标需要拉开的距离（pt），避免两个目标之间来回跳
+    private static let magneticSwitchMargin: CGFloat = 8
     private var displayFrames: [UUID: CGRect] = [:]
     private var frameAnimation: FrameAnimation?
     private var animationTimer: Timer?
@@ -901,12 +905,16 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             if frame.contains(worldPoint), canDrop(ids, on: id) { return id }
         }
 
-        let padding = Self.magneticDropPadding / max(camera.zoom, CanvasCamera.minZoom)
+        let zoom = max(camera.zoom, CanvasCamera.minZoom)
+        let padding = Self.magneticDropPadding / zoom
+        let releasePadding = Self.magneticReleasePadding / zoom
+        let switchMargin = Self.magneticSwitchMargin / zoom
+
         var best: (id: UUID, distance: CGFloat, centerDistance: CGFloat)?
         for id in layout.drawOrder where !ids.contains(id) {
             guard let frame = layout.frames[id] else { continue }
             let distance = distance(from: worldPoint, to: frame)
-            guard distance <= padding, canDrop(ids, on: id) else { continue }
+            guard distance <= releasePadding, canDrop(ids, on: id) else { continue }
             let centerDistance = hypot(worldPoint.x - frame.midX, worldPoint.y - frame.midY)
             if best == nil
                 || distance < best!.distance - 0.001
@@ -914,7 +922,25 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
                 best = (id, distance, centerDistance)
             }
         }
-        return best?.id
+        guard let best else { return nil }
+
+        // 超出吸附范围后不再接收新目标，但已锁定的目标可以多留一段
+        if best.distance > padding, dropTargetID != best.id {
+            return nil
+        }
+
+        // 已锁定目标时加一点滞后：只有新目标明显更近才切换
+        if let current = dropTargetID,
+           current != best.id,
+           let currentFrame = layout.frames[current],
+           canDrop(ids, on: current) {
+            let currentDistance = distance(from: worldPoint, to: currentFrame)
+            if currentDistance <= releasePadding,
+               best.distance >= currentDistance - switchMargin {
+                return current
+            }
+        }
+        return best.id
     }
 
     private func distance(from point: CGPoint, to rect: CGRect) -> CGFloat {

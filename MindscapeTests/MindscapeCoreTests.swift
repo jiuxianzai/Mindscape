@@ -2461,10 +2461,10 @@ extension MindscapeFeatureTests {
         let rightFrame = try XCTUnwrap(layout.frames[right.id])
 
         let start = canvas.convert(canvas.worldToView(rightFrame.center), to: nil)
-        let tooFarWorld = CGPoint(x: leftFrame.midX, y: leftFrame.minY - 50)
+        let tooFarWorld = CGPoint(x: leftFrame.midX, y: leftFrame.minY - 60)
         let tooFar = canvas.convert(canvas.worldToView(tooFarWorld), to: nil)
 
-        // 超出 30pt 磁吸范围：仍然算没有目标
+        // 超出 45pt 磁吸范围：仍然算没有目标
         canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
         canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: tooFar, in: window)))
         XCTAssertTrue(canvas.dropPreviewFrames.isEmpty, "超出磁吸范围不应该出现虚线预览")
@@ -2472,8 +2472,8 @@ extension MindscapeFeatureTests {
         // 等第一次拖拽的落位动画结束，避免第二次 drag 用插值中的帧做命中
         RunLoop.main.run(until: Date().addingTimeInterval(0.3))
 
-        // 指针在节点外 10pt，但仍在 30pt 磁吸范围内
-        let nearWorld = CGPoint(x: leftFrame.midX, y: leftFrame.minY - 10)
+        // 指针在节点外 40pt，仍在调大后的 45pt 磁吸范围内
+        let nearWorld = CGPoint(x: leftFrame.midX, y: leftFrame.minY - 40)
         let near = canvas.convert(canvas.worldToView(nearWorld), to: nil)
         canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
         canvas.mouseDragged(with: try XCTUnwrap(mouseEvent(.leftMouseDragged, at: near, in: window)))
