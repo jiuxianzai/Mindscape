@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
   <img src="https://img.shields.io/badge/tests-181-brightgreen?style=flat-square" alt="181 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.6.3-lightgrey?style=flat-square" alt="Status 0.6.3">
+  <img src="https://img.shields.io/badge/status-0.7.0-lightgrey?style=flat-square" alt="Status 0.7.0">
 </p>
 
 <p align="center">
@@ -27,13 +27,16 @@
 
 Mindscape is a native macOS mind-mapping app built for people who want to think on a canvas and keep the result on their own disk. It opens straight into a canvas, saves continuously, and never asks you to sign in.
 
-**Current version: 0.6.3** — features and the data format may still change.
+**Current version: 0.7.0** — features and the data format may still change.
 
-### What's fixed in 0.6.3
+### What's new in 0.7.0
 
-- Empty edits no longer delete the node or its subtree: the center node falls back to “Central Topic”, other nodes to “New Topic”
-- Auto-checks run on every launch; dismissing the banner keeps the same version quiet after relaunch
-- “Open Installer Only” is now the default in the install alert, so Return no longer quits the app; failures show an inline message
+- Mind map drag sorting: reorder siblings up/down, move a first-level branch to the other side, and the whole subtree follows
+- Branch arrangement: Remember Layout (default) / Balanced Layout
+- ~45pt magnetic drop zone around nodes; the nearest target locks early and previews the whole subtree as dashed outlines
+- Current target gets a thin solid ring + glow; sibling previews stick above/below the target's current position
+- Center-canvas shortcut `⌃Space`
+- Copying nodes also writes an indented Markdown outline; plain-text clipboard content pastes back as a node tree
 
 ---
 
@@ -43,6 +46,14 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 
 <p align="center">
   <img src="docs/screenshots/main.png" width="100%" alt="Mindscape main window">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/drag-sort.png" width="100%" alt="Drag sorting: dashed subtree preview and magnetic target">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/layout-memory.png" width="100%" alt="Branch arrangement: Remember Layout / Balanced Layout">
 </p>
 
 <p align="center">
@@ -64,7 +75,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 ## Why Mindscape
 
 - **Local-first.** All maps sit in a single SQLite file. Works offline, no login, nothing uploaded.
-- **Native, and small.** The canvas is a hand-drawn `NSView`, not a WebView. The whole app is a 5.1 MB download with zero third-party libraries — no Electron runtime, no bundled browser.
+- **Native, and small.** The canvas is a hand-drawn `NSView`, not a WebView. The whole app is a 5.2 MB download with zero third-party libraries — no Electron runtime, no bundled browser.
 - **CJK input-method friendly.** While you compose text with Pinyin or Zhuyin, the node grows as you type instead of wrapping and snapping back, and the candidate window stays glued to the caret. This is the detail that usually breaks in Web-canvas mind maps.
 - **Restrained motion.** Collapsing a branch staggers children by depth instead of flashing the whole screen; ghosts fade under the real nodes.
 - **Good-looking out of the box.** 8 themes and 8 layouts. You don't have to style anything.
@@ -147,7 +158,7 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 
 ### Download
 
-Download [`Mindscape-0.6.3.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.6.3/Mindscape-0.6.3.dmg), open it, and drag Mindscape into Applications.
+Download [`Mindscape-0.7.0.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.7.0/Mindscape-0.7.0.dmg), open it, and drag Mindscape into Applications.
 
 This build is **ad-hoc signed and not notarized**. If Gatekeeper blocks the first launch, run:
 
@@ -172,7 +183,7 @@ xcodegen generate && open Mindscape.xcodeproj
 Packaging and local install:
 
 ```bash
-make package    # writes dist/Mindscape-0.6.3.dmg, .zip, and .dmg.sha256
+make package    # writes dist/Mindscape-0.7.0.dmg, .zip, and .dmg.sha256
 make publish    # creates the GitHub Release via gh (requires gh auth login)
 make install    # installs to /Applications and launches
 ```
