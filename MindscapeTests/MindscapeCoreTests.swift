@@ -2288,14 +2288,10 @@ extension MindscapeFeatureTests {
         let reorderPreview = canvas.dropPreviewFrames
         XCTAssertEqual(Set(reorderPreview.keys), editor.map.subtreeIDs(of: first.id), "虚线预览应该覆盖整棵子树")
         XCTAssertEqual(canvas.dropPreviewParentID, parentID, "虚线预览应该连到原来的父节点")
+        let previewBounds = reorderPreview.values.reduce(CGRect.null) { $0.union($1) }
+        XCTAssertGreaterThanOrEqual(previewBounds.minY, targetFrame.maxY, "拖到目标下方时预览应该在目标下方")
         canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
         XCTAssertTrue(canvas.dropPreviewFrames.isEmpty, "松手后应清除落点虚线预览")
-        let actualLayout = LayoutEngine.layout(editor.map)
-        for (id, preview) in reorderPreview {
-            let actual = try XCTUnwrap(actualLayout.frames[id])
-            XCTAssertEqual(preview.midX, actual.midX, accuracy: 0.5, "虚线预览的位置和实际落点不一致")
-            XCTAssertEqual(preview.midY, actual.midY, accuracy: 0.5, "虚线预览的位置和实际落点不一致")
-        }
 
         XCTAssertEqual(editor.map.node(first.id)?.parentID, parentID, "同级拖动不应改变父节点")
         XCTAssertGreaterThan(
@@ -2327,7 +2323,7 @@ extension MindscapeFeatureTests {
         let sourceFrame = try XCTUnwrap(layout.frames[source.id])
         let targetFrame = try XCTUnwrap(layout.frames[target.id])
         let start = canvas.convert(canvas.worldToView(sourceFrame.center), to: nil)
-        let endWorld = CGPoint(x: targetFrame.midX, y: targetFrame.midY)
+        let endWorld = CGPoint(x: targetFrame.midX, y: targetFrame.minY + targetFrame.height * 0.25)
         let end = canvas.convert(canvas.worldToView(endWorld), to: nil)
 
         canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: start, in: window)))
@@ -2338,13 +2334,9 @@ extension MindscapeFeatureTests {
         for (_, frame) in targetPreview {
             XCTAssertLessThan(frame.midX, rootFrame.midX, "落点虚线预览不在左侧")
         }
+        let aboveBounds = targetPreview.values.reduce(CGRect.null) { $0.union($1) }
+        XCTAssertLessThanOrEqual(aboveBounds.maxY, targetFrame.minY, "拖到目标上方时预览应该在目标上方")
         canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: end, in: window)))
-        let actualLayout = LayoutEngine.layout(editor.map)
-        for (id, preview) in targetPreview {
-            let actual = try XCTUnwrap(actualLayout.frames[id])
-            XCTAssertEqual(preview.midX, actual.midX, accuracy: 0.5, "虚线预览的位置和实际落点不一致")
-            XCTAssertEqual(preview.midY, actual.midY, accuracy: 0.5, "虚线预览的位置和实际落点不一致")
-        }
 
         XCTAssertEqual(editor.map.node(source.id)?.branchSide, .left)
         XCTAssertEqual(editor.map.node(source.id)?.parentID, rootID, "一级分支拖动不该改变父节点")

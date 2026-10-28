@@ -1506,7 +1506,22 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             after: after,
             side: side
         ) {
-            dropPreviewFrames = preview.frames
+            var frames = preview.frames
+            // 同级排序时，整棵预览子树按目标节点当前的位置贴到它的上方 / 下方，
+            // 而不是按重排后的完整布局落位。否则目标节点本身会移动，
+            // 视觉上会出现「不管拖上还是拖下，预览都在目标上方」的错觉。
+            if let targetNode = editor.map.node(target),
+               source.parentID == targetNode.parentID,
+               let bounds = previewBounds(frames) {
+                let gap: CGFloat = 16
+                let shift = after
+                    ? targetFrame.maxY + gap - bounds.minY
+                    : targetFrame.minY - gap - bounds.maxY
+                if abs(shift) > 0.5 {
+                    frames = frames.mapValues { $0.offsetBy(dx: 0, dy: shift) }
+                }
+            }
+            dropPreviewFrames = frames
             dropPreviewSourceID = preview.sourceID
             dropPreviewParentID = preview.parentID
         } else {
@@ -1514,6 +1529,12 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             dropPreviewParentID = nil
             dropPreviewFrames = [:]
         }
+    }
+
+    private func previewBounds(_ frames: [UUID: CGRect]) -> CGRect? {
+        var union = CGRect.null
+        for frame in frames.values { union = union.union(frame) }
+        return union.isNull ? nil : union
     }
 
     private func clearMindMapDropPreview() {
