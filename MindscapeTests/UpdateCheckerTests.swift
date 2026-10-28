@@ -43,8 +43,10 @@ final class UpdateCheckerTests: XCTestCase {
         now: @escaping () -> Date = Date.init,
         downloads: URL? = nil,
         configuration: URLSessionConfiguration = .ephemeral,
-        openURL: @escaping (URL) -> Void = { _ in },
-        bannerAutoDismissDelay: Duration = .seconds(60)
+        openURL: @escaping (URL) -> Bool = { _ in true },
+        bannerAutoDismissDelay: Duration = .seconds(60),
+        launchDelay: Duration = .seconds(5),
+        refreshInterval: Duration = .seconds(3600)
     ) -> UpdateChecker {
         UpdateChecker(
             service: service,
@@ -54,7 +56,9 @@ final class UpdateCheckerTests: XCTestCase {
             now: now,
             openURL: openURL,
             downloadConfiguration: configuration,
-            bannerAutoDismissDelay: bannerAutoDismissDelay
+            bannerAutoDismissDelay: bannerAutoDismissDelay,
+            launchDelay: launchDelay,
+            refreshInterval: refreshInterval
         )
     }
 
@@ -232,6 +236,62 @@ final class UpdateCheckerTests: XCTestCase {
         XCTAssertEqual(service.callCount, 2, "手动检查应绕过节流")
     }
 
+    /// 每次启动都检查一次，即使距离上次检查还不到 24 小时。
+    func testLaunchCheckBypassesThrottle() async {
+        let clock = TestClock()
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: "updates.autoCheck")
+        defaults.set(clock.now, forKey: "updates.lastCheckAt")
+        let service = StubUpdateService([
+            .success(.release(makeRelease("0.5.4"), etag: nil))
+        ])
+        let checker = makeChecker(
+            service: service,
+            defaults: defaults,
+            now: { clock.now },
+            launchDelay: .zero
+        )
+
+        checker.start()
+        let didCheck = await waitUntil { service.callCount == 1 }
+        XCTAssertTrue(didCheck, "启动后没有检查更新")
+        XCTAssertEqual(checker.phase, .available)
+    }
+
+    /// App 一直开着时，超过 24 小时要再次自动检查。
+    func testRunningCheckRunsAgainAfter24Hours() async {
+        let clock = TestClock()
+        let defaults = makeDefaults()
+        defaults.set(true, forKey: "updates.autoCheck")
+        let service = StubUpdateService([
+            .success(.release(makeRelease("0.5.4"), etag: nil)),
+            .success(.release(makeRelease("0.5.4"), etag: nil))
+        ])
+        let checker = makeChecker(
+            service: service,
+            defaults: defaults,
+            now: { clock.now },
+            launchDelay: .zero,
+            refreshInterval: .milliseconds(500)
+        )
+
+        checker.start()
+        let didLaunchCheck = await waitUntil { service.callCount == 1 }
+        XCTAssertTrue(didLaunchCheck, "启动后没有检查更新")
+
+        clock.advance(hours: 25)
+        let didPeriodicCheck = await waitUntil { service.callCount == 2 }
+        XCTAssertTrue(didPeriodicCheck, "运行超过 24 小时后没有再次检查")
+    }
+
+    private func waitUntil(_ condition: @escaping () -> Bool) async -> Bool {
+        for _ in 0..<100 {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+        return condition()
+    }
+
     func testSkippedVersionIsNotShownAgainAutomatically() async {
         let clock = TestClock()
         let service = StubUpdateService([
@@ -293,7 +353,7 @@ final class UpdateCheckerTests: XCTestCase {
         var opened: URL?
         let checker = makeChecker(
             service: StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))]),
-            openURL: { opened = $0 }
+            openURL: { opened = $0; return true }
         )
         await checker.check(manual: true)
         checker.openReleasePage()
@@ -326,6 +386,47 @@ final class UpdateCheckerTests: XCTestCase {
         await checker.check(manual: true)
         XCTAssertEqual(checker.phase, .available)
         XCTAssertFalse(checker.shouldShowBanner, "同一版本被隐藏后，重新检查不应再弹横幅")
+    }
+
+    /// 关掉横幅是持久化的：重启后同一版本不再打扰，但更新仍然可用。
+    func testDismissedBannerStaysHiddenAfterRelaunch() async {
+        let defaults = makeDefaults()
+        let first = makeChecker(
+            service: StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))]),
+            defaults: defaults
+        )
+        await first.check(manual: true)
+        XCTAssertTrue(first.shouldShowBanner)
+        first.dismissBanner()
+
+        let second = makeChecker(
+            service: StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))]),
+            defaults: defaults
+        )
+        await second.check(manual: true)
+
+        XCTAssertEqual(second.phase, .available)
+        XCTAssertFalse(second.shouldShowBanner, "关掉的横幅在重启后不应再弹")
+    }
+
+    /// 出现更新的版本时，即使上个版本被关掉过，也要重新提醒。
+    func testNewVersionShowsBannerAfterPreviousDismissal() async {
+        let defaults = makeDefaults()
+        let first = makeChecker(
+            service: StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))]),
+            defaults: defaults
+        )
+        await first.check(manual: true)
+        first.dismissBanner()
+
+        let second = makeChecker(
+            service: StubUpdateService([.success(.release(makeRelease("0.5.5"), etag: nil))]),
+            defaults: defaults
+        )
+        await second.check(manual: true)
+
+        XCTAssertEqual(second.phase, .available)
+        XCTAssertTrue(second.shouldShowBanner, "新版本应重新提醒")
     }
 
     func testNotModifiedUsesCachedRelease() async {
@@ -385,7 +486,7 @@ final class UpdateCheckerTests: XCTestCase {
             service: StubUpdateService([.success(.release(makeRelease("0.5.4"), etag: nil))]),
             downloads: directory,
             configuration: Stub.configuration(),
-            openURL: { opened = $0 }
+            openURL: { opened = $0; return true }
         )
 
         await checker.check(manual: true)

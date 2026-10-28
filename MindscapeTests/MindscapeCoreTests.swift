@@ -1403,6 +1403,68 @@ extension MindscapeFeatureTests {
         XCTAssertEqual(editor.map.node(branch.id)?.text, branch.text)
     }
 
+    /// 空格编辑一个本来没有文字的节点，点到画布上不能连子树一起删掉；
+    /// 没有输入时用「新主题」占位。
+    func testSpaceEditingEmptyNodeKeepsSubtreeAndFillsPlaceholder() throws {
+        let shortcuts = ShortcutStore.shared
+        let oldEdit = shortcuts.combo(for: .editNode)
+        shortcuts.set(KeyCombo(key: "space"), for: .editNode)
+        defer { shortcuts.set(oldEdit, for: .editNode) }
+
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let branch = try XCTUnwrap(node(editor, "里程碑"))
+        let child = try XCTUnwrap(editor.addChild(to: branch.id))
+        editor.setText("", for: branch.id)
+        editor.select(branch.id)
+
+        let event = try XCTUnwrap(keyEvent(" ", keyCode: 49, in: window))
+        canvas.keyDown(with: event)
+
+        let editorView = try XCTUnwrap(canvas.subviews.compactMap { $0 as? NSTextView }.last)
+        XCTAssertEqual(editorView.string, "", "空格不应写入空节点")
+
+        let emptyPoint = canvas.convert(CGPoint(x: 20, y: 20), to: nil)
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: emptyPoint, in: window)))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: emptyPoint, in: window)))
+
+        XCTAssertNotNil(editor.map.node(branch.id), "空编辑提交后节点被删除了")
+        XCTAssertNotNil(editor.map.node(child), "空编辑提交后子节点被删除了")
+        XCTAssertEqual(editor.map.node(branch.id)?.text, String(localized: "新主题"), "空编辑没有回填占位文字")
+    }
+
+    /// 中心节点空编辑回填「中心主题」，与其它节点的「新主题」区分。
+    func testEmptyCenterNodeFallsBackToCenterTopic() throws {
+        let shortcuts = ShortcutStore.shared
+        let oldEdit = shortcuts.combo(for: .editNode)
+        shortcuts.set(KeyCombo(key: "space"), for: .editNode)
+        defer { shortcuts.set(oldEdit, for: .editNode) }
+
+        let editor = try makeEditor()
+        let canvas = MindCanvasView(frame: NSRect(x: 0, y: 0, width: 900, height: 700))
+        canvas.attach(editor: editor, theme: MapTheme.byID("paper"))
+        let window = canvas.attachToTestWindow()
+
+        let root = editor.map.rootID
+        let child = try XCTUnwrap(editor.addChild(to: root))
+        editor.setText("", for: root)
+        editor.select(root)
+
+        let event = try XCTUnwrap(keyEvent(" ", keyCode: 49, in: window))
+        canvas.keyDown(with: event)
+
+        let emptyPoint = canvas.convert(CGPoint(x: 20, y: 20), to: nil)
+        canvas.mouseDown(with: try XCTUnwrap(mouseEvent(.leftMouseDown, at: emptyPoint, in: window)))
+        canvas.mouseUp(with: try XCTUnwrap(mouseEvent(.leftMouseUp, at: emptyPoint, in: window)))
+
+        XCTAssertNotNil(editor.map.node(root), "中心节点空编辑提交后被删除了")
+        XCTAssertNotNil(editor.map.node(child), "中心节点空编辑提交后子节点被删除了")
+        XCTAssertEqual(editor.map.node(root)?.text, String(localized: "中心主题"), "中心节点应回填「中心主题」")
+    }
+
     /// 开始输入时把按键交给输入框，而不是先把 event.characters 写进节点
     func testTypingLetterStartsEditingThroughTextView() throws {
         let editor = try makeEditor()

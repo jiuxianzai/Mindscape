@@ -228,6 +228,7 @@
 "%lld 张导图 · 当前目录" = "%lld maps · Current folder";
 "%lld 张导图 · 可切换" = "%lld maps · Switchable";
 "版本 %@" = "Version %@";
+"当前版本 %@（Build %@）" = "Version %@ (Build %@)";
 "删除于 %@" = "Deleted %@";
 "颜色：%@" = "Color: %@";
 
@@ -393,12 +394,12 @@
 "当前版本 %@ 已经是最新。" = "Version %@ is the latest.";
 "自动检查更新" = "Automatically check for updates";
 "是否自动检查更新？" = "Automatically Check for Updates?";
-"开启后每 24 小时访问一次 GitHub Releases 检查新版本；关闭时 Mindscape 不会自动联网。此选择只询问一次，之后可在「设置 → 通用 → 更新」中修改。" = "When on, Mindscape checks GitHub Releases for new versions once every 24 hours. When off, it never goes online automatically. You'll only be asked once; you can change this later under Settings → General → Updates.";
+"开启后每次启动会检查一次，运行期间每 24 小时访问一次 GitHub Releases 检查新版本；关闭时 Mindscape 不会自动联网。此选择只询问一次，之后可在「设置 → 通用 → 更新」中修改。" = "When on, Mindscape checks GitHub Releases once at every launch and every 24 hours while running. When off, it never goes online automatically. You'll only be asked once; you can change this later under Settings → General → Updates.";
 "暂不" = "Not Now";
 "开启自动检查" = "Turn On Automatic Checks";
-"开启后每 24 小时访问一次 GitHub Releases" = "Checks GitHub Releases once every 24 hours when on";
+"每次启动检查一次，之后每 24 小时访问一次 GitHub Releases" = "Checks once at launch, then every 24 hours";
 "默认关闭：关闭时 Mindscape 不会自动联网。手动检查更新（菜单栏「检查更新…」或 设置 → 关于）仍会访问 GitHub。" = "Off by default: Mindscape never goes online automatically. Manual checks (menu bar “Check for Updates…” or Settings → About) still contact GitHub.";
-"自动检查已开启：启动后每 24 小时检查一次。" = "Automatic checks are on: once every 24 hours after launch.";
+"自动检查已开启：每次启动检查一次，之后每 24 小时检查一次。" = "Automatic checks are on: once at launch, then every 24 hours.";
 "自动检查已关闭，Mindscape 不会自动联网。可在「通用 → 更新」中开启。" = "Automatic checks are off; Mindscape won't go online on its own. Turn them on under General → Updates.";
 "检查失败" = "Check failed";
 "更新已下载" = "Update downloaded";
@@ -418,10 +419,17 @@
 "打开 DMG 后，把 Mindscape 拖进 Applications，覆盖旧版本即可。" = "Open the DMG and drag Mindscape into Applications to replace the old version.";
 "安装步骤" = "To Install";
 "打开 DMG" = "Open the DMG";
+"打开 DMG（可先保存并退出 Mindscape）" = "Open the DMG (you can save and quit Mindscape first)";
 "把 Mindscape 拖进 Applications，覆盖旧版本" = "Drag Mindscape into Applications, replacing the old version";
 "推出磁盘映像，再重新打开 Mindscape" = "Eject the disk image, then reopen Mindscape";
 "在 Finder 中显示" = "Show in Finder";
 "打开安装包" = "Open Installer";
+"打开安装包并退出 Mindscape？" = "Open the installer and quit Mindscape?";
+"仅打开安装包" = "Open Installer Only";
+"保存并退出" = "Save & Quit";
+"拖动替换应用前需要先退出当前版本，否则 macOS 会提示「请先关闭 Mindscape」。选择「保存并退出」会保存当前导图并退出，然后打开安装包。" = "macOS requires quitting the current version before you can replace the app. “Save & Quit” saves the current map, quits Mindscape, and then opens the installer.";
+"打开后可选择保存并退出 Mindscape，避免拖动覆盖时被系统拦截" = "You can save and quit Mindscape first so macOS doesn't block the replacement.";
+"无法打开安装包，请到 Finder 中手动打开下载的文件。" = "Couldn't open the installer. Open the downloaded file from Finder instead.";
 "更新失败" = "Update Failed";
 "打开发布页" = "Open Releases Page";
 "这个版本没有附带更新说明，可以打开发布页查看。" = "This release has no notes. Open the releases page for details.";

@@ -256,6 +256,12 @@ struct SidebarView: View {
 
             Spacer()
 
+            Text("v\(app.updates.installedVersionDescription)")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .foregroundStyle(.tertiary)
+                .textSelection(.enabled)
+                .help("当前版本 \(app.updates.installedVersionDescription)（Build \(buildNumber)）")
+
             SettingsLink {
                 Image(systemName: "gearshape")
                     .font(.system(size: 12))
@@ -266,6 +272,10 @@ struct SidebarView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    private var buildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
     }
 
     private func createRootFolder() {

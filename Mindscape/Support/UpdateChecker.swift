@@ -27,13 +27,13 @@ final class UpdateChecker {
     }
 
     static let checkInterval: TimeInterval = 24 * 60 * 60
-    static let launchDelay: Duration = .seconds(5)
 
     private enum Key {
         static let autoCheck = "updates.autoCheck"
         static let didAskAutoCheck = "updates.didAskAutoCheck"
         static let lastCheckAt = "updates.lastCheckAt"
         static let skippedVersion = "updates.skippedVersion"
+        static let dismissedBannerVersion = "updates.dismissedBannerVersion"
         static let etag = "updates.etag"
         static let betaEtag = "updates.beta.etag"
         static let cachedRelease = "updates.cachedRelease"
@@ -67,11 +67,13 @@ final class UpdateChecker {
     @ObservationIgnored private let installedVersion: SemanticVersion
     @ObservationIgnored private let downloadsDirectory: URL
     @ObservationIgnored private let now: () -> Date
-    @ObservationIgnored private let openURL: (URL) -> Void
+    @ObservationIgnored private let openURL: (URL) -> Bool
     @ObservationIgnored private let fileManager: FileManager
     @ObservationIgnored private let downloadConfiguration: URLSessionConfiguration
     @ObservationIgnored private let session: URLSession
     @ObservationIgnored private let bannerAutoDismissDelay: Duration
+    @ObservationIgnored private let launchDelay: Duration
+    @ObservationIgnored private let refreshInterval: Duration
     @ObservationIgnored private let releasePageFallback = URL(string: "https://github.com/jiuxianzai/Mindscape/releases")!
 
     @ObservationIgnored private var isChecking = false
@@ -106,11 +108,13 @@ final class UpdateChecker {
         installedVersion: SemanticVersion? = nil,
         downloadsDirectory: URL? = nil,
         now: @escaping () -> Date = Date.init,
-        openURL: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) },
+        openURL: @escaping (URL) -> Bool = { NSWorkspace.shared.open($0) },
         fileManager: FileManager = .default,
         downloadConfiguration: URLSessionConfiguration = .ephemeral,
         session: URLSession? = nil,
-        bannerAutoDismissDelay: Duration = .seconds(60)
+        bannerAutoDismissDelay: Duration = .seconds(60),
+        launchDelay: Duration = .seconds(5),
+        refreshInterval: Duration = .seconds(3600)
     ) {
         let version = installedVersion ?? Self.bundleVersion
         self.isBetaChannel = version.prerelease != nil
@@ -127,6 +131,8 @@ final class UpdateChecker {
         self.downloadConfiguration = downloadConfiguration
         self.session = session ?? URLSession(configuration: downloadConfiguration)
         self.bannerAutoDismissDelay = bannerAutoDismissDelay
+        self.launchDelay = launchDelay
+        self.refreshInterval = refreshInterval
         self.service = service ?? GitHubUpdateService(
             configuration: GitHubUpdateConfiguration(
                 appVersion: version.description,
@@ -136,6 +142,8 @@ final class UpdateChecker {
         self.autoCheckEnabled = defaults.object(forKey: Key.autoCheck) as? Bool ?? false
         self.lastCheckAt = defaults.object(forKey: Key.lastCheckAt) as? Date
         self.release = Self.cachedRelease(from: defaults)
+        // 用户主动关掉过横幅的版本，重启后不再自动弹；换新版本仍会提醒。
+        self.dismissedBannerVersion = defaults.string(forKey: Key.dismissedBannerVersion)
     }
 
     // MARK: - Public state
@@ -217,7 +225,7 @@ final class UpdateChecker {
         alert.alertStyle = .informational
         alert.icon = NSImage(named: "BrandMark")
         alert.messageText = String(localized: "是否自动检查更新？")
-        alert.informativeText = String(localized: "开启后每 24 小时访问一次 GitHub Releases 检查新版本；关闭时 Mindscape 不会自动联网。此选择只询问一次，之后可在「设置 → 通用 → 更新」中修改。")
+        alert.informativeText = String(localized: "开启后每次启动会检查一次，运行期间每 24 小时访问一次 GitHub Releases 检查新版本；关闭时 Mindscape 不会自动联网。此选择只询问一次，之后可在「设置 → 通用 → 更新」中修改。")
         alert.addButton(withTitle: String(localized: "暂不"))
         alert.addButton(withTitle: String(localized: "开启自动检查"))
 
@@ -258,17 +266,22 @@ final class UpdateChecker {
         guard autoCheckEnabled else { return }
 
         if initialCheckTask == nil {
+            let delay = launchDelay
             initialCheckTask = Task { [weak self] in
-                try? await Task.sleep(for: Self.launchDelay)
+                try? await Task.sleep(for: delay)
                 guard !Task.isCancelled else { return }
-                await self?.check(manual: false)
+                // 启动检查不受 24 小时节流限制：每次重新打开 App 都检查一次。
+                await self?.check(manual: false, ignoringThrottle: true)
+                // 完成后释放句柄，重新开启自动检查时可以再安排一次启动检查。
+                self?.initialCheckTask = nil
             }
         }
 
         if refreshTask == nil {
+            let interval = refreshInterval
             refreshTask = Task { [weak self] in
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(3600))
+                    try? await Task.sleep(for: interval)
                     guard !Task.isCancelled else { return }
                     await self?.checkIfDue()
                 }
@@ -278,14 +291,22 @@ final class UpdateChecker {
 
     private func checkIfDue() async {
         guard autoCheckEnabled, phase != .checking, !phase.isDownloading else { return }
-        guard let lastCheckAt else { return }
+        // 没有成功记录（例如上次启动检查断网）时也视为到期，让每小时的心跳继续重试。
+        guard let lastCheckAt else {
+            await check(manual: false)
+            return
+        }
         guard now().timeIntervalSince(lastCheckAt) >= Self.checkInterval else { return }
         await check(manual: false)
     }
 
     func check(manual: Bool) async {
+        await check(manual: manual, ignoringThrottle: false)
+    }
+
+    private func check(manual: Bool, ignoringThrottle: Bool) async {
         guard !isChecking, !phase.isDownloading else { return }
-        if !manual, let lastCheckAt, now().timeIntervalSince(lastCheckAt) < Self.checkInterval {
+        if !manual, !ignoringThrottle, let lastCheckAt, now().timeIntervalSince(lastCheckAt) < Self.checkInterval {
             return
         }
 
@@ -354,7 +375,9 @@ final class UpdateChecker {
     // MARK: - Banner & release page
 
     func dismissBanner() {
-        dismissedBannerVersion = release?.version.description
+        guard let version = release?.version.description else { return }
+        dismissedBannerVersion = version
+        defaults.set(version, forKey: Key.dismissedBannerVersion)
         bannerDismissed = true
         cancelBannerAutoDismiss()
     }
@@ -387,7 +410,7 @@ final class UpdateChecker {
     }
 
     func openReleasePage() {
-        openURL(release?.pageURL ?? releasePageFallback)
+        _ = openURL(release?.pageURL ?? releasePageFallback)
     }
 
     // MARK: - Download
@@ -510,9 +533,11 @@ final class UpdateChecker {
         return FileChecksum.digest(in: text)
     }
 
-    func openDownloaded() {
-        guard let downloadedFile else { return }
-        openURL(downloadedFile)
+    /// 打开已下载的安装包；返回是否成功交给 LaunchServices。
+    @discardableResult
+    func openDownloaded() -> Bool {
+        guard let downloadedFile else { return false }
+        return openURL(downloadedFile)
     }
 
     func revealDownloaded() {

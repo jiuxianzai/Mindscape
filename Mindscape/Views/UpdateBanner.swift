@@ -58,6 +58,6 @@ struct UpdateBanner: View {
     }
 
     private func showWindow() {
-        UpdateWindowController.shared.show(checker: app.updates)
+        UpdateWindowController.shared.show(checker: app.updates, app: app)
     }
 }

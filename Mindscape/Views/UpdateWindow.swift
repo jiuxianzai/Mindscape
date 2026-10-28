@@ -8,12 +8,13 @@ final class UpdateWindowController {
     private var window: NSWindow?
     private var didPosition = false
 
-    func show(checker: UpdateChecker) {
+    func show(checker: UpdateChecker, app: AppModel) {
         if window == nil {
             let root = UpdateWindowView(onClose: { [weak self] in
                 self?.window?.close()
             })
             .environment(checker)
+            .environment(app)
 
             let hosting = NSHostingController(rootView: root)
             let window = NSWindow(contentViewController: hosting)
@@ -59,6 +60,9 @@ final class UpdateWindowController {
 
 struct UpdateWindowView: View {
     @Environment(UpdateChecker.self) private var updates
+    @Environment(AppModel.self) private var app
+    @State private var confirmingInstall = false
+    @State private var installFailure: String?
     let onClose: () -> Void
 
     private let accent = Color(nsColor: NSColor(hex: "#C26A4A"))
@@ -74,6 +78,26 @@ struct UpdateWindowView: View {
         .padding(24)
         .frame(width: 500, height: 560)
         .background(Color(nsColor: .windowBackgroundColor))
+        .alert("打开安装包并退出 Mindscape？", isPresented: $confirmingInstall) {
+            // 默认按钮放在不会退出 App 的动作上，避免顺手回车直接退出。
+            Button("仅打开安装包") {
+                if !updates.openDownloaded() {
+                    installFailure = Self.openFailureMessage
+                }
+            }
+            Button("保存并退出") {
+                if !app.saveAndQuitForUpdate() {
+                    installFailure = Self.openFailureMessage
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("拖动替换应用前需要先退出当前版本，否则 macOS 会提示「请先关闭 Mindscape」。选择「保存并退出」会保存当前导图并退出，然后打开安装包。")
+        }
+    }
+
+    private static var openFailureMessage: String {
+        String(localized: "无法打开安装包，请到 Finder 中手动打开下载的文件。")
     }
 
     // MARK: - Header
@@ -198,6 +222,13 @@ struct UpdateWindowView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                if let installFailure {
+                    Text(installFailure)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 installSteps
             }
 
@@ -293,7 +324,7 @@ struct UpdateWindowView: View {
             Text("安装步骤")
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(.secondary)
-            step(1, String(localized: "打开 DMG"))
+            step(1, String(localized: "打开 DMG（可先保存并退出 Mindscape）"))
             step(2, String(localized: "把 Mindscape 拖进 Applications，覆盖旧版本"))
             step(3, String(localized: "推出磁盘映像，再重新打开 Mindscape"))
         }
@@ -364,9 +395,11 @@ struct UpdateWindowView: View {
                 Spacer()
 
                 Button("打开安装包") {
-                    updates.openDownloaded()
+                    installFailure = nil
+                    confirmingInstall = true
                 }
                 .buttonStyle(SettingsActionButtonStyle(primary: true))
+                .help("打开后可选择保存并退出 Mindscape，避免拖动覆盖时被系统拦截")
             }
 
         case .failed:
