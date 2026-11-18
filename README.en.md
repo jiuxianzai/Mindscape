@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
   <img src="https://img.shields.io/badge/tests-181-brightgreen?style=flat-square" alt="181 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.7.0-lightgrey?style=flat-square" alt="Status 0.7.0">
+  <img src="https://img.shields.io/badge/status-0.7.1-lightgrey?style=flat-square" alt="Status 0.7.1">
 </p>
 
 <p align="center">
@@ -27,16 +27,11 @@
 
 Mindscape is a native macOS mind-mapping app built for people who want to think on a canvas and keep the result on their own disk. It opens straight into a canvas, saves continuously, and never asks you to sign in.
 
-**Current version: 0.7.0** — features and the data format may still change.
+**Current version: 0.7.1** — features and the data format may still change.
 
-### What's new in 0.7.0
+### What's new in 0.7.1
 
-- Mind map drag sorting: reorder siblings up/down, move a first-level branch to the other side, and the whole subtree follows
-- Branch arrangement: Remember Layout (default) / Balanced Layout
-- ~45pt magnetic drop zone around nodes; the nearest target locks early and previews the whole subtree as dashed outlines
-- Current target gets a thin solid ring + glow; sibling previews stick above/below the target's current position
-- Center-canvas shortcut `⌃Space`
-- Copying nodes also writes an indented Markdown outline; plain-text clipboard content pastes back as a node tree
+- Settings → General has a new Menu Bar section: you can turn off the always-visible menu bar icon, and turn it back on later from settings via the Mindscape menu
 
 ---
 
@@ -158,7 +153,7 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 
 ### Download
 
-Download [`Mindscape-0.7.0.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.7.0/Mindscape-0.7.0.dmg), open it, and drag Mindscape into Applications.
+Download [`Mindscape-0.7.1.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.7.1/Mindscape-0.7.1.dmg), open it, and drag Mindscape into Applications.
 
 This build is **ad-hoc signed and not notarized**. If Gatekeeper blocks the first launch, run:
 
@@ -183,7 +178,7 @@ xcodegen generate && open Mindscape.xcodeproj
 Packaging and local install:
 
 ```bash
-make package    # writes dist/Mindscape-0.7.0.dmg, .zip, and .dmg.sha256
+make package    # writes dist/Mindscape-0.7.1.dmg, .zip, and .dmg.sha256
 make publish    # creates the GitHub Release via gh (requires gh auth login)
 make install    # installs to /Applications and launches
 ```
