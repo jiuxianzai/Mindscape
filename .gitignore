@@ -2,6 +2,7 @@
 build/
 build-release/
 build-cli/
+build-qa/
 dist/
 DerivedData/
 *.profraw
@@ -9,6 +10,7 @@ DerivedData/
 *.xcworkspace
 xcuserdata/
 .swiftpm/
+.idea/
 
 # 本地凭证 / 签名材料，避免误提交
 .env
