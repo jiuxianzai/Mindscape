@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct MindscapeApp: App {
     @State private var app = AppModel()
+    @AppStorage("showMenuBarExtra") private var showMenuBarExtra = true
 
     var body: some Scene {
         Window("Mindscape", id: "main") {
@@ -21,7 +22,7 @@ struct MindscapeApp: App {
                 .environment(app)
         }
 
-        MenuBarExtra {
+        MenuBarExtra(isInserted: $showMenuBarExtra) {
             MenuBarContent()
                 .environment(app)
         } label: {

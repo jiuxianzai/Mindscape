@@ -271,6 +271,7 @@ struct GeneralSettingsContent: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("defaultThemeID") private var themeID = MapTheme.defaultThemeID
     @AppStorage("defaultLayout") private var layoutRaw = MapLayout.mindMap.rawValue
+    @AppStorage("showMenuBarExtra") private var showMenuBarExtra = true
 
     @State private var errorMessage: String?
 
@@ -304,6 +305,24 @@ struct GeneralSettingsContent: View {
                         }
                     }
                 }
+            }
+
+            SettingsSection("菜单栏") {
+                SettingsCard {
+                    VStack(spacing: 0) {
+                        settingsRow("在菜单栏显示图标", subtitle: "关闭后菜单栏不再常驻图标，随时可在设置里重新打开") {
+                            Toggle("", isOn: $showMenuBarExtra)
+                                .labelsHidden()
+                                .toggleStyle(.switch)
+                                .controlSize(.mini)
+                        }
+                    }
+                }
+
+                Text("关闭后仍可从「Mindscape」菜单打开设置、新建导图等操作。")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             SettingsSection("新建导图") {
