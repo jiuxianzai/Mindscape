@@ -50,7 +50,7 @@ struct OutlineView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("折叠全部子分支")
+            .help("折叠全部子分支".l10n)
 
             Button {
                 editor.expandAll()
@@ -60,7 +60,7 @@ struct OutlineView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("展开全部")
+            .help("展开全部".l10n)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)

@@ -83,7 +83,7 @@ struct SidebarView: View {
                     .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
             .buttonStyle(.plain)
-            .help("新建目录")
+            .help("新建目录".l10n)
 
             Menu {
                 Button {
@@ -119,7 +119,7 @@ struct SidebarView: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("新建导图")
+            .help("新建导图".l10n)
         }
         .padding(.horizontal, 14)
         .padding(.top, 14)
@@ -221,7 +221,7 @@ struct SidebarView: View {
 
     private func emptyMessage(_ text: String) -> some View {
         VStack(spacing: 6) {
-            Text(text)
+            Text(text.l10n)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
             Text("点击右上角 + 新建")
@@ -260,7 +260,7 @@ struct SidebarView: View {
                 .font(.system(size: 10, weight: .medium, design: .monospaced))
                 .foregroundStyle(.tertiary)
                 .textSelection(.enabled)
-                .help("当前版本 \(app.updates.installedVersionDescription)（Build \(buildNumber)）")
+                .help(String(localized: "当前版本 \(app.updates.installedVersionDescription)（Build \(buildNumber)）"))
 
             SettingsLink {
                 Image(systemName: "gearshape")
@@ -268,7 +268,7 @@ struct SidebarView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .help("设置")
+            .help("设置".l10n)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -536,9 +536,11 @@ struct TrashView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
 
+    @State private var confirmingEmpty = false
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("回收站")
                         .font(.system(size: 15, weight: .semibold))
@@ -547,6 +549,12 @@ struct TrashView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+                Button("清空回收站…", role: .destructive) {
+                    confirmingEmpty = true
+                }
+                .controlSize(.small)
+                .disabled(app.trashDocuments.isEmpty)
+
                 Button("完成") { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
@@ -592,5 +600,13 @@ struct TrashView: View {
             }
         }
         .frame(width: 560, height: 440)
+        .alert("清空回收站？", isPresented: $confirmingEmpty) {
+            Button("取消", role: .cancel) {}
+            Button("清空", role: .destructive) {
+                app.emptyTrash()
+            }
+        } message: {
+            Text("回收站里的 \(app.trashDocuments.count) 张导图将被彻底删除，无法恢复。")
+        }
     }
 }

@@ -129,7 +129,7 @@ struct IconPickerView: View {
                 )
         }
         .buttonStyle(.plain)
-        .help(choice.name)
-        .accessibilityLabel(choice.name)
+        .help(choice.name.l10n)
+        .accessibilityLabel(choice.name.l10n)
     }
 }

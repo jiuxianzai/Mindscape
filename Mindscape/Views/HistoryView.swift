@@ -45,7 +45,7 @@ struct HistoryView: View {
                 deleteSnapshot()
             }
         } message: {
-            Text("「\(deleteTarget?.name ?? "快照")」删除后不可恢复。")
+            Text("「\(deleteTarget?.name ?? String(localized: "快照"))」删除后不可恢复。")
         }
         .sheet(item: $renameTarget) { snapshot in
             SnapshotRenameSheet(snapshot: snapshot) { name in
@@ -138,8 +138,8 @@ struct HistoryView: View {
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                     .fixedSize()
-                    .help("快照操作")
-                    .accessibilityLabel("快照操作")
+                    .help("快照操作".l10n)
+                    .accessibilityLabel("快照操作".l10n)
                 }
                 .padding(.vertical, 3)
                 .contextMenu {
@@ -203,7 +203,7 @@ struct HistoryView: View {
     private func showFeedback(_ message: String, success: Bool) {
         feedbackTask?.cancel()
         feedbackIcon = success ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
-        feedback = message
+        feedback = message.l10n
         feedbackTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.8))
             guard !Task.isCancelled else { return }

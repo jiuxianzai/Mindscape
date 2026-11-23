@@ -82,5 +82,37 @@
             <string>%lld maps</string>
         </dict>
     </dict>
+    <key>%lld 个节点 · %@</key>
+    <dict>
+        <key>NSStringLocalizedFormatKey</key>
+        <string>%#@nodes@ · %@</string>
+        <key>nodes</key>
+        <dict>
+            <key>NSStringFormatSpecTypeKey</key>
+            <string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key>
+            <string>lld</string>
+            <key>one</key>
+            <string>%lld node</string>
+            <key>other</key>
+            <string>%lld nodes</string>
+        </dict>
+    </dict>
+    <key>已选择 %lld 个节点</key>
+    <dict>
+        <key>NSStringLocalizedFormatKey</key>
+        <string>%#@nodes@ Selected</string>
+        <key>nodes</key>
+        <dict>
+            <key>NSStringFormatSpecTypeKey</key>
+            <string>NSStringPluralRuleType</string>
+            <key>NSStringFormatValueTypeKey</key>
+            <string>lld</string>
+            <key>one</key>
+            <string>%lld Node</string>
+            <key>other</key>
+            <string>%lld Nodes</string>
+        </dict>
+    </dict>
 </dict>
 </plist>

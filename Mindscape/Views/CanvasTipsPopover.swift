@@ -52,8 +52,8 @@ struct CanvasTipsPopover: View {
                     ])
 
                     section("多选与批量", icon: "square.on.square", items: [
-                        TipItem(keys: "\(modifier) 点击", text: "加选 / 减选节点"),
-                        TipItem(keys: "\(modifier) 拖拽空白", text: "框选多个节点"),
+                        TipItem(keys: String(localized: "\(modifier) 点击"), text: "加选 / 减选节点"),
+                        TipItem(keys: String(localized: "\(modifier) 拖拽空白"), text: "框选多个节点"),
                         TipItem(keys: deleteKey, text: "删除所选节点"),
                         TipItem(keys: "拖动选中节点", text: "整组移动（自由布局保持相对位置）")
                     ])
@@ -112,8 +112,8 @@ struct CanvasTipsPopover: View {
                     .background(Color.primary.opacity(0.06), in: Circle())
             }
             .buttonStyle(.plain)
-            .help("关闭提示")
-            .accessibilityLabel("关闭提示")
+            .help("关闭提示".l10n)
+            .accessibilityLabel("关闭提示".l10n)
         }
         .padding(16)
     }
@@ -138,7 +138,7 @@ struct CanvasTipsPopover: View {
             HStack(spacing: 5) {
                 Image(systemName: icon)
                     .font(.system(size: 9.5, weight: .semibold))
-                Text(title)
+                Text(title.l10n)
                     .font(.system(size: 10, weight: .semibold))
                     .textCase(.uppercase)
                     .tracking(0.4)
@@ -166,7 +166,7 @@ private struct TipRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            Text(keys)
+            Text(keys.l10n)
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundStyle(.primary.opacity(0.82))
                 .padding(.horizontal, 6)
@@ -177,7 +177,7 @@ private struct TipRow: View {
                     in: RoundedRectangle(cornerRadius: 5, style: .continuous)
                 )
 
-            Text(text)
+            Text(text.l10n)
                 .font(.system(size: 11.5))
                 .foregroundStyle(.primary.opacity(0.82))
                 .fixedSize(horizontal: false, vertical: true)

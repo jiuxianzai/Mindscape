@@ -54,12 +54,12 @@ struct EmptyStateView: View {
 
     private func hint(key: String, text: String) -> some View {
         HStack(spacing: 5) {
-            Text(key)
+            Text(key.l10n)
                 .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
                 .padding(.horizontal, 5)
                 .padding(.vertical, 2)
                 .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-            Text(text)
+            Text(text.l10n)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }

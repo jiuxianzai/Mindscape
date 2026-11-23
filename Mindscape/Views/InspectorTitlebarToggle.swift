@@ -82,7 +82,7 @@ private struct InspectorTitlebarButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .help("显示 / 隐藏属性面板（⌥⌘I）")
+        .help("显示 / 隐藏属性面板（⌥⌘I）".l10n)
         .padding(.horizontal, 10)
     }
 }

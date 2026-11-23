@@ -274,6 +274,10 @@ struct GeneralSettingsContent: View {
     @AppStorage("showMenuBarExtra") private var showMenuBarExtra = true
 
     @State private var errorMessage: String?
+    @State private var language = AppLanguage.stored
+    @State private var appliedLanguage = AppLanguage.stored
+
+    private var languageNeedsRestart: Bool { language != appliedLanguage }
 
     private var themeOptions: [MapTheme] {
         MapTheme.all.filter { ThemePolicy.allows($0.id, isDark: colorScheme == .dark) }
@@ -302,6 +306,34 @@ struct GeneralSettingsContent: View {
                             .labelsHidden()
                             .pickerStyle(.menu)
                             .controlSize(.small)
+                        }
+                    }
+                }
+            }
+
+            SettingsSection("语言") {
+                SettingsCard {
+                    VStack(spacing: 0) {
+                        settingsRow("界面语言", subtitle: "切换后需要重新打开 Mindscape 才能生效") {
+                            HStack(spacing: 7) {
+                                if languageNeedsRestart {
+                                    Button("重新打开") {
+                                        AppLanguage.relaunch()
+                                    }
+                                    .buttonStyle(SettingsActionButtonStyle(primary: true))
+                                }
+                                Picker("", selection: $language) {
+                                    ForEach(AppLanguage.allCases) { item in
+                                        Text(item.displayName).tag(item)
+                                    }
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .controlSize(.small)
+                                .onChange(of: language) { _, newValue in
+                                    newValue.apply()
+                                }
+                            }
                         }
                     }
                 }
@@ -502,7 +534,9 @@ struct GeneralSettingsContent: View {
                     .font(.system(size: 10.5, design: .monospaced))
                     .lineLimit(2)
                     .textSelection(.enabled)
-                Text(current ? "\(count) 张导图 · 当前目录" : "\(count) 张导图 · 可切换")
+                Text(current
+                     ? String(localized: "\(count) 张导图 · 当前目录")
+                     : String(localized: "\(count) 张导图 · 可切换"))
                     .font(.system(size: 9.5))
                     .foregroundStyle(.secondary)
             }
@@ -699,7 +733,7 @@ struct ShortcutRow: View {
             .buttonStyle(.plain)
             .foregroundStyle(store.isDefault(action) ? Color.secondary.opacity(0.35) : Color.secondary)
             .disabled(store.isDefault(action))
-            .help("恢复默认")
+            .help("恢复默认".l10n)
         }
     }
 }
@@ -710,7 +744,7 @@ struct ShortcutRecorderSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var monitor: Any?
-    @State private var message = "请按下新的快捷键（Esc 取消）"
+    @State private var message = String(localized: "请按下新的快捷键（Esc 取消）")
     @State private var isError = false
 
     var body: some View {
@@ -722,7 +756,7 @@ struct ShortcutRecorderSheet: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 8)
                 .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            Text(message)
+            Text(message.l10n)
                 .font(.system(size: 11))
                 .foregroundStyle(isError ? Color.red : Color.secondary)
                 .multilineTextAlignment(.center)

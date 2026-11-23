@@ -17,10 +17,10 @@ final class AgentCoordinator {
 
         var label: String {
             switch self {
-            case .disabled: return "未启用"
-            case .stopped: return "已停止"
-            case .running(let port): return "运行中 · 127.0.0.1:\(port)"
-            case .error: return "启动失败"
+            case .disabled: return String(localized: "未启用")
+            case .stopped: return String(localized: "已停止")
+            case .running(let port): return String(localized: "运行中 · 127.0.0.1:\(String(port))")
+            case .error: return String(localized: "启动失败")
             }
         }
     }
@@ -81,11 +81,14 @@ final class AgentCoordinator {
     var statusDescription: String {
         switch state {
         case .disabled:
-            return "AI Agent 无法连接。开启后，Agent 调用时才会启动本地服务。"
+            return String(localized: "AI Agent 无法连接。开启后，Agent 调用时才会启动本地服务。")
         case .stopped:
-            return "已启用，等待 Agent 调用；空闲 \(idleMinutes == 0 ? "不自动关闭" : "\(idleMinutes) 分钟") 后自动停止。"
+            if idleMinutes == 0 {
+                return String(localized: "已启用，等待 Agent 调用；空闲时不自动关闭。")
+            }
+            return String(localized: "已启用，等待 Agent 调用；空闲 \(idleMinutes) 分钟后自动停止。")
         case .running(let port):
-            return "服务运行在 127.0.0.1:\(port)，仅接受带访问令牌的本机请求。"
+            return String(localized: "服务运行在 127.0.0.1:\(String(port))，仅接受带访问令牌的本机请求。")
         case .error(let message):
             return message
         }
@@ -200,14 +203,15 @@ final class AgentCoordinator {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                return "连接失败（HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)）"
+                let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+                return String(localized: "连接失败（HTTP \(code)）")
             }
             let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             let dataObject = object?["data"] as? [String: Any]
             let version = dataObject?["version"] as? String ?? "?"
-            return "连接正常 · Mindscape \(version)"
+            return String(localized: "连接正常 · Mindscape \(version)")
         } catch {
-            return "连接失败：\(error.localizedDescription)"
+            return String(localized: "连接失败：\(error.localizedDescription)")
         }
     }
 

@@ -150,7 +150,7 @@ struct WorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: .mindscapeSnapshotCreated)) { note in
             let success = note.object as? Bool ?? false
             showSnapshotToast(
-                success ? "快照已创建" : "创建快照失败",
+                success ? String(localized: "快照已创建") : String(localized: "创建快照失败"),
                 success: success
             )
         }
@@ -220,7 +220,7 @@ struct WorkspaceView: View {
     private func showSnapshotToast(_ message: String, success: Bool) {
         snapshotToastTask?.cancel()
         snapshotToastIcon = success ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
-        snapshotToast = message
+        snapshotToast = message.l10n
         snapshotToastTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.8))
             guard !Task.isCancelled else { return }
@@ -267,7 +267,7 @@ struct WorkspaceView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("退出专注模式")
+            .help("退出专注模式".l10n)
         }
         .foregroundStyle(Color.primary.opacity(0.8))
         .padding(.horizontal, 10)
@@ -339,28 +339,28 @@ struct WorkspaceView: View {
             } label: {
                 Label("查找节点", systemImage: "magnifyingglass")
             }
-            .help("图内搜索（⌘F）")
+            .help("图内搜索（⌘F）".l10n)
 
             Button {
                 toggleOutline()
             } label: {
                 Label("大纲", systemImage: "list.bullet.indent")
             }
-            .help("显示 / 隐藏大纲侧栏（⌘⇧O）")
+            .help("显示 / 隐藏大纲侧栏（⌘⇧O）".l10n)
 
             Button {
                 editor.toggleFocus()
             } label: {
                 Label("专注模式", systemImage: editor.focusNodeID == nil ? "scope" : "target")
             }
-            .help("只聚焦当前分支（⌘⇧F）")
+            .help("只聚焦当前分支（⌘⇧F）".l10n)
 
             Button {
                 PresentationWindowController.shared.present(map: editor.map)
             } label: {
                 Label("演示", systemImage: "play.rectangle")
             }
-            .help("进入演示模式（⌘⇧P）")
+            .help("进入演示模式（⌘⇧P）".l10n)
 
             Menu {
                 ForEach(MapLayout.allCases) { layout in
@@ -391,7 +391,7 @@ struct WorkspaceView: View {
             } label: {
                 Label("布局", systemImage: "square.grid.2x2")
             }
-            .help("切换布局")
+            .help("切换布局".l10n)
 
             Button {
                 showThemePicker.toggle()
@@ -413,8 +413,8 @@ struct WorkspaceView: View {
                 .background(Color.primary.opacity(0.06), in: Capsule())
             }
             .buttonStyle(.plain)
-            .help("切换主题")
-            .accessibilityLabel("切换主题")
+            .help("切换主题".l10n)
+            .accessibilityLabel("切换主题".l10n)
             .popover(isPresented: $showThemePicker, arrowEdge: .bottom) {
                 VStack(alignment: .leading, spacing: 6) {
                     ThemePickerGrid(selectedID: editor.map.themeID) { themeID in
@@ -434,22 +434,22 @@ struct WorkspaceView: View {
             } label: {
                 Label("历史", systemImage: "clock.arrow.circlepath")
             }
-            .help("历史版本")
+            .help("历史版本".l10n)
 
             Button {
                 showExport = true
             } label: {
                 Label("导出", systemImage: "square.and.arrow.up")
             }
-            .help("导出 / 分享")
+            .help("导出 / 分享".l10n)
 
             Button {
                 showTips.toggle()
             } label: {
                 Label("操作提示", systemImage: showTips ? "lightbulb.fill" : "lightbulb")
             }
-            .help("画布操作提示")
-            .accessibilityLabel("画布操作提示")
+            .help("画布操作提示".l10n)
+            .accessibilityLabel("画布操作提示".l10n)
             .popover(isPresented: $showTips, arrowEdge: .bottom) {
                 CanvasTipsPopover(store: ShortcutStore.shared) {
                     showTips = false

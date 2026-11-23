@@ -43,7 +43,7 @@ struct UpdateBanner: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("稍后提醒")
+            .accessibilityLabel("稍后提醒".l10n)
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 12)

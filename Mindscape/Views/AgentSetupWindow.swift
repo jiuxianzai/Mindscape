@@ -26,7 +26,7 @@ struct AgentSetupContent: View {
             promptCard
 
             if let message, !message.isEmpty {
-                Text(message)
+                Text(message.l10n)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -97,7 +97,7 @@ struct AgentSetupContent: View {
 
                     Button("重新生成令牌") {
                         coordinator.restart()
-                        message = "已重新生成访问令牌。"
+                        message = String(localized: "已重新生成访问令牌。")
                     }
                     .buttonStyle(SettingsActionButtonStyle())
                 }
@@ -162,7 +162,7 @@ struct AgentSetupContent: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            Button(state == .notDetected ? "安装" : "安装 / 更新") {
+            Button(state == .notDetected ? String(localized: "安装") : String(localized: "安装 / 更新")) {
                 install(target)
             }
             .buttonStyle(SettingsActionButtonStyle())
@@ -203,30 +203,32 @@ struct AgentSetupContent: View {
 
     private func stateLabel(_ state: AgentSkillInstaller.InstallState) -> String {
         switch state {
-        case .notDetected: return "未检测到该 Agent 的配置目录"
-        case .notInstalled: return "未安装"
-        case .installed(let version): return "已安装 · v\(version)"
-        case .outdated(let version): return "可更新 · 当前 v\(version)"
+        case .notDetected: return String(localized: "未检测到该 Agent 的配置目录")
+        case .notInstalled: return String(localized: "未安装")
+        case .installed(let version): return String(localized: "已安装 · v\(version)")
+        case .outdated(let version): return String(localized: "可更新 · 当前 v\(version)")
         }
     }
 
     private func install(_ target: AgentSkillInstaller.Target) {
         do {
             let result = try coordinator.installSkill(target: target)
-            message = "已安装到 \(result.path)"
+            message = String(localized: "已安装到 \(result.path)")
             refreshToken += 1
         } catch {
-            message = "安装失败：\(error.localizedDescription)"
+            message = String(localized: "安装失败：\(error.localizedDescription)")
         }
     }
 
     private func installAll() {
         do {
             let results = try AgentSkillInstaller().installAllDetected()
-            message = results.isEmpty ? "没有检测到可安装的 Agent" : "已安装 \(results.count) 个 Agent 的 Skill"
+            message = results.isEmpty
+                ? String(localized: "没有检测到可安装的 Agent")
+                : String(localized: "已安装 \(results.count) 个 Agent 的 Skill")
             refreshToken += 1
         } catch {
-            message = "安装失败：\(error.localizedDescription)"
+            message = String(localized: "安装失败：\(error.localizedDescription)")
         }
     }
 
@@ -242,6 +244,6 @@ struct AgentSetupContent: View {
     private func copyPrompt() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(coordinator.skillPrompt, forType: .string)
-        message = "已复制接入提示。"
+        message = String(localized: "已复制接入提示。")
     }
 }

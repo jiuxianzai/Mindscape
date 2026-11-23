@@ -348,7 +348,7 @@ struct InspectorView: View {
                 actionButton("创建快照", icon: "camera") {
                     let success = editor.createSnapshot()
                     showSnapshotFeedback(
-                        success ? "快照已创建" : "创建快照失败",
+                        success ? String(localized: "快照已创建") : String(localized: "创建快照失败"),
                         success: success
                     )
                 }

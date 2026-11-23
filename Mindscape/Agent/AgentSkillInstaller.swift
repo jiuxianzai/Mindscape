@@ -78,7 +78,7 @@ struct AgentSkillInstaller {
     }
 
     var prompt: String {
-        "请阅读 ~/.agents/skills/mindscape/SKILL.md，然后通过 Mindscape 本地 OpenAPI 帮我创建一张思维导图。"
+        String(localized: "请阅读 ~/.agents/skills/mindscape/SKILL.md，然后通过 Mindscape 本地 OpenAPI 帮我创建一张思维导图。")
     }
 
     var hasAnyInstalled: Bool {

@@ -59,7 +59,7 @@ struct CanvasZoomBar: View {
                     draft = percentText
                     lastCommitted = draft
                 }
-                .accessibilityLabel("缩放比例")
+                .accessibilityLabel("缩放比例".l10n)
 
             BarIconButton(systemName: "plus", help: "放大 5%") {
                 step(5)

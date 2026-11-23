@@ -399,7 +399,7 @@ struct UpdateWindowView: View {
                     confirmingInstall = true
                 }
                 .buttonStyle(SettingsActionButtonStyle(primary: true))
-                .help("打开后可选择保存并退出 Mindscape，避免拖动覆盖时被系统拦截")
+                .help("打开后可选择保存并退出 Mindscape，避免拖动覆盖时被系统拦截".l10n)
             }
 
         case .failed:
