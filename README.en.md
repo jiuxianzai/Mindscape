@@ -39,28 +39,40 @@ Mindscape is a native macOS mind-mapping app built for people who want to think 
 
 ## Screenshots
 
-Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and UI details follow the current release.
+All screenshots and GIFs are from **0.7.2** (sample data), captured on a real macOS VM.
 
 <p align="center">
-  <img src="docs/screenshots/main.png" width="100%" alt="Mindscape main window">
+  <img src="docs/screenshots/main.png" width="100%" alt="Main window: folders, canvas and a 27-node roadmap">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/drag-sort.png" width="100%" alt="Drag sorting: dashed subtree preview and magnetic target">
+  <img src="docs/gifs/drag.gif" width="100%" alt="Dragging a node: drop it on another node to reparent, and the whole subtree comes along">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/layout-memory.png" width="100%" alt="Branch arrangement: Remember Layout / Balanced Layout">
+  <img src="docs/gifs/layouts.gif" width="100%" alt="Switching layouts: mind map → logic chart → org chart → timeline → brace map">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/inspector.png" width="49%" alt="Node inspector and icon library">
-  <img src="docs/screenshots/dark.png" width="49%" alt="Dark theme with logic-chart layout">
+  <img src="docs/screenshots/layout-memory.png" width="100%" alt="Branch arrangement: Remember Layout / Balanced Layout, with the 8 themes on the right">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/export.png" width="28%" alt="Export and share">
-  <img src="docs/screenshots/settings.png" width="49%" alt="Settings">
+  <img src="docs/screenshots/inspector.png" width="49%" alt="Node inspector: text, note, icon library and colour">
+  <img src="docs/screenshots/dark.png" width="49%" alt="Dark theme “Deep Space” with the logic-chart layout">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/settings.png" width="49%" alt="Settings: switch this app between Chinese and English">
+  <img src="docs/screenshots/export.png" width="30%" alt="Export: PNG / PDF / Markdown / OPML / JSON">
+</p>
+
+<p align="center">
+  <img src="docs/gifs/input.gif" width="78%" alt="Typing: Return for a sibling, Tab for a child — the map grows as you type">
+</p>
+
+<p align="center">
+  <img src="docs/gifs/shortcuts.gif" width="78%" alt="Common shortcuts: ⌘F in-map search, ⇧⌘O outline, plus the full shortcut settings page">
 </p>
 
 <p align="center">
@@ -304,11 +316,6 @@ Tables: `documents` (metadata + full map JSON + folder), `folders`, `snapshots` 
 
 ## Roadmap
 
-- [x] Markdown / OPML / JSON import
-- [x] Outline panel with canvas location
-- [x] Presentation mode, focus mode
-- [x] Free-form alignment guides and snapping
-- [x] XCTest target
 - [ ] FreeMind / XMind import
 - [ ] Two-way sync between outline and canvas
 - [ ] Relationships, summaries, boundaries
@@ -317,6 +324,11 @@ Tables: `documents` (metadata + full map JSON + folder), `folders`, `snapshots` 
 - [ ] Developer ID signing + notarization
 - [ ] CI (build + test + release)
 - [ ] Stable 1.0 data format
+- [x] Markdown / OPML / JSON import
+- [x] Outline panel with canvas location
+- [x] Presentation mode, focus mode
+- [x] Free-form alignment guides and snapping
+- [x] XCTest target
 
 ## Known limitations
 

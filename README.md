@@ -39,32 +39,40 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ## 截图
 
-截图使用示例数据；部分截图来自 0.5.x 早期版本，快捷键与界面细节以当前版本为准。
+截图和 GIF 全部来自 **0.7.2**（示例数据），在 macOS 虚拟机里实拍。
 
 <p align="center">
-  <img src="docs/screenshots/main.png" width="100%" alt="Mindscape 主界面">
+  <img src="docs/screenshots/main.png" width="100%" alt="主界面：目录、画布与 27 个节点的路线图">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/drag-sort.png" width="100%" alt="拖动排序：整棵子树的虚线预览与磁吸目标">
+  <img src="docs/gifs/drag.gif" width="100%" alt="拖动节点：拖到另一个节点上即可换层级，整棵子树跟着走">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/layout-memory.png" width="100%" alt="分支排列：记住布局 / 平衡布局">
+  <img src="docs/gifs/layouts.gif" width="100%" alt="切换布局：思维导图 → 逻辑图 → 组织架构图 → 时间轴 → 括号图">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/inspector.png" width="49%" alt="节点属性与图标库">
-  <img src="docs/screenshots/dark.png" width="49%" alt="深色主题与逻辑图布局">
+  <img src="docs/screenshots/layout-memory.png" width="100%" alt="分支排列：记住布局 / 平衡布局，右侧是 8 套主题">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/export.png" width="28%" alt="导出与分享">
-  <img src="docs/screenshots/settings.png" width="49%" alt="设置">
+  <img src="docs/screenshots/inspector.png" width="49%" alt="节点属性：文字、备注、图标库与颜色">
+  <img src="docs/screenshots/dark.png" width="49%" alt="深色主题「深空」配逻辑图布局">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/shortcuts.png" width="49%" alt="快捷键设置">
+  <img src="docs/screenshots/settings.png" width="49%" alt="设置：语言可只对本 App 切换中英文">
+  <img src="docs/screenshots/export.png" width="30%" alt="导出：PNG / PDF / Markdown / OPML / JSON">
+</p>
+
+<p align="center">
+  <img src="docs/gifs/input.gif" width="78%" alt="键盘输入：回车同级、Tab 子级，边打边成图">
+</p>
+
+<p align="center">
+  <img src="docs/gifs/shortcuts.gif" width="78%" alt="常用快捷键：⌘F 图内搜索、⇧⌘O 大纲，以及完整的快捷键设置页">
 </p>
 
 <p align="center">
