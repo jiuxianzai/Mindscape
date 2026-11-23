@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
   <img src="https://img.shields.io/badge/tests-181-brightgreen?style=flat-square" alt="181 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.7.1-lightgrey?style=flat-square" alt="Status 0.7.1">
+  <img src="https://img.shields.io/badge/status-0.7.2-lightgrey?style=flat-square" alt="Status 0.7.2">
 </p>
 
 <p align="center">
@@ -27,11 +27,13 @@
 
 Mindscape is a native macOS mind-mapping app built for people who want to think on a canvas and keep the result on their own disk. It opens straight into a canvas, saves continuously, and never asks you to sign in.
 
-**Current version: 0.7.1** — features and the data format may still change.
+**Current version: 0.7.2** — features and the data format may still change.
 
-### What's new in 0.7.1
+### What's new in 0.7.2
 
-- Settings → General has a new Menu Bar section: you can turn off the always-visible menu bar icon, and turn it back on later from settings via the Mindscape menu
+- Settings → General has a new Language section: follow the system, Simplified Chinese, or English — pick one and click Reopen to apply. It writes only this app's `AppleLanguages`, never the system language
+- Around 190 missing English strings filled in: the AI Agent panel, the Menu Bar section, canvas tips, snapshot dialogs, empty states, icon names — the English UI is no longer half Chinese
+- Trash now has Empty Trash…: wipe every deleted map in one go, with a confirmation that shows the count; the list and sidebar badge update immediately
 
 ---
 
@@ -134,7 +136,7 @@ Sample data. Some screenshots were taken on earlier 0.5.x builds; shortcuts and 
 ### Accessibility & language
 
 - Canvas nodes are exposed to VoiceOver with level, collapsed state, and notes
-- UI is bilingual (English and Chinese) and follows the system language
+- UI is bilingual (English and Chinese) and follows the system language by default; you can also pick Simplified Chinese or English for Mindscape alone in Settings → General → Language (click "Reopen" to apply)
 
 ### Menu bar
 
@@ -153,7 +155,7 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 
 ### Download
 
-Download [`Mindscape-0.7.1.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.7.1/Mindscape-0.7.1.dmg), open it, and drag Mindscape into Applications.
+Download [`Mindscape-0.7.2.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.7.2/Mindscape-0.7.2.dmg), open it, and drag Mindscape into Applications.
 
 This build is **ad-hoc signed and not notarized**. If Gatekeeper blocks the first launch, run:
 
@@ -178,7 +180,7 @@ xcodegen generate && open Mindscape.xcodeproj
 Packaging and local install:
 
 ```bash
-make package    # writes dist/Mindscape-0.7.1.dmg, .zip, and .dmg.sha256
+make package    # writes dist/Mindscape-0.7.2.dmg, .zip, and .dmg.sha256
 make publish    # creates the GitHub Release via gh (requires gh auth login)
 make install    # installs to /Applications and launches
 ```
