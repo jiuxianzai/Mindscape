@@ -147,17 +147,8 @@ enum MapRenderer {
 
             let path: NSBezierPath
             if map.layout == .braceMap {
-                let barX = parentRect.maxX + 28
-                let childMids = (layout.children[parentID] ?? []).compactMap { layout.frames[$0]?.midY }
-                let minY = childMids.min() ?? childRect.midY
-                let maxY = childMids.max() ?? childRect.midY
-                path = NSBezierPath()
-                path.move(to: CGPoint(x: parentRect.maxX, y: parentRect.midY))
-                path.line(to: CGPoint(x: barX, y: parentRect.midY))
-                path.move(to: CGPoint(x: barX, y: minY))
-                path.line(to: CGPoint(x: barX, y: maxY))
-                path.move(to: CGPoint(x: barX, y: childRect.midY))
-                path.line(to: CGPoint(x: childRect.minX, y: childRect.midY))
+                let childRects = (layout.children[parentID] ?? []).compactMap { layout.frames[$0] }
+                path = braceConnectorPath(parentRect: parentRect, childRects: childRects)
             } else {
                 switch map.layout {
                 case .orgChart, .tree:
@@ -180,6 +171,82 @@ enum MapRenderer {
         return nil
     }
 
+    // MARK: - Brace map
+
+    /// 括号图（Brace Map）的几何：一个大括号把「整体」（父节点）和它的所有「部分」（子节点）括起来。
+    ///
+    /// 按参考图的口径：括号贴着整体，尖端指向父节点中线；上下两端朝子节点一侧卷出弯钩，
+    /// 竖直方向正好罩住最上面那个部分的顶边到最下面那个部分的底边。
+    /// **不再给每个子节点画横线**——括号本身就是范围，横线会把括号图又画成逻辑图。
+    /// 绘制和命中测试共用这一份几何。
+    static func braceConnectorPath(parentRect: CGRect, childRects: [CGRect]) -> NSBezierPath {
+        let path = NSBezierPath()
+        guard !childRects.isEmpty else { return path }
+
+        let ordered = childRects.sorted { $0.midY < $1.midY }
+        let top = ordered.first!.minY
+        let bottom = ordered.last!.maxY
+
+        guard ordered.count > 1 else {
+            // 只有一个部分：没有可以张开的括号，直接连过去
+            let y = ordered[0].midY
+            path.move(to: CGPoint(x: parentRect.maxX, y: y))
+            path.line(to: CGPoint(x: ordered[0].minX, y: y))
+            path.lineWidth = 1.6
+            path.lineCapStyle = .round
+            return path
+        }
+
+        // 括号又窄又高：宽度跟着跨度走，别做成一根粗竖杠
+        let nub: CGFloat = 12
+        let tipX = parentRect.maxX + nub
+        let width = min(max((bottom - top) * 0.075, 12), 20)
+        let stemX = tipX + width * 0.5
+        let endX = tipX + width
+        let spikeY = min(max(parentRect.midY, top), bottom)
+        // 弯钩半径：短跨度时两个钩不能叠在一起
+        let r = max(min(width, (spikeY - top) / 2, (bottom - spikeY) / 2), 1)
+        let k: CGFloat = 0.5523  // 三次贝塞尔逼近四分之一圆弧的系数
+
+        // 整体 → 括号尖端
+        path.move(to: CGPoint(x: parentRect.maxX, y: spikeY))
+        path.line(to: CGPoint(x: tipX, y: spikeY))
+
+        // 上钩
+        path.move(to: CGPoint(x: endX, y: top))
+        path.curve(
+            to: CGPoint(x: stemX, y: top + r),
+            controlPoint1: CGPoint(x: endX + (stemX - endX) * k, y: top),
+            controlPoint2: CGPoint(x: stemX, y: top + r - r * k)
+        )
+        // 上半段竖干
+        path.line(to: CGPoint(x: stemX, y: spikeY - r))
+        // 半个尖端
+        path.curve(
+            to: CGPoint(x: tipX, y: spikeY),
+            controlPoint1: CGPoint(x: stemX, y: spikeY - r + r * k),
+            controlPoint2: CGPoint(x: tipX + (stemX - tipX) * k, y: spikeY)
+        )
+        path.curve(
+            to: CGPoint(x: stemX, y: spikeY + r),
+            controlPoint1: CGPoint(x: tipX + (stemX - tipX) * k, y: spikeY),
+            controlPoint2: CGPoint(x: stemX, y: spikeY + r - r * k)
+        )
+        // 下半段竖干
+        path.line(to: CGPoint(x: stemX, y: bottom - r))
+        // 下钩
+        path.curve(
+            to: CGPoint(x: endX, y: bottom),
+            controlPoint1: CGPoint(x: stemX, y: bottom - r + r * k),
+            controlPoint2: CGPoint(x: endX + (stemX - endX) * k, y: bottom)
+        )
+
+        path.lineWidth = 1.8
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        return path
+    }
+
     private static func drawBraceConnectors(
         map: MindMap,
         layout: LayoutResult,
@@ -189,31 +256,15 @@ enum MapRenderer {
         alphaOverrides: [UUID: CGFloat]
     ) {
         for node in map.nodes {
-            guard let parentID = node.parentID,
-                  let parentRect = layout.frames[parentID] else { continue }
-            let children = (layout.children[node.id] ?? []).compactMap { layout.frames[$0] }
-            guard !children.isEmpty else { continue }
+            guard let rect = layout.frames[node.id] else { continue }
+            let childRects = (layout.children[node.id] ?? []).compactMap { layout.frames[$0] }
+            guard !childRects.isEmpty else { continue }
 
             let baseAlpha = dimmed.contains(node.id) ? max(0.06, dimAlpha * 0.7) : 0.95
             let alpha = baseAlpha * (alphaOverrides[node.id] ?? 1)
             theme.connector.withAlphaComponent(alpha).setStroke()
 
-            let barX = parentRect.maxX + 28
-            let minY = children.map(\.midY).min() ?? parentRect.midY
-            let maxY = children.map(\.midY).max() ?? parentRect.midY
-
-            let path = NSBezierPath()
-            path.move(to: CGPoint(x: parentRect.maxX, y: parentRect.midY))
-            path.line(to: CGPoint(x: barX, y: parentRect.midY))
-            path.move(to: CGPoint(x: barX, y: minY))
-            path.line(to: CGPoint(x: barX, y: maxY))
-            for child in children {
-                path.move(to: CGPoint(x: barX, y: child.midY))
-                path.line(to: CGPoint(x: child.minX, y: child.midY))
-            }
-            path.lineWidth = 1.6
-            path.lineCapStyle = .round
-            path.stroke()
+            braceConnectorPath(parentRect: rect, childRects: childRects).stroke()
         }
     }
 

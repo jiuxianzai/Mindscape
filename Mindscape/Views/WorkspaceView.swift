@@ -61,9 +61,9 @@ struct WorkspaceView: View {
     @State private var showThemePicker = false
     @State private var showTips = false
     @State private var tipsAutoShowTask: Task<Void, Never>?
-    @State private var snapshotToast: String?
-    @State private var snapshotToastIcon = "checkmark.circle.fill"
-    @State private var snapshotToastTask: Task<Void, Never>?
+    @State private var toast: String?
+    @State private var toastIcon = "checkmark.circle.fill"
+    @State private var toastTask: Task<Void, Never>?
 
     private var matches: [UUID] {
         guard showSearch else { return [] }
@@ -135,8 +135,8 @@ struct WorkspaceView: View {
             scheduleTipsAutoShow()
         }
         .overlay(alignment: .bottom) {
-            if let snapshotToast {
-                Label(snapshotToast, systemImage: snapshotToastIcon)
+            if let toast {
+                Label(toast, systemImage: toastIcon)
                     .font(.system(size: 11, weight: .medium))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
@@ -146,7 +146,15 @@ struct WorkspaceView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.easeOut(duration: 0.18), value: snapshotToast)
+        .animation(.easeOut(duration: 0.18), value: toast)
+        .onReceive(NotificationCenter.default.publisher(for: .mindscapeReorderHint)) { _ in
+            guard CanvasDragHint.consumeReminder() else { return }
+            showToast(
+                String(localized: "调整同级顺序：按住 ⌥ 拖到同级节点上"),
+                icon: "arrow.up.and.down",
+                duration: 3.4
+            )
+        }
         .onReceive(NotificationCenter.default.publisher(for: .mindscapeSnapshotCreated)) { note in
             let success = note.object as? Bool ?? false
             showSnapshotToast(
@@ -156,7 +164,7 @@ struct WorkspaceView: View {
         }
         .onDisappear {
             tipsAutoShowTask?.cancel()
-            snapshotToastTask?.cancel()
+            toastTask?.cancel()
         }
     }
 
@@ -218,14 +226,22 @@ struct WorkspaceView: View {
     }
 
     private func showSnapshotToast(_ message: String, success: Bool) {
-        snapshotToastTask?.cancel()
-        snapshotToastIcon = success ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
-        snapshotToast = message.l10n
-        snapshotToastTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.8))
+        showToast(
+            message.l10n,
+            icon: success ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
+        )
+    }
+
+    /// 画布底部的轻提示：到点自动消失，同一时间只留一条。
+    private func showToast(_ message: String, icon: String, duration: TimeInterval = 1.8) {
+        toastTask?.cancel()
+        toastIcon = icon
+        toast = message
+        toastTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(duration))
             guard !Task.isCancelled else { return }
             withAnimation {
-                snapshotToast = nil
+                toast = nil
             }
         }
     }

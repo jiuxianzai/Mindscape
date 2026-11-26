@@ -670,6 +670,7 @@ Tutorial: jiuxianzai.github.io/Mindscape/#ai-agent";
 "音乐" = "Music";
 "耳机" = "Headphones";
 "录音" = "Mic";
+"调整同级顺序：按住 ⌥ 拖到同级节点上" = "To reorder siblings, hold ⌥ and drag onto one.";
 "请阅读 ~/.agents/skills/mindscape/SKILL.md，然后通过 Mindscape 本地 OpenAPI 帮我创建一张思维导图。" = "Please read ~/.agents/skills/mindscape/SKILL.md, then use Mindscape’s local OpenAPI to create a mind map for me.";
 "%@ 点击" = "%@ click";
 "%@ 拖拽空白" = "%@ drag on empty canvas";

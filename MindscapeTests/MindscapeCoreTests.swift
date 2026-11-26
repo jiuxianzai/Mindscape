@@ -2635,6 +2635,302 @@ extension MindscapeFeatureTests {
         let pasted = try XCTUnwrap(editor.map.children(of: rootID).first(where: { $0.text == "里程碑" }))
         XCTAssertEqual(editor.map.children(of: pasted.id).count, childCount)
     }
+    // MARK: - 括号图（Brace Map）
+
+    /// 造一棵 整体 → 部分 → 部分 的括号图；leaves 为空表示这个部分没有下一级。
+    private func makeBraceMap(
+        branches: [(String, [String])]
+    ) -> (map: MindMap, rootID: UUID, branchIDs: [UUID]) {
+        var nodes: [MindNode] = []
+        let rootID = UUID()
+        nodes.append(MindNode(id: rootID, parentID: nil, text: "整体", order: 0))
+        var branchIDs: [UUID] = []
+        var order = 1
+        for (title, leaves) in branches {
+            let branchID = UUID()
+            branchIDs.append(branchID)
+            nodes.append(MindNode(id: branchID, parentID: rootID, text: title, order: order))
+            order += 1
+            for leaf in leaves {
+                nodes.append(MindNode(parentID: branchID, text: leaf, order: order))
+                order += 1
+            }
+        }
+        var map = MindMap(nodes: nodes, layout: .braceMap)
+        map.themeID = "paper"
+        return (map, rootID, branchIDs)
+    }
+
+    /// 大括号从最上面那个部分的顶边罩到最下面那个部分的底边，
+    /// 整根括号待在整体和部分之间，不能压到任何节点，也不再给每个部分画横线。
+    func testBraceMapBraceSpansEveryBranchBetweenWholeAndParts() throws {
+        let (map, rootID, _) = makeBraceMap(branches: [
+            ("S 优势", ["内部优势"]),
+            ("W 劣势", ["内部劣势"]),
+            ("O 机会", ["外部机会"]),
+            ("T 威胁", ["外部威胁"]),
+            ("新主题", []),
+        ])
+        let layout = LayoutEngine.layout(map)
+        let rootRect = try XCTUnwrap(layout.frames[rootID])
+        let branchRects = (layout.children[rootID] ?? []).compactMap { layout.frames[$0] }
+        XCTAssertEqual(branchRects.count, 5)
+
+        let path = MapRenderer.braceConnectorPath(parentRect: rootRect, childRects: branchRects)
+        XCTAssertEqual(path.bounds.minX, rootRect.maxX, accuracy: 0.5, "括号必须从整体自己的右边出发")
+        XCTAssertEqual(path.bounds.minY, branchRects.map(\.minY).min()!, accuracy: 0.5, "上端应罩住最上面的部分")
+        XCTAssertEqual(path.bounds.maxY, branchRects.map(\.maxY).max()!, accuracy: 0.5, "下端应罩住最下面的部分")
+        XCTAssertLessThan(
+            path.bounds.maxX, branchRects.map(\.minX).min()!,
+            "括号不能伸进部分所在的那一列"
+        )
+        XCTAssertGreaterThan(path.bounds.width, 8, "括号要有可见的张开幅度，不能是一根竖线")
+    }
+
+    /// 多层嵌套：每一级的括号都罩住自己的部分，整体那根只到一级分支为止。
+    func testBraceMapNestedBracesUseTheirOwnParent() throws {
+        let (map, rootID, branchIDs) = makeBraceMap(branches: [
+            ("甲", ["一", "二", "三"]),
+            ("乙", ["四", "五"]),
+        ])
+        let layout = LayoutEngine.layout(map)
+
+        for branchID in branchIDs {
+            let branchRect = try XCTUnwrap(layout.frames[branchID])
+            let leafRects = (layout.children[branchID] ?? []).compactMap { layout.frames[$0] }
+            XCTAssertFalse(leafRects.isEmpty)
+            let path = MapRenderer.braceConnectorPath(parentRect: branchRect, childRects: leafRects)
+            XCTAssertEqual(path.bounds.minX, branchRect.maxX, accuracy: 0.5)
+            XCTAssertEqual(path.bounds.minY, leafRects.map(\.minY).min()!, accuracy: 0.5)
+            XCTAssertEqual(path.bounds.maxY, leafRects.map(\.maxY).max()!, accuracy: 0.5)
+            XCTAssertLessThan(path.bounds.maxX, leafRects.map(\.minX).min()!)
+        }
+
+        // 整体那根只罩一级分支
+        let rootRect = try XCTUnwrap(layout.frames[rootID])
+        let branchRects = (layout.children[rootID] ?? []).compactMap { layout.frames[$0] }
+        let rootPath = MapRenderer.braceConnectorPath(parentRect: rootRect, childRects: branchRects)
+        XCTAssertLessThan(rootPath.bounds.maxX, branchRects.map(\.minX).min()!)
+    }
+
+    /// 括号图要像参考图那样按列排：同一深度的节点左边缘对齐。
+    func testBraceMapColumnsAlignPerDepth() throws {
+        var (map, _, _) = makeBraceMap(branches: [
+            ("很短", ["一", "二"]),
+            ("这是一个明显更宽的一级分支主题", ["三"]),
+            ("中等宽度的分支", ["四", "五", "六"]),
+        ])
+        // 让同一层里出现宽度差异很大的节点
+        map.nodes = map.nodes.map { node in
+            var copy = node
+            if copy.text == "一" { copy.text = "一个非常非常长、会明显撑宽这一列里某个节点的主题文案" }
+            return copy
+        }
+        let layout = LayoutEngine.layout(map)
+
+        var minXByDepth: [Int: Set<Int>] = [:]
+        for node in map.nodes {
+            guard let rect = layout.frames[node.id] else { continue }
+            let depth = layout.depths[node.id] ?? 0
+            minXByDepth[depth, default: []].insert(Int(rect.minX.rounded()))
+        }
+        for (depth, values) in minXByDepth {
+            XCTAssertEqual(values.count, 1, "深度 \(depth) 的节点左边缘没有对齐：\(values.sorted())")
+        }
+    }
+
+    /// 只有一个部分时没有可以张开的括号，退化成一条直线（不能画出一根竖杠）。
+    func testBraceMapSingleChildIsStraightLine() throws {
+        let (map, rootID, _) = makeBraceMap(branches: [("独苗", [])])
+        let layout = LayoutEngine.layout(map)
+        let rootRect = try XCTUnwrap(layout.frames[rootID])
+        let childRects = (layout.children[rootID] ?? []).compactMap { layout.frames[$0] }
+        XCTAssertEqual(childRects.count, 1)
+
+        let path = MapRenderer.braceConnectorPath(parentRect: rootRect, childRects: childRects)
+        XCTAssertLessThanOrEqual(path.bounds.height, 1, "只有一个部分时不该出现竖杠")
+        XCTAssertEqual(path.bounds.minX, rootRect.maxX, accuracy: 0.5)
+        XCTAssertEqual(path.bounds.maxX, childRects[0].minX, accuracy: 0.5)
+    }
+
+    /// 折叠的分支：子节点不再布局，属于它的括号也随之消失。
+    func testBraceMapCollapsedBranchDropsItsBrace() throws {
+        var (map, _, branchIDs) = makeBraceMap(branches: [("甲", ["一", "二"])])
+        let branchID = branchIDs[0]
+        map.nodes = map.nodes.map { node in
+            var copy = node
+            if copy.id == branchID { copy.collapsed = true }
+            return copy
+        }
+        let layout = LayoutEngine.layout(map)
+        let hidden = (layout.children[branchID] ?? []).compactMap { layout.frames[$0] }
+        XCTAssertTrue(hidden.isEmpty, "折叠后子节点不该还有坐标")
+
+        let branchRect = try XCTUnwrap(layout.frames[branchID])
+        XCTAssertTrue(
+            MapRenderer.braceConnectorPath(parentRect: branchRect, childRects: hidden).isEmpty,
+            "没有子节点就不该画括号"
+        )
+    }
+
+    /// 节点高度不一致（长文案换行）时，括号仍要罩住最上面和最下面那个部分。
+    func testBraceMapUnevenHeightsStillEncloseEveryChild() throws {
+        let (map, rootID, _) = makeBraceMap(branches: [
+            ("短", ["一"]),
+            ("很长很长很长很长很长很长很长很长很长很长的主题文案，会换成好几行", ["二", "三"]),
+            ("中等长度的主题", ["四"]),
+        ])
+        let layout = LayoutEngine.layout(map)
+        let rootRect = try XCTUnwrap(layout.frames[rootID])
+        let childRects = (layout.children[rootID] ?? []).compactMap { layout.frames[$0] }
+        XCTAssertEqual(childRects.count, 3)
+        XCTAssertGreaterThan(Set(childRects.map { Int($0.height.rounded()) }).count, 1, "这组用例的节点高度应该不一样")
+
+        let path = MapRenderer.braceConnectorPath(parentRect: rootRect, childRects: childRects)
+        XCTAssertEqual(path.bounds.minY, childRects.map(\.minY).min()!, accuracy: 0.5)
+        XCTAssertEqual(path.bounds.maxY, childRects.map(\.maxY).max()!, accuracy: 0.5)
+        // 括号不能和任何一个部分重叠（除了共享上下边界的贴边情况）
+        for rect in childRects {
+            XCTAssertGreaterThanOrEqual(rect.minX, path.bounds.maxX, "括号压到部分上了")
+        }
+    }
+
+    /// 部分很多时，括号依然是「一根」，并且完整地待在空隙里。
+    func testBraceMapManyChildrenStayInsideTheGap() throws {
+        let leaves = (1...12).map { "部分\($0)" }
+        let (map, rootID, _) = makeBraceMap(branches: [("多", leaves)])
+        let layout = LayoutEngine.layout(map)
+        let rootRect = try XCTUnwrap(layout.frames[rootID])
+        let branchID = try XCTUnwrap(layout.children[rootID]?.first)
+        let branchRect = try XCTUnwrap(layout.frames[branchID])
+        let leafRects = (layout.children[branchID] ?? []).compactMap { layout.frames[$0] }
+        XCTAssertEqual(leafRects.count, 12)
+
+        let path = MapRenderer.braceConnectorPath(parentRect: branchRect, childRects: leafRects)
+        XCTAssertEqual(path.bounds.minX, branchRect.maxX, accuracy: 0.5)
+        XCTAssertLessThan(path.bounds.maxX, leafRects.map(\.minX).min()!)
+        XCTAssertEqual(path.bounds.minY, leafRects.map(\.minY).min()!, accuracy: 0.5)
+        XCTAssertEqual(path.bounds.maxY, leafRects.map(\.maxY).max()!, accuracy: 0.5)
+    }
+
+    /// 多个头部节点：每棵树各自有自己的大括号，互不串线。
+    func testBraceMapMultipleHeadsEachGetTheirOwnBrace() throws {
+        var nodes: [MindNode] = []
+        var heads: [(UUID, [UUID])] = []
+        for title in ["头一", "头二"] {
+            let headID = UUID()
+            nodes.append(MindNode(id: headID, parentID: nil, text: title, order: heads.count))
+            var kids: [UUID] = []
+            for index in 0..<2 {
+                let kidID = UUID()
+                nodes.append(MindNode(id: kidID, parentID: headID, text: "\(title)-\(index)", order: index))
+                kids.append(kidID)
+            }
+            heads.append((headID, kids))
+        }
+        var map = MindMap(nodes: nodes, layout: .braceMap)
+        map.themeID = "paper"
+        let layout = LayoutEngine.layout(map)
+
+        for (headID, kidIDs) in heads {
+            let headRect = try XCTUnwrap(layout.frames[headID])
+            let kidRects = kidIDs.compactMap { layout.frames[$0] }
+            XCTAssertEqual(kidRects.count, 2)
+            let path = MapRenderer.braceConnectorPath(parentRect: headRect, childRects: kidRects)
+            XCTAssertEqual(path.bounds.minX, headRect.maxX, accuracy: 0.5)
+            XCTAssertEqual(path.bounds.minY, kidRects.map(\.minY).min()!, accuracy: 0.5)
+            XCTAssertEqual(path.bounds.maxY, kidRects.map(\.maxY).max()!, accuracy: 0.5)
+            XCTAssertLessThan(path.bounds.maxX, kidRects.map(\.minX).min()!)
+        }
+    }
+
+    /// 点括号（尖端那截、竖干、上下弯钩）都要能选中所属的那个整体。
+    func testBraceMapBraceIsClickable() throws {
+        let (map, rootID, _) = makeBraceMap(branches: [
+            ("甲", ["一", "二", "三"]),
+            ("乙", ["四"]),
+        ])
+        let layout = LayoutEngine.layout(map)
+        let rootRect = try XCTUnwrap(layout.frames[rootID])
+        let branchID = try XCTUnwrap(layout.children[rootID]?.first)
+        let branchRect = try XCTUnwrap(layout.frames[branchID])
+        let leafRects = (layout.children[branchID] ?? []).compactMap { layout.frames[$0] }
+        let path = MapRenderer.braceConnectorPath(parentRect: branchRect, childRects: leafRects)
+
+        func hits(_ point: CGPoint) -> UUID? {
+            MapRenderer.connectorParent(at: point, map: map, layout: layout, tolerance: 2)
+        }
+
+        // 尖端那截：括号最左边，正对分支中线
+        XCTAssertEqual(hits(CGPoint(x: path.bounds.minX + 4, y: branchRect.midY)), branchID)
+        // 竖干：尖端与末端中间；垂直方向取最上面两个部分之间的空隙，
+        // 那里既不在弯钩上，也避开了正中间的尖端
+        let stemX = (path.bounds.minX + 12 + path.bounds.maxX) / 2
+        let stemY = (leafRects[0].maxY + leafRects[1].minY) / 2
+        XCTAssertEqual(hits(CGPoint(x: stemX, y: stemY)), branchID)
+        // 整体那根同样可点
+        XCTAssertEqual(hits(CGPoint(x: rootRect.maxX + 4, y: rootRect.midY)), rootID)
+    }
+
+    // MARK: - 拖动提示
+
+    /// 拖了半天没反应时要提示「⌥ 才能同级换序」，但只在该提示的时候提示。
+    func testDragReorderHintPolicy() {
+        // 括号图等布局：普通拖动落空 → 提示
+        for layout in [MapLayout.braceMap, .logicRight, .logicLeft, .orgChart, .tree, .timeline] {
+            XCTAssertTrue(
+                CanvasDragHint.shouldRemindSiblingReorder(
+                    layout: layout, optionHeld: false, selectionCount: 1, moved: true, didChange: false
+                ),
+                "\(layout.rawValue) 应该提示"
+            )
+        }
+
+        // 思维导图普通拖动本来就能换序；自由布局拖动就是移动 —— 都不提示
+        for layout in [MapLayout.mindMap, .free] {
+            XCTAssertFalse(
+                CanvasDragHint.shouldRemindSiblingReorder(
+                    layout: layout, optionHeld: false, selectionCount: 1, moved: true, didChange: false
+                ),
+                "\(layout.rawValue) 不该提示"
+            )
+        }
+
+        // 已经按着 ⌥：用户知道这个操作
+        XCTAssertFalse(
+            CanvasDragHint.shouldRemindSiblingReorder(
+                layout: .braceMap, optionHeld: true, selectionCount: 1, moved: true, didChange: false
+            )
+        )
+        // 结果真的变了：不需要解释
+        XCTAssertFalse(
+            CanvasDragHint.shouldRemindSiblingReorder(
+                layout: .braceMap, optionHeld: false, selectionCount: 1, moved: true, didChange: true
+            )
+        )
+        // 只是点了一下：没拖动
+        XCTAssertFalse(
+            CanvasDragHint.shouldRemindSiblingReorder(
+                layout: .braceMap, optionHeld: false, selectionCount: 1, moved: false, didChange: false
+            )
+        )
+        // 多选整组拖动：语义是批量移动，不是同级换序
+        XCTAssertFalse(
+            CanvasDragHint.shouldRemindSiblingReorder(
+                layout: .braceMap, optionHeld: false, selectionCount: 3, moved: true, didChange: false
+            )
+        )
+    }
+
+    /// 提示每次启动只弹一次，不会每次拖动都打扰。
+    func testDragReorderHintShowsOncePerLaunch() {
+        CanvasDragHint.resetReminderForTesting()
+        defer { CanvasDragHint.resetReminderForTesting() }
+        XCTAssertTrue(CanvasDragHint.consumeReminder())
+        XCTAssertFalse(CanvasDragHint.consumeReminder())
+        XCTAssertFalse(CanvasDragHint.consumeReminder())
+    }
+
 }
 
 private extension CGRect {

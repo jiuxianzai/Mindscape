@@ -117,7 +117,7 @@ enum LayoutEngine {
         case .logicLeft:
             layoutLogic(rootID: rootID, direction: -1, &ctx)
         case .braceMap:
-            layoutLogic(rootID: rootID, direction: 1, &ctx)
+            layoutBrace(rootID: rootID, &ctx)
         case .orgChart, .tree:
             layoutOrg(rootID: rootID, &ctx)
         case .timeline:
@@ -345,6 +345,77 @@ enum LayoutEngine {
                 placeLeft(id: kid, x: rootRect.minX - rootGap, centerY: center, &ctx)
             }
             top += height + vGap
+        }
+    }
+
+    // MARK: - Brace map
+
+    /// 括号图：整体在左，大括号把「部分」括起来，每一级都是同一套结构。
+    ///
+    /// 跟逻辑图的两点区别：
+    /// 1. 同一深度的节点左边缘对齐成一列——括号图看着整齐靠的就是这个；
+    ///    逻辑图按各自父节点的右边推，节点一宽一窄就会参差不齐。
+    /// 2. 父节点在自己这棵子树的高度范围内垂直居中，括号才能对称地罩住所有部分。
+    private static func layoutBrace(rootID: UUID, _ ctx: inout Context) {
+        var depths: [UUID: Int] = [rootID: 0]
+        var columnWidths: [CGFloat] = []
+        var queue: [UUID] = [rootID]
+        var guardCount = 0
+        while !queue.isEmpty, guardCount < 100_000 {
+            guardCount += 1
+            let current = queue.removeFirst()
+            let depth = depths[current] ?? 0
+            if columnWidths.count <= depth {
+                columnWidths.append(contentsOf: repeatElement(0, count: depth + 1 - columnWidths.count))
+            }
+            columnWidths[depth] = max(columnWidths[depth], ctx.size(current).width)
+            guard !ctx.isCollapsed(current) else { continue }
+            for kid in ctx.kids(current) where depths[kid] == nil {
+                depths[kid] = depth + 1
+                queue.append(kid)
+            }
+        }
+
+        var columnX: [CGFloat] = []
+        var cursor: CGFloat = 0
+        for width in columnWidths {
+            columnX.append(cursor)
+            cursor += width + hGap
+        }
+
+        let span = subtreeHeight(rootID, &ctx)
+        placeBrace(id: rootID, top: -span / 2, columnX: columnX, depths: depths, &ctx)
+    }
+
+    private static func placeBrace(
+        id: UUID,
+        top: CGFloat,
+        columnX: [CGFloat],
+        depths: [UUID: Int],
+        _ ctx: inout Context
+    ) {
+        // 已经摆过的节点不再进来：导入的损坏数据里可能有环，没有这道闸会无限递归
+        guard ctx.frames[id] == nil else { return }
+        let span = subtreeHeight(id, &ctx)
+        let size = ctx.size(id)
+        let depth = min(depths[id] ?? 0, max(columnX.count - 1, 0))
+        let rect = CGRect(
+            x: columnX.isEmpty ? 0 : columnX[depth],
+            y: top + (span - size.height) / 2,
+            width: size.width,
+            height: size.height
+        )
+        ctx.frames[id] = rect
+
+        let kids = ctx.kids(id)
+        guard !kids.isEmpty, !ctx.isCollapsed(id) else { return }
+
+        let heights = kids.map { subtreeHeight($0, &ctx) }
+        let total = heights.reduce(0, +) + vGap * CGFloat(kids.count - 1)
+        var childTop = top + (span - total) / 2
+        for (index, kid) in kids.enumerated() {
+            placeBrace(id: kid, top: childTop, columnX: columnX, depths: depths, &ctx)
+            childTop += heights[index] + vGap
         }
     }
 

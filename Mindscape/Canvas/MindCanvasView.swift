@@ -1371,6 +1371,7 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
         }
 
         guard let target, let editor else {
+            remindSiblingReorderIfNeeded(context: dragReminderContext(ids: ids, event: event))
             snapBack(from: visualStart)
             return
         }
@@ -1417,8 +1418,40 @@ final class MindCanvasView: NSView, NSTextViewDelegate, NSUserInterfaceValidatio
             endNodeDrag()
             animateFrames(from: visualStart, to: layoutResult?.frames ?? [:], duration: 0.24)
         } else {
+            remindSiblingReorderIfNeeded(context: dragReminderContext(ids: ids, event: event))
             snapBack(from: visualStart)
         }
+    }
+
+    private struct DragReminderContext {
+        var layout: MapLayout
+        var optionHeld: Bool
+        var selectionCount: Int
+        var moved: Bool
+    }
+
+    private func dragReminderContext(ids: Set<UUID>, event: NSEvent) -> DragReminderContext? {
+        guard let editor else { return nil }
+        let offset = dragOffset
+        return DragReminderContext(
+            layout: editor.map.layout,
+            optionHeld: event.modifierFlags.contains(.option),
+            selectionCount: ids.count,
+            moved: abs(offset.width) > 1 || abs(offset.height) > 1
+        )
+    }
+
+    /// 拖了半天什么都没变：提示同级换序要按住 ⌥，免得用户以为拖动坏了
+    private func remindSiblingReorderIfNeeded(context: DragReminderContext?) {
+        guard let context else { return }
+        guard CanvasDragHint.shouldRemindSiblingReorder(
+            layout: context.layout,
+            optionHeld: context.optionHeld,
+            selectionCount: context.selectionCount,
+            moved: context.moved,
+            didChange: false
+        ) else { return }
+        NotificationCenter.default.post(name: .mindscapeReorderHint, object: nil)
     }
 
     /// 思维导图布局的落点语义：
