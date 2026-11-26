@@ -14,9 +14,9 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-181-brightgreen?style=flat-square" alt="181 tests">
+  <img src="https://img.shields.io/badge/tests-192-brightgreen?style=flat-square" alt="192 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.7.2-lightgrey?style=flat-square" alt="Status 0.7.2">
+  <img src="https://img.shields.io/badge/status-0.7.3-lightgrey?style=flat-square" alt="Status 0.7.3">
 </p>
 
 <p align="center">
@@ -27,19 +27,19 @@
 
 Mindscape is a native macOS mind-mapping app built for people who want to think on a canvas and keep the result on their own disk. It opens straight into a canvas, saves continuously, and never asks you to sign in.
 
-**Current version: 0.7.2** — features and the data format may still change.
+**Current version: 0.7.3** — features and the data format may still change.
 
-### What's new in 0.7.2
+### What's new in 0.7.3
 
-- Settings → General has a new Language section: follow the system, Simplified Chinese, or English — pick one and click Reopen to apply. It writes only this app's `AppleLanguages`, never the system language
-- Around 190 missing English strings filled in: the AI Agent panel, the Menu Bar section, canvas tips, snapshot dialogs, empty states, icon names — the English UI is no longer half Chinese
-- Trash now has Empty Trash…: wipe every deleted map in one go, with a confirmation that shows the count; the list and sidebar badge update immediately
+- Brace map rebuilt around real curly braces: one brace leaves the whole with its tip pointing at it, its two hooks land on the first and last part, and every part in between sits inside the brace. Each level gets its own brace (fixes [#4](https://github.com/jiuxianzai/Mindscape/issues/4))
+- Brace maps align by depth: nodes on the same level share a left edge, and each parent is vertically centred on its own subtree
+- A hint for drags that do nothing: in brace map, logic chart, org chart, tree and timeline, a plain drag that changes nothing now shows a tip at the bottom of the canvas — hold Option and drop on a sibling to reorder. Once per launch.
 
 ---
 
 ## Screenshots
 
-All screenshots and GIFs are from **0.7.2** (sample data), captured on a real macOS VM.
+All screenshots and GIFs are from **0.7.3** (sample data), captured on a real macOS VM.
 
 <p align="center">
   <img src="docs/screenshots/main.png" width="100%" alt="Main window: folders, canvas and a 27-node roadmap">
@@ -51,6 +51,10 @@ All screenshots and GIFs are from **0.7.2** (sample data), captured on a real ma
 
 <p align="center">
   <img src="docs/gifs/layouts.gif" width="100%" alt="Switching layouts: mind map → logic chart → org chart → timeline → brace map">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/brace.png" width="100%" alt="Brace map: one large brace brackets the whole with its parts, every level aligned in columns">
 </p>
 
 <p align="center">
@@ -121,7 +125,7 @@ All screenshots and GIFs are from **0.7.2** (sample data), captured on a real ma
 
 ### Layouts & themes
 
-- 8 layouts: mind map (remembered sides by default, or balanced both sides), logic chart (right/left), org chart, tree, timeline, brace map, free-form with alignment guides and snapping
+- 8 layouts: mind map (remembered sides by default, or balanced both sides), logic chart (right/left), org chart, tree, timeline, brace map (one large brace brackets the whole with its parts, each level left-aligned in a column; hold ⌥ and drop on a sibling to reorder), free-form with alignment guides and snapping
 - 8 themes: Paper, Midnight, Morandi, Corporate, Blueprint, Neon, Sand, Ink
 - Each map remembers a light and a dark theme separately; light mode lists light themes, dark mode lists dark themes, defaulting to Paper / Midnight
 
@@ -167,7 +171,7 @@ Always-available menu bar item: open the app, quick new map, new from template, 
 
 ### Download
 
-Download [`Mindscape-0.7.2.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.7.2/Mindscape-0.7.2.dmg), open it, and drag Mindscape into Applications.
+Download [`Mindscape-0.7.3.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.7.3/Mindscape-0.7.3.dmg), open it, and drag Mindscape into Applications.
 
 This build is **ad-hoc signed and not notarized**. If Gatekeeper blocks the first launch, run:
 
@@ -192,7 +196,7 @@ xcodegen generate && open Mindscape.xcodeproj
 Packaging and local install:
 
 ```bash
-make package    # writes dist/Mindscape-0.7.2.dmg, .zip, and .dmg.sha256
+make package    # writes dist/Mindscape-0.7.3.dmg, .zip, and .dmg.sha256
 make publish    # creates the GitHub Release via gh (requires gh auth login)
 make install    # installs to /Applications and launches
 ```
@@ -299,7 +303,7 @@ Tables: `documents` (metadata + full map JSON + folder), `folders`, `snapshots` 
 | Icons | SF Symbols (102 symbols) |
 | Storage | System `libsqlite3`, WAL mode |
 | Project | XcodeGen (`project.yml`) |
-| Tests | XCTest, 181 cases including canvas interaction and render regressions |
+| Tests | XCTest, 192 cases including canvas interaction and render regressions |
 | Minimum OS | macOS 14 |
 | Architecture | Universal (arm64 + x86_64) |
 | Third-party dependencies | None |

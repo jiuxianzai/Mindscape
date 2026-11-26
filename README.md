@@ -14,9 +14,9 @@
   <img src="https://img.shields.io/badge/Swift-5-orange?style=flat-square" alt="Swift 5">
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen?style=flat-square" alt="No dependencies">
   <img src="https://img.shields.io/badge/data-local-blue?style=flat-square" alt="Local only">
-  <img src="https://img.shields.io/badge/tests-181-brightgreen?style=flat-square" alt="181 tests">
+  <img src="https://img.shields.io/badge/tests-192-brightgreen?style=flat-square" alt="192 tests">
   <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License">
-  <img src="https://img.shields.io/badge/status-0.7.2-lightgrey?style=flat-square" alt="Status 0.7.2">
+  <img src="https://img.shields.io/badge/status-0.7.3-lightgrey?style=flat-square" alt="Status 0.7.3">
 </p>
 
 <p align="center">
@@ -27,19 +27,19 @@
 
 Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据全部保存在本机。它没有登录、没有云同步、不依赖任何第三方库；默认不联网，只有手动检查更新或在设置里开启自动检查时才会访问 GitHub。
 
-当前版本：**0.7.2**（功能和数据结构仍可能调整）
+当前版本：**0.7.3**（功能和数据结构仍可能调整）
 
-### 0.7.2 新增
+### 0.7.3 新增
 
-- 设置 → 通用新增「语言」：可选「跟随系统 / 简体中文 / English」，选完点「重新打开」即生效；只写本 App 的 `AppleLanguages`，不改系统语言
-- 英文文案补齐约 190 条：AI Agent 面板、设置里的「菜单栏」分组、画布操作提示、历史快照、空状态、图标名等，英文界面不再夹生中文
-- 回收站新增「清空回收站…」：一键彻底删除全部已删除导图，带二次确认与数量提示；清空后列表、侧栏计数同步更新
+- 括号图重做成真正的大括号：一个大括号从「整体」出发，尖端指向整体，上下两端弯钩落在首尾两个部分上，中间的部分全部落在括号范围内；每一级都有自己的括号（修好 [#4](https://github.com/jiuxianzai/Mindscape/issues/4)）
+- 括号图按深度分列：同一层级的节点左边缘对齐成一列，父节点在自己这棵子树内垂直居中
+- 拖动落空时的提示：括号图、逻辑图、组织架构、树形、时间轴里普通拖动没改变任何东西时，底部提示「调整同级顺序：按住 ⌥ 拖到同级节点上」，每次启动只提示一次
 
 ---
 
 ## 截图
 
-截图和 GIF 全部来自 **0.7.2**（示例数据），在 macOS 虚拟机里实拍。
+截图和 GIF 全部来自 **0.7.3**（示例数据），在 macOS 虚拟机里实拍。
 
 <p align="center">
   <img src="docs/screenshots/main.png" width="100%" alt="主界面：目录、画布与 27 个节点的路线图">
@@ -51,6 +51,10 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 <p align="center">
   <img src="docs/gifs/layouts.gif" width="100%" alt="切换布局：思维导图 → 逻辑图 → 组织架构图 → 时间轴 → 括号图">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/brace.png" width="100%" alt="括号图：一个大括号把「整体」和它的「部分」括起来，同一层级按列对齐">
 </p>
 
 <p align="center">
@@ -138,7 +142,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 - 组织架构图
 - 树形图
 - 时间轴
-- 括号图
+- 括号图（大括号从「整体」展开，尖端指向整体；同一层级左边缘对齐成一列。同级换序需按住 ⌥ 拖到同级节点上，普通拖到空白会弹回并提示）
 - 自由布局（拖动时显示对齐辅助线，自动吸附）
 
 ### 主题（8 套）
@@ -253,7 +257,7 @@ Mindscape 是一个纯本地的 macOS 思维导图应用：打开即画，数据
 
 ### 下载
 
-**下载**：[`Mindscape-0.7.2.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.7.2/Mindscape-0.7.2.dmg)，打开后把 Mindscape 拖进 Applications。
+**下载**：[`Mindscape-0.7.3.dmg`](https://github.com/jiuxianzai/Mindscape/releases/download/v0.7.3/Mindscape-0.7.3.dmg)，打开后把 Mindscape 拖进 Applications。
 
 当前构建为 **ad-hoc 签名**，没有 notarization。首次打开如果被 Gatekeeper 拦下：
 
@@ -281,7 +285,7 @@ open Mindscape.xcodeproj
 打包与本地安装：
 
 ```bash
-make package    # 生成 dist/Mindscape-0.7.2.dmg、.zip 和 .dmg.sha256
+make package    # 生成 dist/Mindscape-0.7.3.dmg、.zip 和 .dmg.sha256
 make publish    # 用 gh 创建 GitHub Release（需已 gh auth login）
 make install    # 安装到 /Applications 并启动
 ```
@@ -400,7 +404,7 @@ Agent 也可以直接访问 `http://127.0.0.1:47821/openapi.json`（实际端口
 | 图标 | SF Symbols |
 | 数据 | 系统 `libsqlite3`，WAL 模式 |
 | 工程 | XcodeGen（`project.yml`） |
-| 测试 | XCTest（181 个用例，含画布交互与渲染回归） |
+| 测试 | XCTest（192 个用例，含画布交互与渲染回归） |
 | 最低系统 | macOS 14 |
 | 架构 | Universal（arm64 + x86_64） |
 | 第三方依赖 | 无 |
